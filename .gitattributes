@@ -1,7 +1,31 @@
-*.uasset filter=lfs diff=lfs merge=lfs -text
-*.umap  filter=lfs diff=lfs merge=lfs -text
 *.png   filter=lfs diff=lfs merge=lfs -text
 *.jpg   filter=lfs diff=lfs merge=lfs -text
 *.jpeg  filter=lfs diff=lfs merge=lfs -text
 *.tga   filter=lfs diff=lfs merge=lfs -text
 *.exr   filter=lfs diff=lfs merge=lfs -text
+
+# Unreal Engine binary assets
+*.uasset filter=lfs diff=lfs merge=lfs -text
+*.umap filter=lfs diff=lfs merge=lfs -text
+*.fbx filter=lfs diff=lfs merge=lfs -text
+
+# Audio assets
+*.wav filter=lfs diff=lfs merge=lfs -text
+*.mp3 filter=lfs diff=lfs merge=lfs -text
+*.ogg filter=lfs diff=lfs merge=lfs -text
+*.flac filter=lfs diff=lfs merge=lfs -text
+
+# Source art / authoring files
+*.psd filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+
+# Optional: only if your project actually uses these
+*.bank filter=lfs diff=lfs merge=lfs -text
+*.bk2 filter=lfs diff=lfs merge=lfs -text
+*.3ds filter=lfs diff=lfs merge=lfs -text
+*.xcf filter=lfs diff=lfs merge=lfs -text
+
+# 참고
+# PNG/JPG는 기본 LFS 대상이 아닙니다. 일반 이미지 파일까지 전부 LFS에 넣으면
+# 용량과 대역폭을 빠르게 소모할 수 있습니다. 큰 원본 소스 아트만 팀 규칙에 따라 선별하세요.
+# .exe, .dll, .vcxproj 같은 빌드 산출물/생성 파일은 보통 LFS가 아니라 .gitignore 대상입니다.
