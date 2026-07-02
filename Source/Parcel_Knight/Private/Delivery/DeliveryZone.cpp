@@ -68,12 +68,12 @@ void ADeliveryZone::ProcessDelivery(AActor* InBox)
 
 	if (bIsCorrectZone)
 	{
-		UE_LOG(LogDelivery, Log, TEXT("[Server] Success: Delivered to the correct zone! Score +%d"), ScoreChange);
+		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] Success: Delivered to the correct zone! Score +%d"), ScoreChange);
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Delivered")));
 	}
 	else
 	{
-		UE_LOG(LogDelivery, Warning, TEXT("[Server] Fail: Delivered to the wrong zone! Penalty %d"), ScoreChange);
+		DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] Fail: Delivered to the wrong zone! Penalty %d"), ScoreChange);
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Failed")));
 	}
 

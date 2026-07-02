@@ -12,7 +12,7 @@ void UPhysicsJudgeManager::EvaluateImpact(ADeliveryBox* Box, float ImpactForce)
 	{
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
 		
-		UE_LOG(LogDelivery, Warning, TEXT("[Server] Box ID %d was damaged by impact force of %f (Threshold: %f)!"), 
+		DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] Box ID %d was damaged by impact force of %f (Threshold: %f)!"), 
 			Box->GetBoxID(), ImpactForce, DamageThreshold);
 	}
 }
@@ -26,10 +26,10 @@ void UPhysicsJudgeManager::EvaluateTrapImpact(ADeliveryBox* Box, float TrapImpac
 	if (TrapImpactForce >= DamageThreshold)
 	{
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
-		UE_LOG(LogDelivery, Warning, TEXT("[Server] Box ID %d was damaged by Trap Impact Force of %f (Threshold: %f)!"), Box->GetBoxID(), TrapImpactForce, DamageThreshold);
+		DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] Box ID %d was damaged by Trap Impact Force of %f (Threshold: %f)!"), Box->GetBoxID(), TrapImpactForce, DamageThreshold);
 	}
 	else
 	{
-		UE_LOG(LogDelivery, Log, TEXT("[Server] Box ID %d hit by Trap but force %f was below threshold %f."), Box->GetBoxID(), TrapImpactForce, DamageThreshold);
+		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] Box ID %d hit by Trap but force %f was below threshold %f."), Box->GetBoxID(), TrapImpactForce, DamageThreshold);
 	}
 }
