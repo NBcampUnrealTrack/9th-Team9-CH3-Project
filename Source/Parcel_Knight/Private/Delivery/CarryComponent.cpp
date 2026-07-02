@@ -1,14 +1,20 @@
 #include "Delivery/CarryComponent.h"
-#include "Components/ActorComponent.h" 
-#include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Delivery/DeliveryBox.h"
-#include "Delivery/Carryable.h"
+#include "Net/UnrealNetwork.h"
 
 UCarryComponent::UCarryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	CurrentCarryingBox = nullptr;
+	SetIsReplicatedByDefault(true); // 복제 활성화
+	bIsCarried = false;
+	CarrierActor = nullptr;
+}
+
+void UCarryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCarryComponent, bIsCarried);
+	DOREPLIFETIME(UCarryComponent, CarrierActor);
 }
 
 void UCarryComponent::BeginPlay()
@@ -16,52 +22,27 @@ void UCarryComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
-void UCarryComponent::PickUpBox(AActor* InBox)
+bool UCarryComponent::CanCarry(AActor* Carrier) const
 {
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (!OwnerCharacter || !InBox) return;
+	ADeliveryBox* OwnerBox = Cast<ADeliveryBox>(GetOwner());
+	if (!OwnerBox) return false;
 
-	CurrentCarryingBox = InBox;
-
-	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
-	InBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, TEXT("HandSocket"));
-
-	if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-	{
-		if (ADeliveryBox* Box = Cast<ADeliveryBox>(InBox))
-		{
-			Movement->MaxWalkSpeed = 600.f * Box->GetBoxData().MoveSpeedMultiplier;
-		}
-	}
+	// 상자가 들려있지 않고 스폰된 상태일 때만 집기 가능
+	return !bIsCarried && OwnerBox->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 }
 
-void UCarryComponent::DropBox()
+void UCarryComponent::OnPickedUp(AActor* Carrier)
 {
-	if (!CurrentCarryingBox) return;
+	if (!GetOwner()->HasAuthority()) return;
 
-	if (GetOwner()->HasAuthority())
-	{
-		if (ICarryable* Carryable = Cast<ICarryable>(CurrentCarryingBox))
-		{
-			Carryable->OnDropped();
-		}
-	}
-
-	CurrentCarryingBox->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (OwnerCharacter)
-	{
-		if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-		{
-			Movement->MaxWalkSpeed = 600.f; // 원상복구
-		}
-	}
-
-	CurrentCarryingBox = nullptr;
+	bIsCarried = true;
+	CarrierActor = Carrier;
 }
 
-void UCarryComponent::ForceDropByTrap(float TrapDamage)
+void UCarryComponent::OnDropped()
 {
-	DropBox();
+	if (!GetOwner()->HasAuthority()) return;
+
+	bIsCarried = false;
+	CarrierActor = nullptr;
 }

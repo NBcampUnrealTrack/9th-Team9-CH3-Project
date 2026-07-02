@@ -23,6 +23,8 @@ class UInputAction;
 class UInputComponent;
 class UInputMappingContext;
 class USpringArmComponent;
+class UCharacterCarryComponent;
+class UInteractionComponent;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
 // 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원
@@ -68,6 +70,14 @@ protected:
 	// 래그돌 시작/종료와 상태 복제를 담당하는 커스텀 컴포넌트.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	URagdollComponent* RagdollComp;
+
+	// 배송 상자 운반 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component", meta = (AllowPrivateAccess = "true"))
+	UCharacterCarryComponent* CarryComp;
+
+	// 시선 상호작용 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component", meta = (AllowPrivateAccess = "true"))
+	UInteractionComponent* InteractionComp;
 
 	// 이 캐릭터가 사용할 Enhanced Input Mapping Context입니다.
 	// 블루프린트나 에디터에서 지정합니다.
