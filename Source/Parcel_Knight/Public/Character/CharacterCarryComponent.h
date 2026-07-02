@@ -22,7 +22,6 @@ protected:
 	virtual void BeginPlay() override;
 
 public:	
-	// 다이어그램 스펙 맞춤 함수들
 	UFUNCTION(BlueprintCallable, Category = "Carry")
 	void Pickup(ADeliveryBox* InBox);
 
@@ -35,7 +34,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Carry")
 	void ForceDropByTrap(float TrapDamage);
 
-	// Getter
 	UFUNCTION(BlueprintPure, Category = "Carry")
 	FORCEINLINE bool IsCarrying() const { return bIsCarrying; }
 
@@ -43,7 +41,6 @@ public:
 	FORCEINLINE ADeliveryBox* GetCarriedBox() const { return CarriedBox; }
 
 protected:
-	// 던지기 처리를 위한 서버 RPC (클라이언트가 던졌을 때 서버에서 물리 적용)
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_Throw(FVector Force);
 
@@ -56,4 +53,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
 	float MoveSpeedMultiplier;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
+	float DefaultMaxWalkSpeed;
 };
