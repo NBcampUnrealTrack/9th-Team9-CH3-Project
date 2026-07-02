@@ -22,6 +22,7 @@ class URagdollComponent;
 class UInputAction;
 class UInputComponent;
 class UInputMappingContext;
+class UDFStatusEffectComponent;
 class USpringArmComponent;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
@@ -68,6 +69,9 @@ protected:
 	// 래그돌 시작/종료와 상태 복제를 담당하는 커스텀 컴포넌트.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	URagdollComponent* RagdollComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+	TObjectPtr<UDFStatusEffectComponent> StatusEffectComp;
 
 	// 이 캐릭터가 사용할 Enhanced Input Mapping Context입니다.
 	// 블루프린트나 에디터에서 지정합니다.

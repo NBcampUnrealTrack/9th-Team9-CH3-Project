@@ -3,6 +3,7 @@
 
 // 래그돌 상태 전환과 복제를 담당하는 컴포넌트
 #include "Character/RagdollComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 
 // 카메라 컴포넌트를 생성하고 설정하기 위해 필요함
 #include "Camera/CameraComponent.h"
@@ -114,6 +115,7 @@ AParcelCharacter::AParcelCharacter()
 
 	// 래그돌 상태 전환과 복제를 담당하는 컴포넌트를 생성
 	RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
+	StatusEffectComp = CreateDefaultSubobject<UDFStatusEffectComponent>(TEXT("StatusEffectComp"));
 }
 
 void AParcelCharacter::BeginPlay()
