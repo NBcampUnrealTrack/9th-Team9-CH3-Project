@@ -4,13 +4,12 @@
 #include "Delivery/PhysicsJudgeManager.h"
 #include "Net/UnrealNetwork.h"
 
-DEFINE_LOG_CATEGORY(LogDelivery);
+DEFINE_LOG_CATEGORY(LogParcelDelivery);
 
 ADeliveryBox::ADeliveryBox()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
-	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
 
 	// 박스 콜리전 생성 >> 물리 바디 콜리전 세팅 >> Mesh 부착 후 자체 물리 Off
 	CollisionComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionComponent"));
@@ -30,6 +29,8 @@ ADeliveryBox::ADeliveryBox()
 
 void ADeliveryBox::BeginPlay()
 {
+	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
+	
 	Super::BeginPlay();
 	
 	if (HasAuthority() && CollisionComponent)
@@ -64,8 +65,8 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 	// Spawned 태그 부여
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 	
-	UE_LOG(LogDelivery, Log, TEXT("[Server] Box %d (Type: %s) Initialized and spawned successfully."), 
-		BoxID, *BoxData.BoxTypeTag.ToString());
+	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] 상자 고유ID %d번 초기화 완료. 타입 태그: %s, 설정 무게: %f kg"), 
+		BoxID, *BoxData.BoxTypeTag.ToString(), BoxData.Weight);
 }
 
 void ADeliveryBox::OnRep_BoxData()
@@ -76,7 +77,7 @@ void ADeliveryBox::OnRep_BoxData()
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
 	}
 	
-	UE_LOG(LogDelivery, Display, TEXT("[Client] Received updated BoxStateTags for Box %d. Tags: %s"), 
+	DELIVERY_LOG(LogParcelDelivery, Display, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 표시 이름: %s"), 
 		BoxID, *BoxStateTags.ToString());
 }
 
@@ -88,6 +89,14 @@ void ADeliveryBox::AddStateTag(FGameplayTag NewStateTag)
 	{
 		BoxStateTags.AddTag(NewStateTag);
 		
+		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자에 새로운 상태 태그 추가됨: %s"), BoxID, *NewStateTag.ToString());
+       
+		if (NewStateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
+		{
+			CollisionComponent->SetSimulatePhysics(false);
+			CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	
 		//플레이어가 상자를 들면 상자의 물리 규칙은 잠시 꺼야 함.
 		if (NewStateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
 		{
@@ -105,6 +114,8 @@ void ADeliveryBox::RemoveStateTag(FGameplayTag StateTag)
 	{
 		BoxStateTags.RemoveTag(StateTag);
         
+		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자에서 상태 태그 제거됨: %s"), BoxID, *StateTag.ToString());
+		
 		// 상태가 제거될 때의 예외 복구 로직
 		if (StateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
 		{
@@ -114,17 +125,15 @@ void ADeliveryBox::RemoveStateTag(FGameplayTag StateTag)
 	}
 }
 
-bool ADeliveryBox::HasStateTag(FGameplayTag StateTag) const
-{
-	return BoxStateTags.HasTag(StateTag);
-}
-
 void ADeliveryBox::OnRep_BoxStateTags()
 {
 	// [Client] 시각/청각 연출 분기점
 	FGameplayTag HeldTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"));
 	FGameplayTag DamagedTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged"));
 
+	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Client] %d번 상자의 상태 태그 컨테이너 갱신됨. 현재 태그 목록: %s"), 
+	   BoxID, *BoxStateTags.ToString());
+	
 	if (BoxStateTags.HasTag(HeldTag))
 	{
 		CollisionComponent->SetSimulatePhysics(false);
@@ -156,11 +165,13 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
 {
 	if (!HasAuthority() || !Carrier) return;
 	
-	APawn* CarrierPawn = Cast<APawn>(Carrier);
-	if (CarrierPawn)
+	if (APawn* CarrierPawn = Cast<APawn>(Carrier))
 	{
 		HolderPlayer = Cast<APlayerController>(CarrierPawn->GetController());
 		SetOwner(CarrierPawn); // 리슨 서버 소유권(Owner) 변경
+		
+		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 플레이어: %s"), 
+		  BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("알 수 없음"));
 	}
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
@@ -171,6 +182,9 @@ void ADeliveryBox::OnDropped()
 {
 	if (!HasAuthority()) return;
 
+	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 낙하 처리 시작. 기존 소유 플레이어: %s"), 
+	   BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("없음"));
+	
 	HolderPlayer = nullptr;
 	SetOwner(nullptr); // 소유권 월드로 반환
 
@@ -178,7 +192,7 @@ void ADeliveryBox::OnDropped()
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 }
 
-void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FVector NormalImpulse, const FHitResult& Hit)
 {
 	if (!HasAuthority()) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")))) return;
@@ -187,8 +201,8 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	float ImpactForce = NormalImpulse.Size();
 	if (ImpactForce < 100.0f) return;
 	
-	UE_LOG(LogDelivery, Warning, TEXT("[Server] Box %d Collision Detected! Counterpart: %s, Impact Force: %f"), 
-		BoxID, OtherActor ? *OtherActor->GetName() : TEXT("None"), ImpactForce);
+	DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] %d번 상자 물리 충돌 발생. 충돌 대상: %s, 검출된 충격량 수치: %f (파손 임계값: %f)"), 
+		BoxID, OtherActor ? *OtherActor->GetName() : TEXT("None"), ImpactForce, BoxData.DamageThreshold);
 
 	if (UWorld* World = GetWorld())
 	{

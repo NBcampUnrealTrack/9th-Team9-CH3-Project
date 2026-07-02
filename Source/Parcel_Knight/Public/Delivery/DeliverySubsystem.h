@@ -2,7 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "GameplayTagContainer.h"
 #include "DeliverySubsystem.generated.h"
+
+class UDataTable;
+class UStageData;
 
 UCLASS()
 class PARCEL_KNIGHT_API UDeliverySubsystem : public UWorldSubsystem
@@ -15,17 +19,25 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-
-	AActor* SpawnBox(FName BoxTypeID, FVector SpawnLocation, FRotator SpawnRotation);
+	void InitializeStage(UStageData* InStageData);
+	
+	UFUNCTION(BlueprintCallable, Category = "Delivery")
+	AActor* SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocation, FRotator SpawnRotation);
 
 	void DespawnBox(AActor* Box);
-
 	int32 GenerateBoxID();
 
-private:
+	FORCEINLINE UStageData* GetCurrentStageData() const { return CurrentStageData; }
 
+private:
 	UPROPERTY()
 	TArray<AActor*> ActiveBoxes;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Delivery")
+	TObjectPtr<UDataTable> BoxDataTable;
+
+	UPROPERTY()
+	TObjectPtr<UStageData> CurrentStageData;
 
 	int32 NextBoxID;
 };
