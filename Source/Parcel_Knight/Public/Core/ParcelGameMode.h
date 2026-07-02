@@ -11,6 +11,7 @@ class AParcelPlayerState;
 class AParcelCharacter;
 class UDeliveryRuleComponent;
 class AParcelGameState;
+class UStageData;
 
 /**
  * 게임 룰을 관리하는 GameMode
@@ -29,7 +30,7 @@ public:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 
-	void StartRound();
+	void StartRound(UStageData* InStageData);
 	void EndRound();
 
 protected:
@@ -38,7 +39,8 @@ protected:
 
 private:
 	UPROPERTY()
-	UDeliveryRuleComponent* DeliveryRuleComp;
+	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
+	
 	
 	
 };
