@@ -15,6 +15,7 @@ UCharacterCarryComponent::UCharacterCarryComponent()
 	CarriedBox = nullptr;
 	bIsCarrying = false;
 	MoveSpeedMultiplier = 1.0f;
+	// TODO: 캐릭터 무브먼트 컴포넌트의 MaxWalkSpeed 값을 동적으로 다시 가져옴
 	DefaultMaxWalkSpeed = 450.f;
 }
 
