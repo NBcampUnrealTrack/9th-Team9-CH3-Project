@@ -4,7 +4,7 @@
 ## 최초 실행
 cmd에 입력
 ```bash
-git clone https://github.com/hunlung/CTN.git
+git clone https://github.com/NBcampUnrealTrack/9th-Team9-CH3-Project.git
 ```
 
 ## 브랜치 설명
