@@ -30,7 +30,7 @@ public:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 
-	void StartRound();
+	void StartRound(UStageData* InStageData);
 	void EndRound();
 
 protected:
@@ -40,9 +40,7 @@ protected:
 private:
 	UPROPERTY()
 	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
-	//스테이지데이터를 받아서 설정
-	UPROPERTY(EditDefaultsOnly, Category = "Stage")
-	TObjectPtr<UStageData> CurrentStageData;
+	
 	
 	
 };

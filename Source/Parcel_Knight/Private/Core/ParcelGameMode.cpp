@@ -42,10 +42,10 @@ void AParcelGameMode::HandleMatchHasEnded()
 	EndRound();
 }
 
-void AParcelGameMode::StartRound()
+void AParcelGameMode::StartRound(UStageData* InStageData)
 {
-	if (!CurrentStageData) return;
-	DeliveryRuleComp->StartRound(CurrentStageData->TimeLimit);
+	if (!InStageData) return;
+	DeliveryRuleComp->StartRound(InStageData->TimeLimit);
 }
 
 void AParcelGameMode::EndRound()
