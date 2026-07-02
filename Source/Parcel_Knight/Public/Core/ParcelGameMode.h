@@ -11,6 +11,7 @@ class AParcelPlayerState;
 class AParcelCharacter;
 class UDeliveryRuleComponent;
 class AParcelGameState;
+class UStageData;
 
 /**
  * 게임 룰을 관리하는 GameMode
@@ -38,7 +39,10 @@ protected:
 
 private:
 	UPROPERTY()
-	UDeliveryRuleComponent* DeliveryRuleComp;
+	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
+	//스테이지데이터를 받아서 설정
+	UPROPERTY(EditDefaultsOnly, Category = "Stage")
+	TObjectPtr<UStageData> CurrentStageData;
 	
 	
 };

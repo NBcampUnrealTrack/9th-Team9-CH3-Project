@@ -42,9 +42,11 @@ int32 UPlayerStatComponent::GetSuccessCount() const
 
 void UPlayerStatComponent::AddScore(int32 Amount)
 {
+	float comboscore = 1.0f;
+	//최대 10회까지 콤보 보너스 축적 가능, 스코어 배율 1x ~ 2x
+	comboscore += FMath::Clamp(ComboCount*0.1, 0,1); 
 	if (!GetOwner()->HasAuthority()) return;
-	PersonalScore += Amount;
-	//TODO: 차후 콤보 관련한 배수 혹은 추가 점수 로직 필요
+	PersonalScore += Amount * comboscore;
 }
 
 void UPlayerStatComponent::OnDeliverySuccess()
