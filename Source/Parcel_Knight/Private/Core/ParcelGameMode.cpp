@@ -33,7 +33,6 @@ void AParcelGameMode::Logout(AController* Exiting)
 void AParcelGameMode::HandleMatchHasStarted()
 {
 	Super::HandleMatchHasStarted();
-	StartRound();
 }
 
 void AParcelGameMode::HandleMatchHasEnded()
