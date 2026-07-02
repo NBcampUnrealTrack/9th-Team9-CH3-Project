@@ -13,6 +13,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogParcelDelivery, Log, All);
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class UCarryComponent;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryable
@@ -70,6 +71,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> BoxMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCarryComponent> CarryComponent;
 	
 	
 	

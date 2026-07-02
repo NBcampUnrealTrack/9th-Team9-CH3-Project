@@ -1,6 +1,7 @@
 #include "Delivery/InteractionComponent.h"
 #include "Delivery/Carryable.h"
-#include "Delivery/CarryComponent.h"
+#include "Character/CharacterCarryComponent.h"
+#include "Delivery/DeliveryBox.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "CollisionQueryParams.h"
@@ -71,9 +72,12 @@ void UInteractionComponent::PrimaryInteract()
 		{
 			CarryableTarget->OnPickedUp(OwnerCharacter);
 
-			if (UCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCarryComponent>())
+			if (UCharacterCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCharacterCarryComponent>())
 			{
-				CarryComp->PickUpBox(CurrentFocusedActor);
+				if (ADeliveryBox* Box = Cast<ADeliveryBox>(CurrentFocusedActor))
+				{
+					CarryComp->Pickup(Box);
+				}
 			}
 		}
 		else
@@ -105,9 +109,12 @@ void UInteractionComponent::Server_RequestPrimaryInteract_Implementation(AActor*
 	{
 		CarryableTarget->OnPickedUp(OwnerCharacter);
 
-		if (UCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCarryComponent>())
+		if (UCharacterCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCharacterCarryComponent>())
 		{
-			CarryComp->PickUpBox(TargetActor);
+			if (ADeliveryBox* Box = Cast<ADeliveryBox>(TargetActor))
+			{
+				CarryComp->Pickup(Box);
+			}
 		}
 	}
 }

@@ -2,6 +2,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Delivery/PhysicsJudgeManager.h"
+#include "Delivery/CarryComponent.h"
 #include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogParcelDelivery);
@@ -23,6 +24,9 @@ ADeliveryBox::ADeliveryBox()
 	BoxMesh->SetupAttachment(RootComponent);
 	BoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BoxMesh->SetSimulatePhysics(false);
+
+	// 상자의 들리는 기능을 정의하는 CarryComponent 생성
+	CarryComponent = CreateDefaultSubobject<UCarryComponent>(TEXT("CarryComponent"));
 	
 	BoxID = -1;
 }
@@ -157,6 +161,10 @@ void ADeliveryBox::OnRep_BoxStateTags()
 
 bool ADeliveryBox::CanCarry(AActor* Carrier)
 {
+	if (CarryComponent)
+	{
+		return CarryComponent->CanCarry(Carrier);
+	}
 	// 월드에 생성되어 놓여있으면 집기 가능 허용 (여러 상태 이상일 때 못집게 할 수 있음)
 	return BoxStateTags.HasTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 }
@@ -164,6 +172,11 @@ bool ADeliveryBox::CanCarry(AActor* Carrier)
 void ADeliveryBox::OnPickedUp(AActor* Carrier)
 {
 	if (!HasAuthority() || !Carrier) return;
+	
+	if (CarryComponent)
+	{
+		CarryComponent->OnPickedUp(Carrier);
+	}
 	
 	if (APawn* CarrierPawn = Cast<APawn>(Carrier))
 	{
@@ -181,6 +194,11 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
 void ADeliveryBox::OnDropped()
 {
 	if (!HasAuthority()) return;
+
+	if (CarryComponent)
+	{
+		CarryComponent->OnDropped();
+	}
 
 	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 낙하 처리 시작. 기존 소유 플레이어: %s"), 
 	   BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("없음"));
