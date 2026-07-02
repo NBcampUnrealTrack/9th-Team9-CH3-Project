@@ -43,4 +43,8 @@ struct FBoxData : public FTableRowBase
 	// 택배 상자의 외형 에셋
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delivery Box Data")
 	TObjectPtr<UStaticMesh> BoxMeshAsset;
+	
+	// 이 택배 상자가 정상 배송되어야 하는 목적지 구역 태그
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delivery Box Data")
+	FGameplayTag TargetZoneTag;
 };

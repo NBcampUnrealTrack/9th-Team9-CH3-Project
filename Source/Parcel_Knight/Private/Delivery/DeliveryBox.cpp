@@ -10,7 +10,6 @@ ADeliveryBox::ADeliveryBox()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
-	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
 
 	// 박스 콜리전 생성 >> 물리 바디 콜리전 세팅 >> Mesh 부착 후 자체 물리 Off
 	CollisionComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionComponent"));
@@ -30,6 +29,8 @@ ADeliveryBox::ADeliveryBox()
 
 void ADeliveryBox::BeginPlay()
 {
+	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
+	
 	Super::BeginPlay();
 	
 	if (HasAuthority() && CollisionComponent)
