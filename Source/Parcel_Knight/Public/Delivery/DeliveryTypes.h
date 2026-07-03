@@ -47,4 +47,8 @@ struct FBoxData : public FTableRowBase
 	// 이 택배 상자가 정상 배송되어야 하는 목적지 구역 태그
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delivery Box Data")
 	FGameplayTag TargetZoneTag;
+
+	// 스폰할 상자 액터 클래스 (비어있으면 기본 ADeliveryBox 사용)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delivery Box Data")
+	TSubclassOf<class ADeliveryBox> BoxClass;
 };

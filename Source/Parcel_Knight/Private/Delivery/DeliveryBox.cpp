@@ -3,6 +3,7 @@
 #include "Components/BoxComponent.h"
 #include "Delivery/PhysicsJudgeManager.h"
 #include "Character/CharacterCarryComponent.h"
+#include "Core/ParcelPlayerState.h"
 #include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogParcelDelivery);
@@ -153,7 +154,7 @@ void ADeliveryBox::OnRep_BoxStateTags()
 }
 
 /* ==========================================================================
-   ICarryable 인터페이스
+   ICarryableInterface 인터페이스
    ========================================================================== */
 
 bool ADeliveryBox::CanCarry(AActor* Carrier)
@@ -170,6 +171,11 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
 		HolderPlayer = Cast<APlayerController>(CarrierPawn->GetController());
 		SetOwner(CarrierPawn);
        
+		if (HolderPlayer)
+		{
+			LastCarrierPlayerState = HolderPlayer->GetPlayerState<AParcelPlayerState>();
+		}
+
 		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 플레이어: %s"), 
 		  BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("알 수 없음"));
 	}
@@ -213,22 +219,22 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 }
 
 /* ==========================================================================
-   IInteractable 인터페이스
+   IInteractableInterface 인터페이스
    ========================================================================== */
 
-bool ADeliveryBox::CanInteract(AActor* Interactor)
+bool ADeliveryBox::CanInteract_Implementation(AActor* Interactor)
 {
 	return CanCarry(Interactor);
 }
 
-void ADeliveryBox::Interact(AActor* Interactor)
+void ADeliveryBox::Interact_Implementation(AActor* Interactor)
 {
 	if (!Interactor) return;
     
 	// 상태를 Held 태그로 바꿈
 	OnPickedUp(Interactor);
     
-	// UCarryComponent 컴포넌트를 호출
+	// UCharacterCarryComponent 컴포넌트를 호출
 	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
 	{
 		// 캐릭터 양손에 붙임

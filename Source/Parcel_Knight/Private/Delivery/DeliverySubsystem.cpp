@@ -13,11 +13,13 @@ void UDeliverySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     ActiveBoxes.Empty();
+    CachedBoxData.Empty();
 }
 
 void UDeliverySubsystem::Deinitialize()
 {
     ActiveBoxes.Empty();
+    CachedBoxData.Empty();
     CurrentStageData = nullptr;
     Super::Deinitialize();
 }
@@ -28,6 +30,20 @@ void UDeliverySubsystem::InitializeStage(UStageData* InStageData)
     
     CurrentStageData = InStageData;
     BoxDataTable = InStageData->BoxDataTable;
+
+    CachedBoxData.Empty();
+    if (BoxDataTable)
+    {
+        TArray<FBoxData*> AllRows;
+        BoxDataTable->GetAllRows<FBoxData>(TEXT(""), AllRows);
+        for (FBoxData* RowData : AllRows)
+        {
+            if (RowData)
+            {
+                CachedBoxData.Add(RowData->BoxTypeTag, *RowData);
+            }
+        }
+    }
     
     DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Subsystem] 스테이지가 시작되었습니다. 목표 점수: %d"), CurrentStageData->TargetScore);
 }
@@ -41,40 +57,30 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
 {
     if (!GetWorld() || GetWorld()->GetNetMode() == NM_Client) return nullptr;
     
-    if (!BoxDataTable)
+    const FBoxData* FoundDataPtr = CachedBoxData.Find(BoxTypeTag);
+    if (!FoundDataPtr)
     {
-        DELIVERY_LOG(LogParcelDelivery, Error, TEXT("[Subsystem] BoxDataTable이 비어있어 상자를 생성할 수 없습니다"));
+        DELIVERY_LOG(LogParcelDelivery, Error, TEXT("[Subsystem] 태그 [%s] 에 매칭되는 박스 스펙을 캐시에서 찾을 수 없습니다"), *BoxTypeTag.ToString());
         return nullptr;
     }
 
-    // 1. 데이터 테이블을 런타임에 순회하며 인자로 들어온 고유 태그와 exact 매칭되는 행(Row) 파싱
-    FBoxData* FoundData = nullptr;
-    TArray<FBoxData*> AllRows;
-    BoxDataTable->GetAllRows<FBoxData>(TEXT(""), AllRows);
-
-    for (FBoxData* RowData : AllRows)
-    {
-        if (RowData && RowData->BoxTypeTag.MatchesTagExact(BoxTypeTag))
-        {
-            FoundData = RowData;
-            break;
-        }
-    }
-
-    if (!FoundData)
-    {
-        DELIVERY_LOG(LogParcelDelivery, Error, TEXT("[Subsystem] 태그 [%s] 에 매칭되는 박스 스펙이 DT_BoxData에 없습니다"), *BoxTypeTag.ToString());
-        return nullptr;
-    }
+    const FBoxData& FoundData = *FoundDataPtr;
     
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-    ADeliveryBox* NewBox = GetWorld()->SpawnActor<ADeliveryBox>(ADeliveryBox::StaticClass(), SpawnLocation, SpawnRotation, SpawnParams);
+    // BoxClass가 지정되어 있으면 사용하고, 없으면 기본 ADeliveryBox 클래스 사용 (삼항 연산자 애매함 해소)
+    TSubclassOf<ADeliveryBox> SpawnClass = ADeliveryBox::StaticClass();
+    if (FoundData.BoxClass)
+    {
+        SpawnClass = FoundData.BoxClass;
+    }
+
+    ADeliveryBox* NewBox = GetWorld()->SpawnActor<ADeliveryBox>(SpawnClass, SpawnLocation, SpawnRotation, SpawnParams);
     if (NewBox)
     {
         int32 AssignedID = GenerateBoxID();
-        NewBox->InitializeBox(AssignedID, *FoundData);
+        NewBox->InitializeBox(AssignedID, FoundData);
         
         ActiveBoxes.Add(NewBox);
         return NewBox;

@@ -1,6 +1,5 @@
 #include "Delivery/InteractionComponent.h"
-#include "Delivery/Interactable.h"
-#include "Delivery/CarryComponent.h"
+#include "Delivery/InteractableInterface.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "CollisionQueryParams.h"
@@ -41,20 +40,23 @@ void UInteractionComponent::CheckTraceTarget()
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(OwnerCharacter);
 
+	AActor* NewFocus = nullptr;
+
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
 	{
 		AActor* HitActor = HitResult.GetActor();
 		
-		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 		{
-			if (CurrentFocusedActor != HitActor)
-			{
-				CurrentFocusedActor = HitActor;
-			}
-			return;
+			NewFocus = HitActor;
 		}
 	}
-	CurrentFocusedActor = nullptr;
+
+	if (CurrentFocusedActor != NewFocus)
+	{
+		CurrentFocusedActor = NewFocus;
+		OnFocusChanged.Broadcast(CurrentFocusedActor);
+	}
 }
 
 void UInteractionComponent::PrimaryInteract()
@@ -64,18 +66,20 @@ void UInteractionComponent::PrimaryInteract()
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter) return;
 
-	IInteractable* InteractableTarget = Cast<IInteractable>(CurrentFocusedActor);
-	if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+	if (CurrentFocusedActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 	{
-		if (OwnerCharacter->HasAuthority())
+		if (IInteractableInterface::Execute_CanInteract(CurrentFocusedActor, OwnerCharacter))
 		{
-			// Host 유저 : 즉시 상자 상호작용 호출
-			InteractableTarget->Interact(OwnerCharacter);
-		}
-		else
-		{
-			// 원격 클라이언트 유저 : RPC 요청 발송
-			Server_RequestPrimaryInteract(CurrentFocusedActor);
+			if (OwnerCharacter->HasAuthority())
+			{
+				// Host 유저 : 즉시 상자 상호작용 호출
+				IInteractableInterface::Execute_Interact(CurrentFocusedActor, OwnerCharacter);
+			}
+			else
+			{
+				// 원격 클라이언트 유저 : RPC 요청 발송
+				Server_RequestPrimaryInteract(CurrentFocusedActor);
+			}
 		}
 	}
 }
@@ -97,9 +101,11 @@ void UInteractionComponent::Server_RequestPrimaryInteract_Implementation(AActor*
 	if (!OwnerCharacter || !TargetActor) return;
 	
 	// [Server] 서버에서도 상자의 IInteractable 인지
-	IInteractable* InteractableTarget = Cast<IInteractable>(TargetActor);
-	if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+	if (TargetActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 	{
-		InteractableTarget->Interact(OwnerCharacter);
+		if (IInteractableInterface::Execute_CanInteract(TargetActor, OwnerCharacter))
+		{
+			IInteractableInterface::Execute_Interact(TargetActor, OwnerCharacter);
+		}
 	}
 }

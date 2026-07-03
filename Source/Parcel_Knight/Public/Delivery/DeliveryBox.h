@@ -4,8 +4,8 @@
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h"
 #include "DeliveryTypes.h"
-#include "Delivery/Carryable.h"
-#include "Delivery/Interactable.h"
+#include "Delivery/CarryableInterface.h"
+#include "Delivery/InteractableInterface.h"
 #include "DeliveryBox.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogParcelDelivery, Log, All);
@@ -14,10 +14,9 @@ DECLARE_LOG_CATEGORY_EXTERN(LogParcelDelivery, Log, All);
 
 class UBoxComponent;
 class UStaticMeshComponent;
-class UCarryComponent;
 
 UCLASS()
-class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryable, public IInteractable
+class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
 {
 	GENERATED_BODY()
 	
@@ -35,14 +34,16 @@ public:
 	
     void InitializeBox(int32 InBoxID, const FBoxData& InBoxData);
 
-    // [Interface] ICarryable 오버라이드
+    // [Interface] ICarryableInterface 오버라이드
     virtual bool CanCarry(AActor* Carrier) override;
     virtual void OnPickedUp(AActor* Carrier) override;
     virtual void OnDropped() override;
 	
-	// [Interface] IInteractable 오버라이드
-	virtual bool CanInteract(AActor* Interactor) override;
-	virtual void Interact(AActor* Interactor) override;
+	// [Interface] IInteractableInterface 오버라이드
+	virtual bool CanInteract_Implementation(AActor* Interactor) override;
+	virtual void Interact_Implementation(AActor* Interactor) override;
+
+	FORCEINLINE TWeakObjectPtr<class AParcelPlayerState> GetLastCarrierPlayerState() const { return LastCarrierPlayerState; }
 	
 
     // Getter 함수. 상자 ID, Tag, BoxData, 물리 임계값
@@ -92,4 +93,6 @@ private:
 	
 	UPROPERTY(Replicated)
 	TObjectPtr<APlayerController> HolderPlayer;
+
+	TWeakObjectPtr<class AParcelPlayerState> LastCarrierPlayerState;
 };
