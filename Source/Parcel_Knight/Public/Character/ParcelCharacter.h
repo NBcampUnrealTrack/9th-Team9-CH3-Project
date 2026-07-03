@@ -8,6 +8,12 @@ class UParcelMovementStatComponent;
 class URagdollComponent;
 class UParcelHeroComponent;
 class UParcelInteractionComponent;
+class UInputAction;
+class UInputComponent;
+class UInputMappingContext;
+class USpringArmComponent;
+class UCharacterCarryComponent;
+class UInteractionComponent;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
 // 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원

@@ -2,7 +2,6 @@
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Delivery/DeliveryBox.h"
-#include "Delivery/PhysicsJudgeManager.h"
 #include "Delivery/DeliverySubsystem.h"
 #include "Core/ParcelGameState.h"
 #include "Core/TeamScoreComponent.h"
@@ -18,17 +17,15 @@ ADeliveryZone::ADeliveryZone()
 
 	OverlapVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("OverlapVolume"));
 	OverlapVolume->SetupAttachment(RootComponent);
-	
 	OverlapVolume->SetCollisionProfileName(TEXT("Trigger"));
-	
-	ZoneType = EDestinationType::None;
 }
 
 void ADeliveryZone::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	if (HasAuthority())
+	// OverlapVolume이 true인지도 미리 체크
+	if (HasAuthority() && OverlapVolume)
 	{
 		OverlapVolume->OnComponentBeginOverlap.AddDynamic(this, &ADeliveryZone::OnZoneOverlap);
 	}
@@ -38,7 +35,7 @@ void ADeliveryZone::OnZoneOverlap(UPrimitiveComponent* OverlappedComponent, AAct
 								  UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
 								  bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (!OtherActor) return;
+	if (!HasAuthority() || !OtherActor) return;
 
 	if (ADeliveryBox* Box = Cast<ADeliveryBox>(OtherActor))
 	{
@@ -54,30 +51,24 @@ void ADeliveryZone::ProcessDelivery(AActor* InBox)
 	if (!Box || !HasAuthority()) return;
 
 	FBoxData Data = Box->GetBoxData();
-	bool bIsCorrectZone = false;
-
-	// 매칭해둔 상자의 GameplayTag와 이 구역의 ZoneType을 비교 검사합니다.
-	FGameplayTag BoxType = Data.BoxTypeTag;
 	
-	if (ZoneType == EDestinationType::ZoneA && BoxType.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.Type.ZoneA")))) bIsCorrectZone = true;
-	else if (ZoneType == EDestinationType::ZoneB && BoxType.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.Type.ZoneB")))) bIsCorrectZone = true;
-	else if (ZoneType == EDestinationType::ZoneC && BoxType.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.Type.ZoneC")))) bIsCorrectZone = true;
-	else if (ZoneType == EDestinationType::Emergency && BoxType.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.Type.Emergency")))) bIsCorrectZone = true;
-
+	// 게임플레이태그 시스템으로 리팩토링 (조건문 간소화)
+	bool bIsCorrectZone = Data.TargetZoneTag.MatchesTagExact(ZoneTag);
+	
 	int32 ScoreChange = bIsCorrectZone ? Data.BaseScore : Data.DamagePenalty;
 
 	if (bIsCorrectZone)
 	{
-		UE_LOG(LogDelivery, Log, TEXT("[Server] Success: Delivered to the correct zone! Score +%d"), ScoreChange);
+		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] 배송지점에 도착. 점수 +%d"), ScoreChange);
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Delivered")));
 	}
 	else
 	{
-		UE_LOG(LogDelivery, Warning, TEXT("[Server] Fail: Delivered to the wrong zone! Penalty %d"), ScoreChange);
+		DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] 배송지점이 아님. 점수 페널티 %d"), ScoreChange);
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Failed")));
 	}
-
-	// 1. 팀 점수 반영 (AParcelGameState -> UTeamScoreComponent)
+	
+	// 팀 점수
 	if (AParcelGameState* GameState = GetWorld()->GetGameState<AParcelGameState>())
 	{
 		if (UTeamScoreComponent* TeamScoreComp = GameState->GetTeamScoreComponent())
@@ -85,28 +76,37 @@ void ADeliveryZone::ProcessDelivery(AActor* InBox)
 			TeamScoreComp->AddTeamScore(ScoreChange);
 		}
 	}
-
-	// 2. 개인 플레이어 점수 및 콤보 반영 (AParcelPlayerState -> UPlayerStatComponent)
+	
+	// 상자를 쥐고 골인했거나 던져서 골인한 경우 모두 득점 처리하기 위해 최근 운반자 상태를 확인합니다.
+	AParcelPlayerState* PlayerState = nullptr;
 	if (APawn* CarrierPawn = Cast<APawn>(Box->GetOwner()))
 	{
 		if (AController* CarrierController = CarrierPawn->GetController())
 		{
-			if (AParcelPlayerState* PlayerState = CarrierController->GetPlayerState<AParcelPlayerState>())
-			{
-				PlayerState->AddScore(ScoreChange);
-				if (bIsCorrectZone)
-				{
-					PlayerState->OnDeliverySuccess();
-				}
-				else
-				{
-					PlayerState->OnDeliveryFail();
-				}
-			}
+			PlayerState = CarrierController->GetPlayerState<AParcelPlayerState>();
 		}
 	}
+	
+	// 던져진 상자라 소유자가 nullptr인 경우 상자에 보관해둔 약한 참조를 통해 최근 배송 플레이어 상태를 획득
+	if (!PlayerState && Box->GetLastCarrierPlayerState().IsValid())
+	{
+		PlayerState = Box->GetLastCarrierPlayerState().Get();
+	}
 
-	// 사용 완료된 상자는 디스폰 서브시스템을 통해 깔끔하게 삭제
+	if (PlayerState)
+	{
+		PlayerState->AddScore(ScoreChange);
+		if (bIsCorrectZone)
+		{
+			PlayerState->OnDeliverySuccess();
+		}
+		else
+		{
+			PlayerState->OnDeliveryFail();
+		}
+	}
+	
+	// 사용 완료된 상자는 서브시스템을 통해 삭제
 	if (UDeliverySubsystem* DeliverySubsystem = GetWorld()->GetSubsystem<UDeliverySubsystem>())
 	{
 		DeliverySubsystem->DespawnBox(Box);

@@ -25,5 +25,5 @@ public:
 
 private:
 	UPROPERTY()
-	UTeamScoreComponent* TeamScoreComp;
+	TObjectPtr<UTeamScoreComponent> TeamScoreComp;
 };

@@ -35,5 +35,5 @@ public:
 	
 private:
 	UPROPERTY()
-	UPlayerStatComponent* PlayerStatComp;
+	TObjectPtr<UPlayerStatComponent> PlayerStatComp;
 };

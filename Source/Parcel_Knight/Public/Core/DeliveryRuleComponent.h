@@ -19,15 +19,9 @@ class PARCEL_KNIGHT_API UDeliveryRuleComponent : public UActorComponent
 
 public:
 	UDeliveryRuleComponent();
-
-	// [Server Only] 배송 판정은 서버에서만 — 결과는 GameState를 통해 클라이언트에 전파
-	void EvaluateDelivery();
-
-	// [Server Only] 택배 종류·콤보·감점을 반영한 최종 점수 반환
-	int32 CalculateScore();
 	
 	// [Server Only] GameMode::StartRound()에서 호출 — 타이머 시작
-	void StartRound();
+	void StartRound(float InTimeLimit);
 
 	// [Server Only] GameMode::EndRound()에서 호출 — 타이머 정지
 	void EndRound();
@@ -42,11 +36,11 @@ private:
 	int32 TargetScore;
 	
 	// "초" 당 감소되는 점수
-	UPROPERTY()
+	UPROPERTY(EditDefaultsOnly, Category = "Stage")
 	int32 DecreaseScore;
 	
 	//제한 시간 초과 시 감소되는 점수
-	UPROPERTY()
+	UPROPERTY(EditDefaultsOnly, Category = "Stage")
 	int32 TimeUpScore;
 	
 	// 1초 반복 타이머 핸들 — 시간 경과에 따른 점수 감소용
