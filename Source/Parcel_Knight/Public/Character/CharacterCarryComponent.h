@@ -56,4 +56,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
 	float DefaultMaxWalkSpeed;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
+	FName HandSocketName;
 };

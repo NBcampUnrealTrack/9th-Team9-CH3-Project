@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "GameplayTagContainer.h"
+#include "Delivery/DeliveryTypes.h"
 #include "DeliverySubsystem.generated.h"
 
 class UDataTable;
@@ -38,6 +39,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UStageData> CurrentStageData;
+
+	UPROPERTY()
+	TMap<FGameplayTag, FBoxData> CachedBoxData;
 
 	int32 NextBoxID;
 };

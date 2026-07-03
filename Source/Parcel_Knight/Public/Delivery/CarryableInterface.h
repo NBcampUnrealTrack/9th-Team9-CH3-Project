@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "Carryable.generated.h"
+#include "CarryableInterface.generated.h"
 
 UINTERFACE(MinimalAPI, Blueprintable)
-class UCarryable : public UInterface { GENERATED_BODY() };
+class UCarryableInterface : public UInterface { GENERATED_BODY() };
 
-class PARCEL_KNIGHT_API ICarryable
+class PARCEL_KNIGHT_API ICarryableInterface
 {
 	GENERATED_BODY()
 

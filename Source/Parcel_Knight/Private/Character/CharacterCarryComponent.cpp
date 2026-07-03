@@ -6,7 +6,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Delivery/DeliveryBox.h"
-#include "Delivery/Carryable.h"
+#include "Delivery/CarryableInterface.h"
 #include "Delivery/PhysicsJudgeManager.h"
 
 UCharacterCarryComponent::UCharacterCarryComponent()
@@ -15,8 +15,9 @@ UCharacterCarryComponent::UCharacterCarryComponent()
 	CarriedBox = nullptr;
 	bIsCarrying = false;
 	MoveSpeedMultiplier = 1.0f;
-	// TODO: 캐릭터 무브먼트 컴포넌트의 MaxWalkSpeed 값을 동적으로 다시 가져옴
+	// TODO: BeginPlay에서 캐릭터 무브먼트 컴포넌트의 MaxWalkSpeed 값을 동적으로 다시 가져옴
 	DefaultMaxWalkSpeed = 450.f;
+	HandSocketName = TEXT("HandSocket");
 }
 
 void UCharacterCarryComponent::BeginPlay()
@@ -42,7 +43,7 @@ void UCharacterCarryComponent::Pickup(ADeliveryBox* InBox)
 	MoveSpeedMultiplier = InBox->GetBoxData().MoveSpeedMultiplier;
 
 	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
-	InBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, TEXT("HandSocket"));
+	InBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, HandSocketName);
 
 	if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
 	{
@@ -56,7 +57,7 @@ void UCharacterCarryComponent::Drop()
 
 	if (GetOwner()->HasAuthority())
 	{
-		if (ICarryable* Carryable = Cast<ICarryable>(CarriedBox))
+		if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(CarriedBox))
 		{
 			Carryable->OnDropped();
 		}
@@ -85,7 +86,7 @@ void UCharacterCarryComponent::Throw(FVector Force)
 	{
 		AActor* DroppedBox = CarriedBox;
 
-		if (ICarryable* Carryable = Cast<ICarryable>(DroppedBox))
+		if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(DroppedBox))
 		{
 			Carryable->OnDropped();
 		}

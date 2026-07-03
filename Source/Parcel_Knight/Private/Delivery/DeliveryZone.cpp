@@ -77,23 +77,32 @@ void ADeliveryZone::ProcessDelivery(AActor* InBox)
 		}
 	}
 	
-	// Todo : 상자를 던져서 골인시키게 되면, 그 순간 Box->GetOwner()가 nullptr일수 있음. 해당 버그를 미리 차단할 필요.
+	// 상자를 쥐고 골인했거나 던져서 골인한 경우 모두 득점 처리하기 위해 최근 운반자 상태를 확인합니다.
+	AParcelPlayerState* PlayerState = nullptr;
 	if (APawn* CarrierPawn = Cast<APawn>(Box->GetOwner()))
 	{
 		if (AController* CarrierController = CarrierPawn->GetController())
 		{
-			if (AParcelPlayerState* PlayerState = CarrierController->GetPlayerState<AParcelPlayerState>())
-			{
-				PlayerState->AddScore(ScoreChange);
-				if (bIsCorrectZone)
-				{
-					PlayerState->OnDeliverySuccess();
-				}
-				else
-				{
-					PlayerState->OnDeliveryFail();
-				}
-			}
+			PlayerState = CarrierController->GetPlayerState<AParcelPlayerState>();
+		}
+	}
+	
+	// 던져진 상자라 소유자가 nullptr인 경우 상자에 보관해둔 약한 참조를 통해 최근 배송 플레이어 상태를 획득
+	if (!PlayerState && Box->GetLastCarrierPlayerState().IsValid())
+	{
+		PlayerState = Box->GetLastCarrierPlayerState().Get();
+	}
+
+	if (PlayerState)
+	{
+		PlayerState->AddScore(ScoreChange);
+		if (bIsCorrectZone)
+		{
+			PlayerState->OnDeliverySuccess();
+		}
+		else
+		{
+			PlayerState->OnDeliveryFail();
 		}
 	}
 	
