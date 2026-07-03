@@ -1,7 +1,10 @@
 #include "Delivery/DeliverySubsystem.h"
+#include "ParcelLog.h"
 #include "Delivery/DeliveryBox.h"
 #include "Delivery/StageData.h"
 #include "Engine/DataTable.h"
+
+DEFINE_LOG_CATEGORY(LogDeliverySubsystem);
 
 UDeliverySubsystem::UDeliverySubsystem()
 {
@@ -45,7 +48,7 @@ void UDeliverySubsystem::InitializeStage(UStageData* InStageData)
         }
     }
     
-    DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Subsystem] 스테이지가 시작되었습니다. 목표 점수: %d"), CurrentStageData->TargetScore);
+    DELIVERYSUBSYSTEM_LOG(Log, TEXT("[Subsystem] 스테이지가 시작되었습니다. 목표 점수: %d"), CurrentStageData->TargetScore);
 }
 
 int32 UDeliverySubsystem::GenerateBoxID()
@@ -60,7 +63,7 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
     const FBoxData* FoundDataPtr = CachedBoxData.Find(BoxTypeTag);
     if (!FoundDataPtr)
     {
-        DELIVERY_LOG(LogParcelDelivery, Error, TEXT("[Subsystem] 태그 [%s] 에 매칭되는 박스 스펙을 캐시에서 찾을 수 없습니다"), *BoxTypeTag.ToString());
+        DELIVERYSUBSYSTEM_LOG(Error, TEXT("[Subsystem] 태그 [%s] 에 매칭되는 박스 스펙을 캐시에서 찾을 수 없습니다"), *BoxTypeTag.ToString());
         return nullptr;
     }
 

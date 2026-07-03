@@ -1,4 +1,5 @@
 #include "Delivery/DeliveryZone.h"
+#include "ParcelLog.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Delivery/DeliveryBox.h"
@@ -7,6 +8,8 @@
 #include "Core/TeamScoreComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "GameFramework/Controller.h"
+
+DEFINE_LOG_CATEGORY(LogDeliveryZone);
 
 ADeliveryZone::ADeliveryZone()
 {
@@ -59,12 +62,12 @@ void ADeliveryZone::ProcessDelivery(AActor* InBox)
 
 	if (bIsCorrectZone)
 	{
-		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] 배송지점에 도착. 점수 +%d"), ScoreChange);
+		DELIVERYZONE_LOG(Log, TEXT("[Server] 배송지점에 도착. 점수 +%d"), ScoreChange);
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Delivered")));
 	}
 	else
 	{
-		DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] 배송지점이 아님. 점수 페널티 %d"), ScoreChange);
+		DELIVERYZONE_LOG(Warning, TEXT("[Server] 배송지점이 아님. 점수 페널티 %d"), ScoreChange);
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Failed")));
 	}
 	
