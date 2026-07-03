@@ -7,6 +7,7 @@
 #include "Core/ParcelGameState.h"
 #include "Core/ParcelPlayerController.h"
 #include "Core/ParcelPlayerState.h"
+#include "Delivery/StageData.h"
 
 AParcelGameMode::AParcelGameMode()
 {
@@ -32,7 +33,6 @@ void AParcelGameMode::Logout(AController* Exiting)
 void AParcelGameMode::HandleMatchHasStarted()
 {
 	Super::HandleMatchHasStarted();
-	StartRound();
 }
 
 void AParcelGameMode::HandleMatchHasEnded()
@@ -41,9 +41,10 @@ void AParcelGameMode::HandleMatchHasEnded()
 	EndRound();
 }
 
-void AParcelGameMode::StartRound()
+void AParcelGameMode::StartRound(UStageData* InStageData)
 {
-	DeliveryRuleComp->StartRound();
+	if (!InStageData) return;
+	DeliveryRuleComp->StartRound(InStageData->TimeLimit);
 }
 
 void AParcelGameMode::EndRound()

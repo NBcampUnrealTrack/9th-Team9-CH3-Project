@@ -34,6 +34,9 @@ public:
 	// [Server Only] 남은 시간 감소 — OnEverySecond에서 호출
 	void DecreaseRemainingTime(float Amount);
 
+	void InitRemainingTime(float InTimeLimit);
+
+	
 private:
 	// 모든 클라이언트에 복제 — UI 점수판 갱신용
 	UPROPERTY(ReplicatedUsing=OnRep_TeamScore)
