@@ -8,10 +8,6 @@
 #include "Delivery/InteractableInterface.h"
 #include "DeliveryBox.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogParcelDelivery, Log, All);
-
-#define DELIVERY_LOG(Category, Verbosity, Format, ...) UE_LOG(Category, Verbosity, Format, ##__VA_ARGS__)
-
 class UBoxComponent;
 class UStaticMeshComponent;
 
