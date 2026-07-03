@@ -7,6 +7,7 @@ UTeamScoreComponent::UTeamScoreComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+	CurrentGrade = EGrade::F;
 }
 
 void UTeamScoreComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -14,6 +15,7 @@ void UTeamScoreComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UTeamScoreComponent, TeamScore);
 	DOREPLIFETIME(UTeamScoreComponent, RemainingTime);
+	DOREPLIFETIME(UTeamScoreComponent, CurrentGrade);
 }
 
 void UTeamScoreComponent::OnRep_TeamScore()
@@ -52,4 +54,15 @@ int32 UTeamScoreComponent::GetTeamScore() const
 float UTeamScoreComponent::GetRemainingTime() const
 {
 	return RemainingTime;
+}
+
+EGrade UTeamScoreComponent::GetGrade() const
+{
+	return CurrentGrade;
+}
+
+void UTeamScoreComponent::SetGrade(EGrade InGrade)
+{
+	if (GetOwner()->HasAuthority())
+		CurrentGrade = InGrade;
 }

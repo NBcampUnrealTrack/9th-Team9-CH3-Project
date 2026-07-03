@@ -38,7 +38,7 @@ protected:
 	virtual void HandleMatchHasEnded() override;
 
 private:
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
 	
 	

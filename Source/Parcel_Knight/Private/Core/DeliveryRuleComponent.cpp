@@ -11,9 +11,10 @@ UDeliveryRuleComponent::UDeliveryRuleComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UDeliveryRuleComponent::StartRound(float InTimeLimit)
+void UDeliveryRuleComponent::StartRound(float InTimeLimit, int32 InTargetScore)
 {
 	TimeLimit = InTimeLimit;
+	TargetScore = InTargetScore;
 	
 	GetWorld()->GetGameState<AParcelGameState>()
 	->GetTeamScoreComponent()->InitRemainingTime(TimeLimit);
@@ -54,9 +55,20 @@ void UDeliveryRuleComponent::OnEverySecond()
 
 void UDeliveryRuleComponent::OnTimeUp()
 {
-	GetWorld()->GetGameState<AParcelGameState>()
-	          ->GetTeamScoreComponent()->AddTeamScore(-TimeUpScore);
-	
+	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
+	                                               ->GetTeamScoreComponent();
+
+	TeamScoreComp->AddTeamScore(-TimeUpScore);
+
+	// 최종 점수 기준 등급 산출
+	float Ratio = (float)TeamScoreComp->GetTeamScore() / (float)TargetScore;
+	EGrade Grade;
+	if      (Ratio >= 1.2f) Grade = EGrade::A;
+	else if (Ratio >= 0.9f) Grade = EGrade::B;
+	else if (Ratio >= 0.6f) Grade = EGrade::C;
+	else                    Grade = EGrade::F;
+	TeamScoreComp->SetGrade(Grade);
+
 	//GameMode의 EndMatch()를 호출해서 매치 종료
 	if (AGameMode* GM = GetOwner<AGameMode>())
 	{
