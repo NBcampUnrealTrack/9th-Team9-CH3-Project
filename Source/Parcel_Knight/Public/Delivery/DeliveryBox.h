@@ -8,7 +8,6 @@
 #include "Delivery/Carryable.h"
 #include "DeliveryBox.generated.h"
 
-
 class UBoxComponent;
 class UStaticMeshComponent;
 

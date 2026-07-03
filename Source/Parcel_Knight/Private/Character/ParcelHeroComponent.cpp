@@ -1,4 +1,5 @@
 #include "Character/ParcelHeroComponent.h"
+#include "ParcelLog.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -6,7 +7,11 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Character/ParcelCharacter.h"
 #include "Character/RagdollComponent.h"
+#include "Character/ParcelInteractionComponent.h"
+
+DEFINE_LOG_CATEGORY(LogHeroComp);
 
 // Todo : 하드코딩 요소 제거 필요함.
 namespace
@@ -50,6 +55,8 @@ void UParcelHeroComponent::BeginPlay()
 	{
 		SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		FollowCamera->AttachToComponent(SpringArm, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
+	
+		HEROCOMP_LOG(Log, TEXT("[%s] 캐릭터에 카메라 컴포넌트 부착 완료."), *Character->GetName());
 	}
 
 	AddInputMappingContext();
@@ -87,19 +94,30 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
 	if (!EnhancedInputComponent) return;
 	
 	if (MoveAction) EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Move);
+	
 	if (LookAction) EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Look);
+	
 	if (JumpAction)
 	{
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartJump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::StopJump);
 	}
+	
 	if (SprintAction)
 	{
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartSprint);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::StopSprint);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &UParcelHeroComponent::StopSprint);
 	}
+	
 	if (RagdollAction) EnhancedInputComponent->BindAction(RagdollAction, ETriggerEvent::Started, this, &UParcelHeroComponent::TestRagdoll);
+	
+	if (InteractAction) 
+	{
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
+	}
+	
+	HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
 void UParcelHeroComponent::Move(const FInputActionValue& Value)
@@ -170,17 +188,23 @@ void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 	if (!RagdollComp) return;
 
 	const bool bWasRagdoll = RagdollComp->IsRagdoll();
-	if (bWasRagdoll && !IsRagdollCloseToGround()) return;
+	if (bWasRagdoll && !IsRagdollCloseToGround()) 
+	{
+		HEROCOMP_LOG(Warning, TEXT("래그돌 해제 실패 : 현재 공중에 떠 있는 상태입니다. (지면과 너무 멂)"));
+		return;
+	}
 
 	RagdollComp->ToggleRagdoll();
 
 	// 래그돌이 켜질 때만 컴포넌트 틱을 킴(Tick 최적화)
 	if (RagdollComp->IsRagdoll())
 	{
+		HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 카메라 보정을 위한 컴포넌트 틱 활성화"));
 		PrimaryComponentTick.SetTickFunctionEnable(true);
 	}
 	else
 	{
+		HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 카메라 위치 복구 및 컴포넌트 틱 비활성화"));
 		PrimaryComponentTick.SetTickFunctionEnable(false);
 		if (SpringArm)
 		{
@@ -190,9 +214,27 @@ void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 	}
 }
 
+void UParcelHeroComponent::Interact(const FInputActionValue& Value)
+{
+	if (!CanProcessLocalInput()) return;
+	
+	HEROCOMP_LOG(Log, TEXT("상호작용 조작(E키) 감지: InteractionComponent 호출"));
+
+	// 껍데기 캐릭터를 가져와서 그 안에 장착된 '눈(InteractionComp)'을 찔러줍니다!
+	if (AParcelCharacter* OwnerChar = Cast<AParcelCharacter>(GetOwner()))
+	{
+		if (UParcelInteractionComponent* InteractComp = OwnerChar->GetParcelInteractionComponent())
+		{
+			InteractComp->PrimaryInteract();
+		}
+	}
+}
+
+
 void UParcelHeroComponent::ServerSetSprinting_Implementation(bool bNewIsSprinting)
 {
-    ApplySprintSpeed(bNewIsSprinting);
+	HEROCOMP_LOG(Log, TEXT("[Server] 클라이언트의 요청으로 달리기 상태 변경 적용: %s"), bNewIsSprinting ? TEXT("True") : TEXT("False"));
+	ApplySprintSpeed(bNewIsSprinting);
 }
 
 void UParcelHeroComponent::ApplySprintSpeed(bool bNewIsSprinting)
