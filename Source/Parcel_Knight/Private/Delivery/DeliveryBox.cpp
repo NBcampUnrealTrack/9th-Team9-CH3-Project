@@ -2,7 +2,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Delivery/PhysicsJudgeManager.h"
-#include "Delivery/CarryComponent.h"
+#include "Character/CharacterCarryComponent.h"
 #include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogParcelDelivery);
@@ -24,9 +24,6 @@ ADeliveryBox::ADeliveryBox()
 	BoxMesh->SetupAttachment(RootComponent);
 	BoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BoxMesh->SetSimulatePhysics(false);
-
-	// 상자의 들리는 기능을 정의하는 CarryComponent 생성
-	CarryComponent = CreateDefaultSubobject<UCarryComponent>(TEXT("CarryComponent"));
 	
 	BoxID = -1;
 }
@@ -161,28 +158,18 @@ void ADeliveryBox::OnRep_BoxStateTags()
 
 bool ADeliveryBox::CanCarry(AActor* Carrier)
 {
-	if (CarryComponent)
-	{
-		return CarryComponent->CanCarry(Carrier);
-	}
-	// 월드에 생성되어 놓여있으면 집기 가능 허용 (여러 상태 이상일 때 못집게 할 수 있음)
 	return BoxStateTags.HasTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 }
 
 void ADeliveryBox::OnPickedUp(AActor* Carrier)
 {
 	if (!HasAuthority() || !Carrier) return;
-	
-	if (CarryComponent)
-	{
-		CarryComponent->OnPickedUp(Carrier);
-	}
-	
+    
 	if (APawn* CarrierPawn = Cast<APawn>(Carrier))
 	{
 		HolderPlayer = Cast<APlayerController>(CarrierPawn->GetController());
-		SetOwner(CarrierPawn); // 리슨 서버 소유권(Owner) 변경
-		
+		SetOwner(CarrierPawn);
+       
 		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 플레이어: %s"), 
 		  BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("알 수 없음"));
 	}
@@ -195,16 +182,10 @@ void ADeliveryBox::OnDropped()
 {
 	if (!HasAuthority()) return;
 
-	if (CarryComponent)
-	{
-		CarryComponent->OnDropped();
-	}
-
-	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 낙하 처리 시작. 기존 소유 플레이어: %s"), 
-	   BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("없음"));
-	
+	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 낙하 처리 완료."), BoxID);
+    
 	HolderPlayer = nullptr;
-	SetOwner(nullptr); // 소유권 월드로 반환
+	SetOwner(nullptr); // 소유권 해제
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
@@ -228,5 +209,29 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 		{
 		   DamageManager->EvaluateImpact(this, ImpactForce);
 		}
+	}
+}
+
+/* ==========================================================================
+   IInteractable 인터페이스
+   ========================================================================== */
+
+bool ADeliveryBox::CanInteract(AActor* Interactor)
+{
+	return CanCarry(Interactor);
+}
+
+void ADeliveryBox::Interact(AActor* Interactor)
+{
+	if (!Interactor) return;
+    
+	// 상태를 Held 태그로 바꿈
+	OnPickedUp(Interactor);
+    
+	// UCarryComponent 컴포넌트를 호출
+	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
+	{
+		// 캐릭터 양손에 붙임
+		CharacterCarryComp->Pickup(this);
 	}
 }

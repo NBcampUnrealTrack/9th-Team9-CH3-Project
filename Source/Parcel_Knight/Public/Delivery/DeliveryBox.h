@@ -5,6 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "DeliveryTypes.h"
 #include "Delivery/Carryable.h"
+#include "Delivery/Interactable.h"
 #include "DeliveryBox.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogParcelDelivery, Log, All);
@@ -16,7 +17,7 @@ class UStaticMeshComponent;
 class UCarryComponent;
 
 UCLASS()
-class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryable
+class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryable, public IInteractable
 {
 	GENERATED_BODY()
 	
@@ -38,6 +39,11 @@ public:
     virtual bool CanCarry(AActor* Carrier) override;
     virtual void OnPickedUp(AActor* Carrier) override;
     virtual void OnDropped() override;
+	
+	// [Interface] IInteractable 오버라이드
+	virtual bool CanInteract(AActor* Interactor) override;
+	virtual void Interact(AActor* Interactor) override;
+	
 
     // Getter 함수. 상자 ID, Tag, BoxData, 물리 임계값
 	FORCEINLINE bool HasStateTag(FGameplayTag StateTag) const { return BoxStateTags.HasTag(StateTag); }
@@ -71,11 +77,6 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> BoxMesh;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCarryComponent> CarryComponent;
-	
-	
 	
 	/* ==========================================================================
 		   동기화 규칙 변수 (Replicated)

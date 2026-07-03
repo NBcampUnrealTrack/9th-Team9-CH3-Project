@@ -1,7 +1,6 @@
 #include "Delivery/InteractionComponent.h"
-#include "Delivery/Carryable.h"
-#include "Character/CharacterCarryComponent.h"
-#include "Delivery/DeliveryBox.h"
+#include "Delivery/Interactable.h"
+#include "Delivery/CarryComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "CollisionQueryParams.h"
@@ -46,7 +45,7 @@ void UInteractionComponent::CheckTraceTarget()
 	{
 		AActor* HitActor = HitResult.GetActor();
 		
-		if (HitActor && HitActor->GetClass()->ImplementsInterface(UCarryable::StaticClass()))
+		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			if (CurrentFocusedActor != HitActor)
 			{
@@ -65,23 +64,17 @@ void UInteractionComponent::PrimaryInteract()
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter) return;
 
-	ICarryable* CarryableTarget = Cast<ICarryable>(CurrentFocusedActor);
-	if (CarryableTarget && CarryableTarget->CanCarry(OwnerCharacter))
+	IInteractable* InteractableTarget = Cast<IInteractable>(CurrentFocusedActor);
+	if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
 	{
 		if (OwnerCharacter->HasAuthority())
 		{
-			CarryableTarget->OnPickedUp(OwnerCharacter);
-
-			if (UCharacterCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCharacterCarryComponent>())
-			{
-				if (ADeliveryBox* Box = Cast<ADeliveryBox>(CurrentFocusedActor))
-				{
-					CarryComp->Pickup(Box);
-				}
-			}
+			// Host 유저 : 즉시 상자 상호작용 호출
+			InteractableTarget->Interact(OwnerCharacter);
 		}
 		else
 		{
+			// 원격 클라이언트 유저 : RPC 요청 발송
 			Server_RequestPrimaryInteract(CurrentFocusedActor);
 		}
 	}
@@ -102,19 +95,11 @@ void UInteractionComponent::Server_RequestPrimaryInteract_Implementation(AActor*
 {
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter || !TargetActor) return;
-
-	ICarryable* CarryableTarget = Cast<ICarryable>(TargetActor);
 	
-	if (CarryableTarget && CarryableTarget->CanCarry(OwnerCharacter))
+	// [Server] 서버에서도 상자의 IInteractable 인지
+	IInteractable* InteractableTarget = Cast<IInteractable>(TargetActor);
+	if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
 	{
-		CarryableTarget->OnPickedUp(OwnerCharacter);
-
-		if (UCharacterCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCharacterCarryComponent>())
-		{
-			if (ADeliveryBox* Box = Cast<ADeliveryBox>(TargetActor))
-			{
-				CarryComp->Pickup(Box);
-			}
-		}
+		InteractableTarget->Interact(OwnerCharacter);
 	}
 }
