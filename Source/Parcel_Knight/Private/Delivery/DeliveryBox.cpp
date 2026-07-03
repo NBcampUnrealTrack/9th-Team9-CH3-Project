@@ -1,4 +1,5 @@
 #include "Delivery/DeliveryBox.h"
+#include "ParcelLog.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Delivery/PhysicsJudgeManager.h"
@@ -6,7 +7,7 @@
 #include "Core/ParcelPlayerState.h"
 #include "Net/UnrealNetwork.h"
 
-DEFINE_LOG_CATEGORY(LogParcelDelivery);
+DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
 ADeliveryBox::ADeliveryBox()
 {
@@ -67,7 +68,7 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 	// Spawned 태그 부여
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 	
-	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] 상자 고유ID %d번 초기화 완료. 타입 태그: %s, 설정 무게: %f kg"), 
+	DELIVERYBOX_LOG(Log, TEXT("[Server] 상자 고유ID %d번 초기화 완료. 타입 태그: %s, 설정 무게: %f kg"), 
 		BoxID, *BoxData.BoxTypeTag.ToString(), BoxData.Weight);
 }
 
@@ -79,7 +80,7 @@ void ADeliveryBox::OnRep_BoxData()
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
 	}
 	
-	DELIVERY_LOG(LogParcelDelivery, Display, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 표시 이름: %s"), 
+	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 표시 이름: %s"), 
 		BoxID, *BoxStateTags.ToString());
 }
 
@@ -91,7 +92,7 @@ void ADeliveryBox::AddStateTag(FGameplayTag NewStateTag)
 	{
 		BoxStateTags.AddTag(NewStateTag);
 		
-		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자에 새로운 상태 태그 추가됨: %s"), BoxID, *NewStateTag.ToString());
+		DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자에 새로운 상태 태그 추가됨: %s"), BoxID, *NewStateTag.ToString());
        
 		if (NewStateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
 		{
@@ -116,7 +117,7 @@ void ADeliveryBox::RemoveStateTag(FGameplayTag StateTag)
 	{
 		BoxStateTags.RemoveTag(StateTag);
         
-		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자에서 상태 태그 제거됨: %s"), BoxID, *StateTag.ToString());
+		DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자에서 상태 태그 제거됨: %s"), BoxID, *StateTag.ToString());
 		
 		// 상태가 제거될 때의 예외 복구 로직
 		if (StateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
@@ -133,7 +134,7 @@ void ADeliveryBox::OnRep_BoxStateTags()
 	FGameplayTag HeldTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"));
 	FGameplayTag DamagedTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged"));
 
-	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Client] %d번 상자의 상태 태그 컨테이너 갱신됨. 현재 태그 목록: %s"), 
+	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 상태 태그 컨테이너 갱신됨. 현재 태그 목록: %s"), 
 	   BoxID, *BoxStateTags.ToString());
 	
 	if (BoxStateTags.HasTag(HeldTag))
@@ -176,7 +177,7 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
 			LastCarrierPlayerState = HolderPlayer->GetPlayerState<AParcelPlayerState>();
 		}
 
-		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 플레이어: %s"), 
+		DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 플레이어: %s"), 
 		  BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("알 수 없음"));
 	}
 
@@ -188,7 +189,7 @@ void ADeliveryBox::OnDropped()
 {
 	if (!HasAuthority()) return;
 
-	DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] %d번 상자 낙하 처리 완료."), BoxID);
+	DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자 낙하 처리 완료."), BoxID);
     
 	HolderPlayer = nullptr;
 	SetOwner(nullptr); // 소유권 해제
@@ -206,7 +207,7 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	float ImpactForce = NormalImpulse.Size();
 	if (ImpactForce < 100.0f) return;
 	
-	DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] %d번 상자 물리 충돌 발생. 충돌 대상: %s, 검출된 충격량 수치: %f (파손 임계값: %f)"), 
+	DELIVERYBOX_LOG(Warning, TEXT("[Server] %d번 상자 물리 충돌 발생. 충돌 대상: %s, 검출된 충격량 수치: %f (파손 임계값: %f)"), 
 		BoxID, OtherActor ? *OtherActor->GetName() : TEXT("None"), ImpactForce, BoxData.DamageThreshold);
 
 	if (UWorld* World = GetWorld())

@@ -1,5 +1,8 @@
 #include "Delivery/PhysicsJudgeManager.h"
+#include "ParcelLog.h"
 #include "Delivery/DeliveryBox.h"
+
+DEFINE_LOG_CATEGORY(LogDeliveryPhysics);
 
 void UPhysicsJudgeManager::EvaluateImpact(ADeliveryBox* Box, float ImpactForce)
 {
@@ -21,7 +24,7 @@ void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, cons
 	{
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
 		
-		DELIVERY_LOG(LogParcelDelivery, Warning, TEXT("[Server] Box ID %d was damaged by %s of %f (Threshold: %f)!"), 
+		PHYSICSJUDGE_LOG(Warning, TEXT("[Server] Box ID %d was damaged by %s of %f (Threshold: %f)!"), 
 			Box->GetBoxID(), *SourceName, Force, DamageThreshold);
 
 		// 델리게이트 알림
@@ -29,7 +32,7 @@ void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, cons
 	}
 	else if (SourceName.Contains(TEXT("Trap")))
 	{
-		DELIVERY_LOG(LogParcelDelivery, Log, TEXT("[Server] Box ID %d hit by Trap but force %f was below threshold %f."), 
+		PHYSICSJUDGE_LOG(Log, TEXT("[Server] Box ID %d hit by Trap but force %f was below threshold %f."), 
 			Box->GetBoxID(), Force, DamageThreshold);
 	}
 }

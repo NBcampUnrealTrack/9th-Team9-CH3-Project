@@ -5,19 +5,9 @@
 #include "Character/ParcelInteractionComponent.h"
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
-#include "Delivery/InteractionComponent.h"
-
-// 카메라 컴포넌트를 생성하고 설정하기 위해 필요함
-#include "Camera/CameraComponent.h"
-
-// Enhanced Input 액션 바인딩을 위해 필요함
-#include "EnhancedInputComponent.h"
-
-// Local Player Subsystem에 Input Mapping Context를 등록하기 위해 필요함
-#include "EnhancedInputSubsystems.h"
-
-// 캐릭터 이동 속도, 회전, 점프 값을 설정하기 위해 필요함
 #include "GameFramework/CharacterMovementComponent.h"
+
+
 
 DEFINE_LOG_CATEGORY(LogCharacter);
 
