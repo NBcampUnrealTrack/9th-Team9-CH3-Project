@@ -86,9 +86,9 @@ void UParcelInteractionComponent::CheckTraceTarget()
         {
             INTERACT_LOG(Log, TEXT("조준 타겟 잃음. (이전 대상: %s)"), *CurrentFocusedActor->GetName());
         }
-    
-        // 새로운 타겟으로 최종 갱신 (아무것도 안 바라면 자연스럽게 nullptr이 들어감)
+        
         CurrentFocusedActor = NewFocusedActor;
+        OnFocusChanged.Broadcast(CurrentFocusedActor);
     }
 }
 
