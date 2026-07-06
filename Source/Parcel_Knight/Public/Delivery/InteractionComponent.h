@@ -4,6 +4,8 @@
 #include "Components/ActorComponent.h"
 #include "InteractionComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractionFocusChanged, AActor*, NewFocusedActor);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class PARCEL_KNIGHT_API UInteractionComponent : public UActorComponent
 {
@@ -11,11 +13,11 @@ class PARCEL_KNIGHT_API UInteractionComponent : public UActorComponent
 
 public:	
 	UInteractionComponent();
-
-protected:
 	virtual void BeginPlay() override;
 
-public:	
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
+	FOnInteractionFocusChanged OnFocusChanged;
+	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	void PrimaryInteract();
