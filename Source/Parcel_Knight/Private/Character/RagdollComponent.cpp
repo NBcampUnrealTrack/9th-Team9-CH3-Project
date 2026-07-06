@@ -1,22 +1,12 @@
-// 이 컴포넌트의 선언을 포함
 #include "Character/RagdollComponent.h"
-
-// 캐릭터 캡슐 충돌을 켜고 끄기 위해 필요
+#include "ParcelLog.h"
 #include "Components/CapsuleComponent.h"
-
-// Skeletal Mesh의 물리 시뮬레이션과 애니메이션 모드를 제어하기 위해 필요
 #include "Components/SkeletalMeshComponent.h"
-
-// 소유 액터를 ACharacter로 다루기 위해 필요
 #include "GameFramework/Character.h"
-
-// 래그돌 중 캐릭터 이동을 끄고, 복구 시 다시 걷기 모드로 바꾸기 위해 필요
 #include "GameFramework/CharacterMovementComponent.h"
-
-// DOREPLIFETIME 매크로를 사용해 프로퍼티 복제를 등록하기 위해 필요
+#include "Character/ParcelHeroComponent.h"
 #include "Net/UnrealNetwork.h"
 
-// 헤더에서 선언한 LogRagdoll 로그 카테고리를 실제로 정의
 DEFINE_LOG_CATEGORY(LogRagdoll);
 
 URagdollComponent::URagdollComponent()
@@ -46,7 +36,7 @@ void URagdollComponent::BeginPlay()
 	OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter)
 	{
-		UE_LOG(LogRagdoll, Warning, TEXT("Owner is not a Character."));
+		RAGDOLL_LOG(Warning, TEXT("Owner is not a Character."));
 	}
 }
 
@@ -134,7 +124,7 @@ void URagdollComponent::ApplyStartRagdoll()
 	// 소유 캐릭터가 없으면 래그돌을 적용할 대상이 없습니다.
 	if (!OwnerCharacter)
 	{
-		UE_LOG(LogRagdoll, Warning, TEXT("OwnerCharacter is missing."));
+		RAGDOLL_LOG(Warning, TEXT("OwnerCharacter is missing."));
 		return;
 	}
 
@@ -142,14 +132,14 @@ void URagdollComponent::ApplyStartRagdoll()
 	USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
 	if (!Mesh)
 	{
-		UE_LOG(LogRagdoll, Warning, TEXT("Character mesh is missing."));
+		RAGDOLL_LOG(Warning, TEXT("Character mesh is missing."));
 		return;
 	}
 
 	// Physics Asset이 없으면 Skeletal Mesh가 래그돌 물리 시뮬레이션을 할 수 없습니다.
 	if (!Mesh->GetPhysicsAsset())
 	{
-		UE_LOG(LogRagdoll, Warning, TEXT("Mesh has no Physics Asset. Ragdoll cannot simulate."));
+		RAGDOLL_LOG(Warning, TEXT("Mesh has no Physics Asset. Ragdoll cannot simulate."));
 		return;
 	}
 
@@ -181,8 +171,14 @@ void URagdollComponent::ApplyStartRagdoll()
 
 	// 서버에서 바뀐 이 값은 클라이언트로 복제되어 OnRep_IsRagdoll을 호출합니다.
 	bIsRagdoll = true;
+	
+	// [Add] 최종 연산을 받아서 카메라 틱 원격 스위칭
+	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->PrimaryComponentTick.SetTickFunctionEnable(true);
+	}
 
-	UE_LOG(LogRagdoll, Warning, TEXT("Ragdoll started."));
+	RAGDOLL_LOG(Warning, TEXT("Ragdoll started."));
 }
 
 void URagdollComponent::ApplyStopRagdoll()
@@ -249,5 +245,12 @@ void URagdollComponent::ApplyStopRagdoll()
 	// 서버에서 바뀐 이 값은 클라이언트로 복제되어 OnRep_IsRagdoll을 호출합니다.
 	bIsRagdoll = false;
 
-	UE_LOG(LogRagdoll, Warning, TEXT("Ragdoll stopped."));
+	// [Add] 복구 시 카메라 원위치 및 컴포넌트 틱 중단
+	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->PrimaryComponentTick.SetTickFunctionEnable(false);
+		HeroComp->ResetCameraAttachment();
+	}
+	
+	RAGDOLL_LOG(Warning, TEXT("Ragdoll stopped."));
 }

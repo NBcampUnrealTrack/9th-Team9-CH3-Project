@@ -87,8 +87,10 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_BoxData)
 	FBoxData BoxData;
 	
+	// Pawn 을 복제해서 모든 유저가 들기 상태를 인지
 	UPROPERTY(Replicated)
-	TObjectPtr<APlayerController> HolderPlayer;
+	TObjectPtr<APawn> HoldingCarrier;
 
-	TWeakObjectPtr<class AParcelPlayerState> LastCarrierPlayerState;
+	// [Server] 서버에서 스코어링 판정용 PlayerState 캐시
+	TWeakObjectPtr<AParcelPlayerState> LastCarrierPlayerState;
 };

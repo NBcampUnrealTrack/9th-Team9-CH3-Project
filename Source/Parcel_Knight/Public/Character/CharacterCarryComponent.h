@@ -16,12 +16,10 @@ class PARCEL_KNIGHT_API UCharacterCarryComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	UCharacterCarryComponent();
+	
+	// 멀티플레이 동기화를 위한 Rep 처리
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
-
-public:	
 	UFUNCTION(BlueprintCallable, Category = "Carry")
 	void Pickup(ADeliveryBox* InBox);
 
@@ -40,23 +38,31 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Carry")
 	FORCEINLINE ADeliveryBox* GetCarriedBox() const { return CarriedBox; }
 
+	FORCEINLINE float GetMoveSpeedMultiplier() const { return MoveSpeedMultiplier; }
+	
 protected:
-	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_Throw(FVector Force);
+	UFUNCTION(Server, Reliable, WithValidation) void Server_Drop();
+	UFUNCTION(Server, Reliable, WithValidation) void Server_Throw(FVector Force);
 
 private:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
-	ADeliveryBox* CarriedBox;
+	// 네트워크 동기화 RepNotify
+	UFUNCTION() void OnRep_CarriedBox();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
+	void SyncWeightToMovement();
+	
+	UPROPERTY(ReplicatedUsing = OnRep_CarriedBox, VisibleAnywhere, Category = "Carry")
+	TObjectPtr<ADeliveryBox> CarriedBox;
+	
+	// [Local] 들고 있던 상자를 기억하는 로컬 변수
+	UPROPERTY()
+	TObjectPtr<ADeliveryBox> PreviousCarriedBox;
+
+	UPROPERTY(Replicated, VisibleAnywhere, Category = "Carry")
 	bool bIsCarrying;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, Category = "Carry")
 	float MoveSpeedMultiplier;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
-	float DefaultMaxWalkSpeed;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Carry", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, Category = "Carry")
 	FName HandSocketName;
 };

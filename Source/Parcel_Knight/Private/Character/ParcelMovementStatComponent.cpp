@@ -11,11 +11,16 @@ UParcelMovementStatComponent::UParcelMovementStatComponent()
     PrimaryComponentTick.bCanEverTick = false;
     SetIsReplicatedByDefault(true);
     
-    // 캐릭터 속도 관련 스탯 기본값
-    MaxWalkSpeed = 450.0f;
+    BaseMaxWalkSpeed = 450.0f;
+    SprintSpeedMultiplier = 2.0f;
+    
+    MaxWalkSpeed = BaseMaxWalkSpeed;
     JumpZVelocity = 500.f;
     AirControl = 0.35f;
     RotationRate = FRotator(0.f, 540.f, 0.f);
+
+    bIsSprinting = false;
+    CurrentCarryMultiplier = 1.0f;
 }
 
 void UParcelMovementStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -32,20 +37,28 @@ void UParcelMovementStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimePr
 void UParcelMovementStatComponent::BeginPlay()
 {
     Super::BeginPlay();
-
-    // 서버와 클라이언트 모두 각자의 로컬 캐릭터 무브먼트에 기본값 주입
     ApplyStatsToMovement();
 }
 
-void UParcelMovementStatComponent::SetMaxWalkSpeed(float NewSpeed)
+void UParcelMovementStatComponent::UpdateDynamicSpeedModifier(bool bInSprinting, float InCarryMultiplier)
+{
+    bIsSprinting = bInSprinting;
+    CurrentCarryMultiplier = InCarryMultiplier;
+
+    // (로컬과 서버 컴포넌트에 주입) 속도 공식 계산식
+    float SprintMod = bIsSprinting ? SprintSpeedMultiplier : 1.0f;
+    MaxWalkSpeed = BaseMaxWalkSpeed * SprintMod * CurrentCarryMultiplier;
+    
+    ApplyStatsToMovement();
+}
+
+void UParcelMovementStatComponent::SetBaseMaxWalkSpeed(float NewSpeed)
 {
     // [Server] 서버 권한이 있을 때만 수정 가능하도록 방어
     if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 
-    MaxWalkSpeed = NewSpeed;
-    
-    // [Server] RepNotify가 로컬에서 자동으로 호출되지 않으므로 수동으로 적용 함수 실행
-    ApplyStatsToMovement();
+    BaseMaxWalkSpeed = NewSpeed;
+    UpdateDynamicSpeedModifier(bIsSprinting, CurrentCarryMultiplier);
 }
 
 // RepNotify 함수
@@ -65,8 +78,8 @@ void UParcelMovementStatComponent::ApplyStatsToMovement()
             Movement->AirControl = AirControl;
             Movement->RotationRate = RotationRate;
             
-            MOVEMENT_LOG(Log, TEXT("[%s] 이동 스탯이 캐릭터에게 적용되었습니다."), 
-                OwnerCharacter->HasAuthority() ? TEXT("Server") : TEXT("Client"));
+            MOVEMENT_LOG(Log, TEXT("[%s] 통합 연산 속도(%f)가 적용되었습니다."), 
+                OwnerCharacter->HasAuthority() ? TEXT("Server") : TEXT("Client"), MaxWalkSpeed);
         }
     }
 }

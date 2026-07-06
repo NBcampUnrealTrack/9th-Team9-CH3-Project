@@ -1,23 +1,22 @@
 #include "Character/ParcelHeroComponent.h"
 #include "ParcelLog.h"
 #include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
-#include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "EnhancedInputComponent.h"
+#include "Camera/CameraComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
 #include "Character/ParcelCharacter.h"
 #include "Character/RagdollComponent.h"
 #include "Character/ParcelInteractionComponent.h"
+#include "Character/ParcelMovementStatComponent.h"
+#include "Character/CharacterCarryComponent.h"
+
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
-// Todo : 하드코딩 요소 제거 필요함.
 namespace
 {
-	constexpr float WalkSpeed = 450.f;
-	constexpr float SprintSpeed = 850.f;
 	constexpr float RagdollCameraHeightOffset = 20.f;
 	constexpr float RagdollCameraBackOffset = 90.f;
 	constexpr float RagdollStopGroundTraceDistance = 120.f;
@@ -60,6 +59,18 @@ void UParcelHeroComponent::BeginPlay()
 	}
 
 	AddInputMappingContext();
+}
+
+void UParcelHeroComponent::ResetCameraAttachment()
+{
+	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+	{
+		if (SpringArm)
+		{
+			SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+			SpringArm->SetRelativeLocation(FVector::ZeroVector);
+		}
+	}
 }
 
 void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -125,6 +136,10 @@ void UParcelHeroComponent::Move(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character || !Character->GetController()) return;
 
+	// [Add] 방어 코드 : 래그돌 상태에서는 입력 처리 불가
+	URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+	if (RagdollComp && RagdollComp->IsRagdoll()) return;
+	
     const FVector2D MoveValue = Value.Get<FVector2D>();
     const FRotator ControlRotation = Character->GetController()->GetControlRotation();
     const FRotator YawRotation(0.f, ControlRotation.Yaw, 0.f);
@@ -219,8 +234,16 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
 	if (!CanProcessLocalInput()) return;
 	
 	HEROCOMP_LOG(Log, TEXT("상호작용 조작(E키) 감지: InteractionComponent 호출"));
-
-	// 껍데기 캐릭터를 가져와서 그 안에 장착된 '눈(InteractionComp)'을 찔러줍니다!
+	
+	// [Add] 방어 코드 : 캐릭터가 없으면 상호작용 중단
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	if (!Character) return;
+	
+	// [Add] 방어 코드 : 래그돌 도중에는 상호작용 불가
+	URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+	if (RagdollComp && RagdollComp->IsRagdoll()) return;
+	
+	// 장착된 InteractionComponent 호출
 	if (AParcelCharacter* OwnerChar = Cast<AParcelCharacter>(GetOwner()))
 	{
 		if (UParcelInteractionComponent* InteractComp = OwnerChar->GetParcelInteractionComponent())
@@ -239,13 +262,16 @@ void UParcelHeroComponent::ServerSetSprinting_Implementation(bool bNewIsSprintin
 
 void UParcelHeroComponent::ApplySprintSpeed(bool bNewIsSprinting)
 {
-    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-    {
-        if (UCharacterMovementComponent* Movement = Character->GetCharacterMovement())
-        {
-           Movement->MaxWalkSpeed = bNewIsSprinting ? SprintSpeed : WalkSpeed;
-        }
-    }
+	if (UParcelMovementStatComponent* StatComp = GetOwner()->FindComponentByClass<UParcelMovementStatComponent>())
+	{
+		float CarrySubMultiplier = 1.0f;
+		if (UCharacterCarryComponent* CarryComp = GetOwner()->FindComponentByClass<UCharacterCarryComponent>())
+		{
+			CarrySubMultiplier = CarryComp->GetMoveSpeedMultiplier();
+		}
+		// MovementStat을 담당하는 매니저에 속도 계산 위임
+		StatComp->UpdateDynamicSpeedModifier(bNewIsSprinting, CarrySubMultiplier);
+	}
 }
 
 bool UParcelHeroComponent::IsRagdollCloseToGround() const
@@ -266,26 +292,21 @@ bool UParcelHeroComponent::IsRagdollCloseToGround() const
 
 void UParcelHeroComponent::AddInputMappingContext()
 {
-    ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (!Character || !Character->IsLocallyControlled()) return;
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	if (!Character || !Character->IsLocallyControlled()) return;
 
-    APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-    if (!PlayerController) return;
+	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+	if (!PlayerController || !PlayerController->GetLocalPlayer()) return;
 
-    ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer();
-    if (!LocalPlayer) return;
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	if (!Subsystem || !InputMappingContext) return;
 
-    UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer);
-    if (!Subsystem) return;
-
-    if (!InputMappingContext) return;
-
-    Subsystem->RemoveMappingContext(InputMappingContext);
-    Subsystem->AddMappingContext(InputMappingContext, 0);
+	Subsystem->RemoveMappingContext(InputMappingContext);
+	Subsystem->AddMappingContext(InputMappingContext, 0);
 }
 
 bool UParcelHeroComponent::CanProcessLocalInput() const
 {
-    ACharacter* Character = Cast<ACharacter>(GetOwner());
-    return Character && Character->GetController() && Character->IsLocallyControlled();
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	return Character && Character->GetController() && Character->IsLocallyControlled();
 }

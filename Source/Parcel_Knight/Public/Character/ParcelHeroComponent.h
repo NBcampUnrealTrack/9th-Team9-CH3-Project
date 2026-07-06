@@ -26,6 +26,8 @@ public:
 	
 	void AddInputMappingContext();
 	
+	void ResetCameraAttachment();
+	
 protected:
 	// 카메라 컴포넌트 (인게임에 시점 변경이 필요하다면 이것도 분리 가능)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")

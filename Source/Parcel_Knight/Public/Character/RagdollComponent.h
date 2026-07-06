@@ -1,6 +1,5 @@
 #pragma once
 
-// 엔진 기본 타입과 매크로를 포함합니다.
 #include "CoreMinimal.h"
 
 // UActorComponent를 상속받기 위해 필요한 헤더입니다.
@@ -9,10 +8,6 @@
 // UnrealHeaderTool이 생성하는 리플렉션 코드를 포함합니다.
 #include "RagdollComponent.generated.h"
 
-// 래그돌 컴포넌트 전용 로그 카테고리입니다.
-DECLARE_LOG_CATEGORY_EXTERN(LogRagdoll, Log, All);
-
-// 헤더 의존성을 줄이기 위한 전방 선언입니다.
 class ACharacter;
 
 // 캐릭터의 래그돌 시작/종료 상태를 관리하고 네트워크로 복제하는 컴포넌트입니다.
@@ -25,7 +20,6 @@ class PARCEL_KNIGHT_API URagdollComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	// Tick 설정과 컴포넌트 복제 기본값을 초기화합니다.
 	URagdollComponent();
 
 	// 복제할 프로퍼티를 Unreal 네트워크 시스템에 등록합니다.
@@ -50,7 +44,6 @@ public:
 	bool IsRagdoll() const;
 
 protected:
-	// 게임 시작 시 소유 액터를 캐릭터로 캐싱합니다.
 	virtual void BeginPlay() override;
 
 private:
