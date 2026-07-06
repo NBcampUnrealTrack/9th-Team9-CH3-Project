@@ -21,6 +21,12 @@ void UTeamScoreComponent::OnRep_TeamScore()
 	//TODO: UI작업 BroadCast(3단계)
 }
 
+void UTeamScoreComponent::InitRemainingTime(float InTimeLimit)
+{
+	if (GetOwner()->HasAuthority())
+		RemainingTime = InTimeLimit;
+}
+
 void UTeamScoreComponent::AddTeamScore(int32 Amount)
 {
 	if (GetOwner()->HasAuthority())
@@ -33,7 +39,7 @@ void UTeamScoreComponent::DecreaseRemainingTime(float Amount)
 {
 	if (GetOwner()->HasAuthority())
 	{
-		RemainingTime += Amount;
+		RemainingTime -= Amount;
 	}
 }
 

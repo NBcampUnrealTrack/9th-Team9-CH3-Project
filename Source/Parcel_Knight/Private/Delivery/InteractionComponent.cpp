@@ -1,6 +1,5 @@
 #include "Delivery/InteractionComponent.h"
-#include "Delivery/Carryable.h"
-#include "Delivery/CarryComponent.h"
+#include "Delivery/InteractableInterface.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "CollisionQueryParams.h"
@@ -41,20 +40,23 @@ void UInteractionComponent::CheckTraceTarget()
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(OwnerCharacter);
 
+	AActor* NewFocus = nullptr;
+
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
 	{
 		AActor* HitActor = HitResult.GetActor();
 		
-		if (HitActor && HitActor->GetClass()->ImplementsInterface(UCarryable::StaticClass()))
+		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 		{
-			if (CurrentFocusedActor != HitActor)
-			{
-				CurrentFocusedActor = HitActor;
-			}
-			return;
+			NewFocus = HitActor;
 		}
 	}
-	CurrentFocusedActor = nullptr;
+
+	if (CurrentFocusedActor != NewFocus)
+	{
+		CurrentFocusedActor = NewFocus;
+		OnFocusChanged.Broadcast(CurrentFocusedActor);
+	}
 }
 
 void UInteractionComponent::PrimaryInteract()
@@ -64,21 +66,20 @@ void UInteractionComponent::PrimaryInteract()
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter) return;
 
-	ICarryable* CarryableTarget = Cast<ICarryable>(CurrentFocusedActor);
-	if (CarryableTarget && CarryableTarget->CanCarry(OwnerCharacter))
+	if (CurrentFocusedActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 	{
-		if (OwnerCharacter->HasAuthority())
+		if (IInteractableInterface::Execute_CanInteract(CurrentFocusedActor, OwnerCharacter))
 		{
-			CarryableTarget->OnPickedUp(OwnerCharacter);
-
-			if (UCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCarryComponent>())
+			if (OwnerCharacter->HasAuthority())
 			{
-				CarryComp->PickUpBox(CurrentFocusedActor);
+				// Host 유저 : 즉시 상자 상호작용 호출
+				IInteractableInterface::Execute_Interact(CurrentFocusedActor, OwnerCharacter);
 			}
-		}
-		else
-		{
-			Server_RequestPrimaryInteract(CurrentFocusedActor);
+			else
+			{
+				// 원격 클라이언트 유저 : RPC 요청 발송
+				Server_RequestPrimaryInteract(CurrentFocusedActor);
+			}
 		}
 	}
 }
@@ -98,16 +99,13 @@ void UInteractionComponent::Server_RequestPrimaryInteract_Implementation(AActor*
 {
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter || !TargetActor) return;
-
-	ICarryable* CarryableTarget = Cast<ICarryable>(TargetActor);
 	
-	if (CarryableTarget && CarryableTarget->CanCarry(OwnerCharacter))
+	// [Server] 서버에서도 상자의 IInteractable 인지
+	if (TargetActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 	{
-		CarryableTarget->OnPickedUp(OwnerCharacter);
-
-		if (UCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCarryComponent>())
+		if (IInteractableInterface::Execute_CanInteract(TargetActor, OwnerCharacter))
 		{
-			CarryComp->PickUpBox(TargetActor);
+			IInteractableInterface::Execute_Interact(TargetActor, OwnerCharacter);
 		}
 	}
 }

@@ -1,35 +1,38 @@
 #include "Delivery/PhysicsJudgeManager.h"
+#include "ParcelLog.h"
 #include "Delivery/DeliveryBox.h"
 
+DEFINE_LOG_CATEGORY(LogDeliveryPhysics);
+
 void UPhysicsJudgeManager::EvaluateImpact(ADeliveryBox* Box, float ImpactForce)
+{
+	ProcessBoxDamage(Box, ImpactForce, TEXT("impact force"));
+}
+
+void UPhysicsJudgeManager::EvaluateTrapImpact(ADeliveryBox* Box, float TrapImpactForce)
+{
+	ProcessBoxDamage(Box, TrapImpactForce, TEXT("Trap Impact Force"));
+}
+
+void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, const FString& SourceName)
 {
 	if (!Box) return;
 	if (GetWorld() && GetWorld()->GetNetMode() == NM_Client) return;
 
 	float DamageThreshold = Box->GetDamageThreshold(); 
-
-	if (ImpactForce >= DamageThreshold)
+	if (Force >= DamageThreshold)
 	{
 		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
 		
-		UE_LOG(LogDelivery, Warning, TEXT("[Server] Box ID %d was damaged by impact force of %f (Threshold: %f)!"), 
-			Box->GetBoxID(), ImpactForce, DamageThreshold);
-	}
-}
+		PHYSICSJUDGE_LOG(Warning, TEXT("[Server] Box ID %d was damaged by %s of %f (Threshold: %f)!"), 
+			Box->GetBoxID(), *SourceName, Force, DamageThreshold);
 
-void UPhysicsJudgeManager::EvaluateTrapImpact(ADeliveryBox* Box, float TrapImpactForce)
-{
-	if (!Box) return;
-	if (GetWorld() && GetWorld()->GetNetMode() == NM_Client) return;
-
-	float DamageThreshold = Box->GetDamageThreshold();
-	if (TrapImpactForce >= DamageThreshold)
-	{
-		Box->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
-		UE_LOG(LogDelivery, Warning, TEXT("[Server] Box ID %d was damaged by Trap Impact Force of %f (Threshold: %f)!"), Box->GetBoxID(), TrapImpactForce, DamageThreshold);
+		// 델리게이트 알림
+		OnBoxDamaged.Broadcast(Box);
 	}
-	else
+	else if (SourceName.Contains(TEXT("Trap")))
 	{
-		UE_LOG(LogDelivery, Log, TEXT("[Server] Box ID %d hit by Trap but force %f was below threshold %f."), Box->GetBoxID(), TrapImpactForce, DamageThreshold);
+		PHYSICSJUDGE_LOG(Log, TEXT("[Server] Box ID %d hit by Trap but force %f was below threshold %f."), 
+			Box->GetBoxID(), Force, DamageThreshold);
 	}
 }
