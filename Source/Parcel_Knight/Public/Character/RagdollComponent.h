@@ -21,9 +21,8 @@ class PARCEL_KNIGHT_API URagdollComponent : public UActorComponent
 
 public:
 	URagdollComponent();
-
-	// 복제할 프로퍼티를 Unreal 네트워크 시스템에 등록합니다.
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	virtual void BeginPlay() override;
 
 	// 래그돌을 시작합니다.
 	// 클라이언트에서 호출하면 서버에 요청하고, 서버에서는 바로 적용합니다.
@@ -43,17 +42,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool IsRagdoll() const;
 
-protected:
-	virtual void BeginPlay() override;
-
+	UFUNCTION(BlueprintCallable)
+	bool IsRagdollCloseToGround() const;
+	
 private:
 	// 클라이언트가 래그돌 상태 변경을 서버에 요청할 때 사용하는 RPC입니다.
 	UFUNCTION(Server, Reliable)
 	void ServerSetRagdoll(bool bNewIsRagdoll);
-
-	// bIsRagdoll 값이 클라이언트에 복제될 때 호출됩니다.
-	UFUNCTION()
-	void OnRep_IsRagdoll();
 
 	// 실제 래그돌 시작 처리를 적용합니다.
 	void ApplyStartRagdoll();
@@ -65,7 +60,9 @@ private:
 	UPROPERTY()
 	ACharacter* OwnerCharacter;
 
-	// 서버에서 결정하고 클라이언트로 복제되는 래그돌 상태입니다.
-	UPROPERTY(ReplicatedUsing = OnRep_IsRagdoll)
-	bool bIsRagdoll = false;
+	
+protected:
+	// Ragdoll 해제 시 지면 감지를 위한 트레이스 거리
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
+	float RagdollStopGroundTraceDistance = 120.f;
 };
