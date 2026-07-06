@@ -12,10 +12,12 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
 	if (!Sessions.IsValid()) return;
 
-	// 동일 이름 세션이 이미 있으면 CreateSession이 실패하므로 먼저 제거
+	// 동일 이름 세션이 이미 있으면 파괴 후 자동 재생성 (OnDestroySessionComplete에서 이어받음)
 	if (Sessions->GetNamedSession(NAME_GameSession))
 	{
-		Sessions->DestroySession(NAME_GameSession);
+		bPendingCreate = true;
+		PendingNumConnections = NumPublicConnections;
+		DestroySession();
 		return;
 	}
 
@@ -44,6 +46,7 @@ void USessionSubsystem::FindSessions()
 	SessionSearch = MakeShared<FOnlineSessionSearch>();
 	SessionSearch->MaxSearchResults = 10;
 	SessionSearch->bIsLanQuery = OSS->GetSubsystemName() == "NULL";
+	SessionSearch->TimeoutInSeconds = 2.0f; //작동 시간
 
 	FindSessionsHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(
 		FOnFindSessionsCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnFindSessionsComplete)
@@ -51,8 +54,10 @@ void USessionSubsystem::FindSessions()
 	Sessions->FindSessions(0, SessionSearch.ToSharedRef());
 }
 
-void USessionSubsystem::JoinSession(const FOnlineSessionSearchResult& SearchResult)
+void USessionSubsystem::JoinSession(int32 SessionIndex)
 {
+	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex)) return;
+
 	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
 	if (!OSS) return;
 
@@ -62,8 +67,7 @@ void USessionSubsystem::JoinSession(const FOnlineSessionSearchResult& SearchResu
 	JoinSessionHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
 		FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnJoinSessionComplete)
 	);
-	
-	Sessions->JoinSession(0, NAME_GameSession, SearchResult);
+	Sessions->JoinSession(0, NAME_GameSession, SessionSearch->SearchResults[SessionIndex]);
 }
 
 void USessionSubsystem::DestroySession()
@@ -82,12 +86,36 @@ void USessionSubsystem::DestroySession()
 }
 
 
-TArray<FOnlineSessionSearchResult> USessionSubsystem::GetSearchResults() const
+void USessionSubsystem::StartGame(const FString& MapPath)
+{
+	GetWorld()->ServerTravel(MapPath + "?listen");
+}
+
+int32 USessionSubsystem::GetSearchResultCount() const
 {
 	if (SessionSearch.IsValid())
-		return SessionSearch->SearchResults;
-	return {};
+		return SessionSearch->SearchResults.Num();
+	return 0;
 }
+
+FString USessionSubsystem::GetSessionOwnerName(int32 Index) const
+{
+	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(Index))
+		return TEXT("");
+	// OwningUserName: OSS가 기록한 세션 호스트의 플레이어 이름, Steam사용?
+	return SessionSearch->SearchResults[Index].Session.OwningUserName;
+}
+
+int32 USessionSubsystem::GetSessionPlayerCount(int32 Index) const
+{
+	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(Index))
+		return 0;
+	const FOnlineSession& Session = SessionSearch->SearchResults[Index].Session;
+	// 최대 인원 - 남은 빈 슬롯 = 현재 접속 인원
+	return Session.SessionSettings.NumPublicConnections - Session.NumOpenPublicConnections;
+}
+
+//---------------세션 컴플리트----------------------------------------------------------
 
 void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
@@ -99,8 +127,10 @@ void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSucc
 	
 	Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle);
 	OnSessionCreateComplete.Broadcast(bWasSuccessful);
-	if (bWasSuccessful)
-		GetWorld()->ServerTravel("/Game/Maps/GameMap?listen"); // ?listen = 리슨 서버 모드, 호스트가 플레이어로도 참여
+	// 이미 다른 세션의 클라이언트로 연결된 상태에서는 ServerTravel이 유효하지 않으므로 제외
+	if (bWasSuccessful && GetWorld()->GetNetMode() != NM_Client)
+		// TODO: 로비맵 존재 시 로비맵으로 변경 필요. 현재는 Stage01로 이동, 혹은 메인메뉴에서 로비 생성
+		GetWorld()->ServerTravel("/Game/Maps/LV_DF_Stage01?listen"); // ?listen = 리슨 서버 모드, 호스트가 플레이어로도 참여
 	
 }
 
@@ -152,6 +182,15 @@ void USessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuc
 	if (!Sessions.IsValid()) return;
 	
 	Sessions->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionHandle);
+
+	// CreateSession 중 기존 세션 제거였으면 Broadcast 없이 바로 재생성
+	if (bPendingCreate)
+	{
+		bPendingCreate = false;
+		CreateSession(PendingNumConnections);
+		return;
+	}
+
 	OnSessionDestroyComplete.Broadcast(bWasSuccessful);
 
 	

@@ -21,7 +21,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionDestroyComplete, bool, bWa
  *
  * 담당자: 한수현
  */
-UCLASS()
+UCLASS(BlueprintType)
 class PARCEL_KNIGHT_API USessionSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -43,13 +43,31 @@ public:
 	FOnSessionDestroyComplete OnSessionDestroyComplete;
 	
 	
+	UFUNCTION(BlueprintCallable)
 	void CreateSession(int32 NumPublicConnections);
-	void FindSessions();
-	void JoinSession(const FOnlineSessionSearchResult& SearchResult);
-	void DestroySession();
-	// 검색 완료 후 결과를 꺼내는 getter
-	TArray<FOnlineSessionSearchResult> GetSearchResults() const;
 
+	UFUNCTION(BlueprintCallable)
+	void FindSessions();
+
+	// Blueprint에서 FOnlineSessionSearchResult를 직접 쓸 수 없으므로 인덱스로 참가
+	UFUNCTION(BlueprintCallable)
+	void JoinSession(int32 SessionIndex);
+
+	UFUNCTION(BlueprintCallable)
+	void DestroySession();
+
+	// TODO: 로비맵 완성 후 OnCreateSessionComplete의 이동 대상을 로비맵으로 교체
+	UFUNCTION(BlueprintCallable)
+	void StartGame(const FString& MapPath);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	int32 GetSearchResultCount() const;
+	
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	FString GetSessionOwnerName(int32 Index) const;
+	
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	int32 GetSessionPlayerCount(int32 Index) const;
 	
 private:
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
@@ -58,6 +76,10 @@ private:
 	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
 	
 	
+	// 세션 파괴 완료 후 자동 재생성을 위한 플래그
+	bool bPendingCreate = false;
+	int32 PendingNumConnections = 0;
+
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 	FDelegateHandle CreateSessionHandle;
 	FDelegateHandle FindSessionsHandle;

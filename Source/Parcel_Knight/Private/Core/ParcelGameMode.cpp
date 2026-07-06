@@ -8,6 +8,7 @@
 #include "Core/ParcelPlayerController.h"
 #include "Core/ParcelPlayerState.h"
 #include "Delivery/StageData.h"
+#include "ParcelLog.h"
 
 AParcelGameMode::AParcelGameMode()
 {
@@ -33,6 +34,8 @@ void AParcelGameMode::Logout(AController* Exiting)
 void AParcelGameMode::HandleMatchHasStarted()
 {
 	Super::HandleMatchHasStarted();
+	GAMERULE_LOG(Log, TEXT("Match Started — StartRound 호출"));
+	//TODO:StartRound(스테이지데이터) 예정
 }
 
 void AParcelGameMode::HandleMatchHasEnded()
