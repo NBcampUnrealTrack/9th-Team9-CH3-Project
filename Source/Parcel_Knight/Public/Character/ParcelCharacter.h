@@ -13,7 +13,6 @@ class UInputComponent;
 class UInputMappingContext;
 class USpringArmComponent;
 class UCharacterCarryComponent;
-class UInteractionComponent;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
 // 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원
@@ -41,6 +40,7 @@ public:
 	// 다른 요소들이 상호작용 컴포넌트에 접근할 수 있도록 하는 게터
 	FORCEINLINE UParcelInteractionComponent* GetParcelInteractionComponent() const { return InteractionComp; }
 	FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
+	FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
 
 protected:
 	// Ragdoll Component
@@ -58,4 +58,8 @@ protected:
 	// MovementStat Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<UParcelMovementStatComponent> MovementStatComp;
+	
+	// CharacterCarry Component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCharacterCarryComponent> CarryComp;
 };

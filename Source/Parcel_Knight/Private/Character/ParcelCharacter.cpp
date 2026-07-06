@@ -7,8 +7,6 @@
 #include "Character/CharacterCarryComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
-
-
 DEFINE_LOG_CATEGORY(LogCharacter);
 
 AParcelCharacter::AParcelCharacter()
@@ -34,17 +32,12 @@ AParcelCharacter::AParcelCharacter()
 	// 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
 	GetCharacterMovement()->AirControl = 0.35f;
 
-	// 래그돌 상태 전환과 복제를 담당하는 컴포넌트를 생성
+	// 컴포넌트 조립
 	RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
-	
-	// 조작 및 카메라를 담당하는 컴포넌트 생성
 	HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
-	
-	// 상호작용 컴포넌트 생성
 	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
-	
-	// 이동 관련 스탯 컴포넌트 인스턴스 생성 및 부착
 	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
+	CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
 }
 
 void AParcelCharacter::BeginPlay()

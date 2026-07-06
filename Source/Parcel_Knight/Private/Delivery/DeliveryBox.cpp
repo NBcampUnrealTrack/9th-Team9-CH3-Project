@@ -49,7 +49,7 @@ void ADeliveryBox::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ADeliveryBox, BoxID);
 	DOREPLIFETIME(ADeliveryBox, BoxStateTags);
 	DOREPLIFETIME(ADeliveryBox, BoxData);
-	DOREPLIFETIME(ADeliveryBox, HolderPlayer);
+	DOREPLIFETIME(ADeliveryBox, HoldingCarrier);
 }
 
 void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
@@ -80,8 +80,8 @@ void ADeliveryBox::OnRep_BoxData()
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
 	}
 	
-	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 표시 이름: %s"), 
-		BoxID, *BoxStateTags.ToString());
+	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 상자 타입 태그: %s"), 
+	   BoxID, *BoxData.BoxTypeTag.ToString());
 }
 
 void ADeliveryBox::AddStateTag(FGameplayTag NewStateTag)
@@ -93,12 +93,6 @@ void ADeliveryBox::AddStateTag(FGameplayTag NewStateTag)
 		BoxStateTags.AddTag(NewStateTag);
 		
 		DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자에 새로운 상태 태그 추가됨: %s"), BoxID, *NewStateTag.ToString());
-       
-		if (NewStateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
-		{
-			CollisionComponent->SetSimulatePhysics(false);
-			CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
 	
 		//플레이어가 상자를 들면 상자의 물리 규칙은 잠시 꺼야 함.
 		if (NewStateTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"))))
@@ -130,24 +124,12 @@ void ADeliveryBox::RemoveStateTag(FGameplayTag StateTag)
 
 void ADeliveryBox::OnRep_BoxStateTags()
 {
-	// [Client] 시각/청각 연출 분기점
-	FGameplayTag HeldTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"));
 	FGameplayTag DamagedTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged"));
 
 	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 상태 태그 컨테이너 갱신됨. 현재 태그 목록: %s"), 
 	   BoxID, *BoxStateTags.ToString());
-	
-	if (BoxStateTags.HasTag(HeldTag))
-	{
-		CollisionComponent->SetSimulatePhysics(false);
-		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
-	else
-	{
-		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		CollisionComponent->SetSimulatePhysics(true);
-	}
-
+    
+	// 클라이언트 사이드 물리 콜리전 켜고 끄기는 CharacterCarryComponent가 담당하도록 이전
 	if (BoxStateTags.HasTag(DamagedTag))
 	{
 		// Todo : 찌그러진 메쉬로 교체하거나 내용물이 튀어나오는 이펙트/사운드 호출
@@ -169,16 +151,16 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
     
 	if (APawn* CarrierPawn = Cast<APawn>(Carrier))
 	{
-		HolderPlayer = Cast<APlayerController>(CarrierPawn->GetController());
+		HoldingCarrier = CarrierPawn;
 		SetOwner(CarrierPawn);
        
-		if (HolderPlayer)
+		if (APlayerController* PC = Cast<APlayerController>(CarrierPawn->GetController()))
 		{
-			LastCarrierPlayerState = HolderPlayer->GetPlayerState<AParcelPlayerState>();
+			LastCarrierPlayerState = PC->GetPlayerState<AParcelPlayerState>();
 		}
 
-		DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 플레이어: %s"), 
-		  BoxID, HolderPlayer ? *HolderPlayer->GetName() : TEXT("알 수 없음"));
+		DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자 획득 처리 완료. 소유 캐릭터: %s"), 
+		  BoxID, *HoldingCarrier->GetName());
 	}
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
@@ -191,8 +173,8 @@ void ADeliveryBox::OnDropped()
 
 	DELIVERYBOX_LOG(Log, TEXT("[Server] %d번 상자 낙하 처리 완료."), BoxID);
     
-	HolderPlayer = nullptr;
-	SetOwner(nullptr); // 소유권 해제
+	HoldingCarrier = nullptr;
+	SetOwner(nullptr); 
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
@@ -235,10 +217,9 @@ void ADeliveryBox::Interact_Implementation(AActor* Interactor)
 	// 상태를 Held 태그로 바꿈
 	OnPickedUp(Interactor);
     
-	// UCharacterCarryComponent 컴포넌트를 호출
+	// CharacterCarryComponent 호출하여 손에 붙임
 	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
 	{
-		// 캐릭터 양손에 붙임
 		CharacterCarryComp->Pickup(this);
 	}
 }

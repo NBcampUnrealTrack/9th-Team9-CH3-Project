@@ -27,6 +27,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogCharacter, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogParcelMovementStat, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogParcelInteraction, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogHeroComp, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogRagdoll, Log, All);
 
 // Delivery
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryBox, Log, All);
@@ -43,6 +44,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogDeliverySubsystem, Log, All);
 #define MOVEMENT_LOG(Verbosity, Format, ...)    UE_LOG(LogParcelMovementStat, Verbosity, Format, ##__VA_ARGS__)
 #define INTERACT_LOG(Verbosity, Format, ...)    UE_LOG(LogParcelInteraction, Verbosity, Format, ##__VA_ARGS__)
 #define HEROCOMP_LOG(Verbosity, Format, ...)    UE_LOG(LogHeroComp, Verbosity, Format, ##__VA_ARGS__)
+#define RAGDOLL_LOG(Verbosity, Format, ...)    UE_LOG(LogRagdoll, Verbosity, Format, ##__VA_ARGS__)
 
 // Delivery
 #define DELIVERYBOX_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryBox, Verbosity, Format, ##__VA_ARGS__)

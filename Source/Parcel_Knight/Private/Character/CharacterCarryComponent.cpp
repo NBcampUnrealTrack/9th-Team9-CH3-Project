@@ -1,147 +1,162 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Character/CharacterCarryComponent.h"
+#include "Character/ParcelMovementStatComponent.h"
 #include "Components/ActorComponent.h" 
 #include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Delivery/DeliveryBox.h"
 #include "Delivery/CarryableInterface.h"
 #include "Delivery/PhysicsJudgeManager.h"
+#include "Net/UnrealNetwork.h"
 
 UCharacterCarryComponent::UCharacterCarryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
+
 	CarriedBox = nullptr;
 	bIsCarrying = false;
 	MoveSpeedMultiplier = 1.0f;
-	// TODO: BeginPlay에서 캐릭터 무브먼트 컴포넌트의 MaxWalkSpeed 값을 동적으로 다시 가져옴
-	DefaultMaxWalkSpeed = 450.f;
 	HandSocketName = TEXT("HandSocket");
 }
 
-void UCharacterCarryComponent::BeginPlay()
+void UCharacterCarryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	Super::BeginPlay();
-
-	if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
-	{
-		if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-		{
-			DefaultMaxWalkSpeed = Movement->MaxWalkSpeed;
-		}
-	}
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCharacterCarryComponent, CarriedBox);
+	DOREPLIFETIME(UCharacterCarryComponent, bIsCarrying);
 }
+
+// BeginPlay에 있던 '속도'관련 함수를 MovementStatComponent에서 통합 관리하도록 이전시켰습니다
 
 void UCharacterCarryComponent::Pickup(ADeliveryBox* InBox)
 {
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (!OwnerCharacter || !InBox) return;
+	if (!GetOwner()->HasAuthority() || !InBox) return;
 
 	CarriedBox = InBox;
 	bIsCarrying = true;
 	MoveSpeedMultiplier = InBox->GetBoxData().MoveSpeedMultiplier;
 
-	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
-	InBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, HandSocketName);
-
-	if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-	{
-		Movement->MaxWalkSpeed = DefaultMaxWalkSpeed * MoveSpeedMultiplier;
-	}
+	// 서버 사이드 물리적 처리 및 상태 전파용 강제 트리거 호출
+	OnRep_CarriedBox();
+	SyncWeightToMovement();
 }
 
 void UCharacterCarryComponent::Drop()
 {
-	if (!CarriedBox) return;
-
-	if (GetOwner()->HasAuthority())
+	if (!GetOwner()->HasAuthority())
 	{
-		if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(CarriedBox))
-		{
-			Carryable->OnDropped();
-		}
+		Server_Drop();
+		return;
 	}
 
-	CarriedBox->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	if (!CarriedBox) return;
 
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (OwnerCharacter)
+	if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(CarriedBox))
 	{
-		if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-		{
-			Movement->MaxWalkSpeed = DefaultMaxWalkSpeed; // 기본 걷기 속도 복구
-		}
+		Carryable->OnDropped();
 	}
 
 	CarriedBox = nullptr;
 	bIsCarrying = false;
+	MoveSpeedMultiplier = 1.0f;
+
+	OnRep_CarriedBox();
+	SyncWeightToMovement();
 }
 
 void UCharacterCarryComponent::Throw(FVector Force)
 {
-	if (!CarriedBox) return;
-
-	if (GetOwner()->HasAuthority())
-	{
-		AActor* DroppedBox = CarriedBox;
-
-		if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(DroppedBox))
-		{
-			Carryable->OnDropped();
-		}
-
-		DroppedBox->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-
-		if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(DroppedBox->GetRootComponent()))
-		{
-			RootPrim->AddImpulse(Force, NAME_None, true); // true = 질량을 무시하고 속도 변화로 던짐
-		}
-
-		ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-		if (OwnerCharacter)
-		{
-			if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-			{
-				Movement->MaxWalkSpeed = DefaultMaxWalkSpeed;
-			}
-		}
-
-		CarriedBox = nullptr;
-		bIsCarrying = false;
-	}
-	else
+	if (!GetOwner()->HasAuthority())
 	{
 		Server_Throw(Force);
+		return;
+	}
+
+	if (!CarriedBox) return;
+
+	ADeliveryBox* BoxToThrow = CarriedBox;
+
+	if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(BoxToThrow))
+	{
+		Carryable->OnDropped();
+	}
+
+	CarriedBox = nullptr;
+	bIsCarrying = false;
+	MoveSpeedMultiplier = 1.0f;
+
+	OnRep_CarriedBox();
+	SyncWeightToMovement();
+
+	// 지연 분리 시점에 월드 임펄스 물리 적용
+	if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(BoxToThrow->GetRootComponent()))
+	{
+		RootPrim->AddImpulse(Force, NAME_None, true);
 	}
 }
 
 void UCharacterCarryComponent::ForceDropByTrap(float TrapDamage)
 {
-	if (!CarriedBox) return;
+	if (!GetOwner()->HasAuthority() || !CarriedBox) return;
 
 	ADeliveryBox* BoxActor = CarriedBox;
-
 	Drop();
 
-	if (GetOwner()->HasAuthority())
+	if (UWorld* World = GetWorld())
 	{
-		if (UWorld* World = GetWorld())
+		if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
 		{
-			if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
-			{
-				JudgeManager->EvaluateTrapImpact(BoxActor, TrapDamage);
-			}
+			JudgeManager->EvaluateTrapImpact(BoxActor, TrapDamage);
 		}
 	}
 }
 
-bool UCharacterCarryComponent::Server_Throw_Validate(FVector Force)
+void UCharacterCarryComponent::OnRep_CarriedBox()
 {
-	return true;
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!OwnerCharacter) return;
+
+	if (CarriedBox)
+	{
+		// [상자를 잡았을 때] 시각적 부착 처리
+		FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
+		CarriedBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, HandSocketName);
+
+		// [Add] : 현재 잡은 상자를 기록해 둬야, 나중에 손에서 뗄 때 서버와의 nullptr 괴리를 방지할 수 있음
+		PreviousCarriedBox = CarriedBox;
+	}
+	else
+	{
+		if (PreviousCarriedBox && PreviousCarriedBox->IsValidLowLevel())
+		{
+			// Transform 보존하고 바인딩을 해제함
+			FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, true);
+			PreviousCarriedBox->DetachFromActor(DetachRules);
+
+			// 물리 및 콜리전 복구
+			if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(PreviousCarriedBox->GetRootComponent()))
+			{
+				RootPrim->SetSimulatePhysics(true);
+				RootPrim->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			}
+
+			// 캐시 초기화
+			PreviousCarriedBox = nullptr;
+		}
+	}
 }
 
-void UCharacterCarryComponent::Server_Throw_Implementation(FVector Force)
+void UCharacterCarryComponent::SyncWeightToMovement()
 {
-	Throw(Force);
+	if (UParcelMovementStatComponent* StatComp = GetOwner()->FindComponentByClass<UParcelMovementStatComponent>())
+	{
+		// 무브먼트 컴포넌트에 무게 정보를 갱신
+		StatComp->UpdateDynamicSpeedModifier(false, MoveSpeedMultiplier);
+	}
 }
+
+
+// [Server]
+bool UCharacterCarryComponent::Server_Drop_Validate() { return true; }
+void UCharacterCarryComponent::Server_Drop_Implementation() { Drop(); }
+bool UCharacterCarryComponent::Server_Throw_Validate(FVector Force) { return true; }
+void UCharacterCarryComponent::Server_Throw_Implementation(FVector Force) { Throw(Force); }
