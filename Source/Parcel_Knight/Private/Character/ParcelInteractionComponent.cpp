@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "CollisionQueryParams.h"
 #include "TimerManager.h"
+#include "Character/ParcelCharacter.h"
+#include "Character/ParcelPlayerStateComponent.h"
+#include "GameplayTagContainer.h"
 
 DEFINE_LOG_CATEGORY(LogParcelInteraction);
 
@@ -41,6 +44,22 @@ void UParcelInteractionComponent::CheckTraceTarget()
     // 내가 조종하는 로컬 캐릭터 화면이 아니라면 레이저를 쏘지 않고 즉시 리턴
     if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled()) return;
 
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+            {
+                if (CurrentFocusedActor != nullptr)
+                {
+                    INTERACT_LOG(Log, TEXT("래그돌 상태가 감지되어 조준 중이던 타겟을 강제 해제합니다."));
+                    CurrentFocusedActor = nullptr;
+                }
+                return;
+            }
+        }
+    }
+    
     APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController());
     if (!PC) return;
 
@@ -100,6 +119,18 @@ void UParcelInteractionComponent::PrimaryInteract()
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
     if (!OwnerCharacter) return;
 
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+            {
+                INTERACT_LOG(Warning, TEXT("래그돌 상태에서는 상호작용 입력을 처리할 수 없습니다."));
+                return;
+            }
+        }
+    }
+    
     if (CurrentFocusedActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
     {
         IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(CurrentFocusedActor);
@@ -138,6 +169,18 @@ bool UParcelInteractionComponent::Server_RequestPrimaryInteract_Validate(AActor*
     {
         INTERACT_LOG(Warning, TEXT("서버 검증 실패: 소유 캐릭터가 유효하지 않습니다."));
         return false;
+    }
+    
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+            {
+                INTERACT_LOG(Warning, TEXT("서버 보안 검증 실패: 캐릭터[%s]가 쓰러진 상태에서 조작을 시도했습니다."), *OwnerCharacter->GetName());
+                return false;
+            }
+        }
     }
 
     // 패킷 변조 핵 방어: 서버사이드에서 캐릭터와 타겟의 실제 거리를 역계산
