@@ -6,6 +6,8 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
+
 
 DEFINE_LOG_CATEGORY(LogCharacter);
 
@@ -49,6 +51,14 @@ void AParcelCharacter::BeginPlay()
 	Super::BeginPlay();
 }
 
+void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// 캐릭터의 상태 태그 컨테이너를 모든 클라이언트에게 동기화
+	DOREPLIFETIME(AParcelCharacter, CharacterStateTags);
+}
+
 void AParcelCharacter::PossessedBy(AController* NewController)
 {
 	// 서버의 possession 처리 흐름을 유지합니다.
@@ -59,6 +69,42 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 	{
 		HeroComp->AddInputMappingContext();
 	}
+}
+
+void AParcelCharacter::AddStateTag(FGameplayTag NewStateTag)
+{
+	if (!HasAuthority() || !NewStateTag.IsValid()) return;
+
+	if (!CharacterStateTags.HasTagExact(NewStateTag))
+	{
+		CharacterStateTags.AddTag(NewStateTag);
+        
+		PLAYER_LOG(All, TEXT("[Server] 캐릭터[%s] 상태 태그 추가됨: %s"), *GetName(), *NewStateTag.ToString());
+
+		// 호스트 유저의 화면 연출을 위해 OnRep 수동 강제 트리거
+		OnRep_CharacterStateTags();
+	}
+}
+
+void AParcelCharacter::RemoveStateTag(FGameplayTag StateTag)
+{
+	if (!HasAuthority() || !StateTag.IsValid()) return;
+
+	if (CharacterStateTags.HasTagExact(StateTag))
+	{
+		CharacterStateTags.RemoveTag(StateTag);
+        
+		PLAYER_LOG(All, TEXT("[Server] 캐릭터[%s] 상태 태그 제거됨: %s"), *GetName(), *StateTag.ToString());
+
+		// 호스트 유저의 화면 연출을 위해 OnRep 수동 강제 트리거
+		OnRep_CharacterStateTags();
+	}
+}
+
+void AParcelCharacter::OnRep_CharacterStateTags()
+{
+	// Todo : [Client] ABP에 신호를 주거나, 특정 이펙트/사운드를 켜고 끄는 연출을 처리
+	PLAYER_LOG(All, TEXT("[Client] 캐릭터[%s] 상태 태그 컨테이너 동기화됨. 현재 태그 목록: %s"), *GetName(), *CharacterStateTags.ToString());
 }
 
 void AParcelCharacter::OnRep_Controller()
