@@ -17,7 +17,7 @@ void UPhysicsJudgeManager::EvaluateTrapImpact(ADeliveryBox* Box, float TrapImpac
 void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, const FString& SourceName)
 {
 	if (!Box) return;
-	if (GetWorld() && GetWorld()->GetNetMode() == NM_Client) return;
+	if (!Box->HasAuthority()) return;
 
 	float DamageThreshold = Box->GetDamageThreshold(); 
 	if (Force >= DamageThreshold)

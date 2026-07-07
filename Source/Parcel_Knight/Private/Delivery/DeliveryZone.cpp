@@ -48,9 +48,8 @@ void ADeliveryZone::OnZoneOverlap(UPrimitiveComponent* OverlappedComponent, AAct
 	}
 }
 
-void ADeliveryZone::ProcessDelivery(AActor* InBox)
+void ADeliveryZone::ProcessDelivery(ADeliveryBox* Box)
 {
-	ADeliveryBox* Box = Cast<ADeliveryBox>(InBox);
 	if (!Box || !HasAuthority()) return;
 
 	FBoxData Data = Box->GetBoxData();
@@ -58,6 +57,7 @@ void ADeliveryZone::ProcessDelivery(AActor* InBox)
 	// 게임플레이태그 시스템으로 리팩토링 (조건문 간소화)
 	bool bIsCorrectZone = Data.TargetZoneTag.MatchesTagExact(ZoneTag);
 	
+	// [검토] : DamagePenalty를 데이터 테이블에서 입력할 때, 반드시 음수 (-) 값으로 붙여야 정상적으로 점수가 계산됨 (by JYW)
 	int32 ScoreChange = bIsCorrectZone ? Data.BaseScore : Data.DamagePenalty;
 
 	if (bIsCorrectZone)

@@ -61,10 +61,10 @@ void UCharacterCarryComponent::Drop()
 
     if (!CarriedBox) return;
 
-    if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(CarriedBox))
-    {
-       Carryable->OnDropped();
-    }
+	if (CarriedBox->GetClass()->ImplementsInterface(UCarryableInterface::StaticClass()))
+	{
+		ICarryableInterface::Execute_OnDropped(CarriedBox);
+	}
 
     CarriedBox = nullptr;
     bIsCarrying = false;
@@ -95,10 +95,10 @@ void UCharacterCarryComponent::Throw(FVector Force)
 
     ADeliveryBox* BoxToThrow = CarriedBox;
 
-    if (ICarryableInterface* Carryable = Cast<ICarryableInterface>(BoxToThrow))
-    {
-       Carryable->OnDropped();
-    }
+	if (BoxToThrow->GetClass()->ImplementsInterface(UCarryableInterface::StaticClass()))
+	{
+		ICarryableInterface::Execute_OnDropped(BoxToThrow);
+	}
 
     CarriedBox = nullptr;
     bIsCarrying = false;
