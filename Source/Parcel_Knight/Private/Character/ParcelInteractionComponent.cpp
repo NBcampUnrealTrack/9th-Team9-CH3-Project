@@ -85,8 +85,7 @@ void UParcelInteractionComponent::CheckTraceTarget()
         // 조준된 액터가 인터페이스 규격을 구현했는지 검사
         if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
         {
-            IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(HitActor);
-            if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+            if (IInteractableInterface::Execute_CanInteract(HitActor, OwnerCharacter))
             {
                 // 바로 대입하지 않고 변경점 체크를 위해 임시 변수에 보관
                 NewFocusedActor = HitActor;
@@ -133,14 +132,13 @@ void UParcelInteractionComponent::PrimaryInteract()
     
     if (CurrentFocusedActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
     {
-        IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(CurrentFocusedActor);
-        if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+        if (IInteractableInterface::Execute_CanInteract(CurrentFocusedActor, OwnerCharacter))
         {
             // 호스트 유저 : 즉시 실행
             if (OwnerCharacter->HasAuthority())
             {
                 INTERACT_LOG(Log, TEXT("호스트(서버)가 직접 상호작용 실행: [%s]"), *CurrentFocusedActor->GetName());
-                InteractableTarget->Interact(OwnerCharacter);
+                IInteractableInterface::Execute_Interact(CurrentFocusedActor, OwnerCharacter);
             }
             // 원격 클라이언트 유저 : 서버에 RPC 요청
             else
@@ -206,14 +204,13 @@ void UParcelInteractionComponent::Server_RequestPrimaryInteract_Implementation(A
     
     if (TargetActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
     {
-        IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(TargetActor);
-        if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+        if (IInteractableInterface::Execute_CanInteract(TargetActor, OwnerCharacter))
         {
             // 서버 월드에서 상자의 상호작용 몸통 로직 실행
             INTERACT_LOG(Log, TEXT("서버에서 캐릭터[%s]의 요청으로 [%s] 상호작용 최종 승인 및 실행"), 
                 *OwnerCharacter->GetName(), *TargetActor->GetName());
                 
-            InteractableTarget->Interact(OwnerCharacter);
+            IInteractableInterface::Execute_Interact(TargetActor, OwnerCharacter);
         }
     }
 }

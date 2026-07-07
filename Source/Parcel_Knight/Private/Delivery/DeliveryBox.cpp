@@ -140,12 +140,12 @@ void ADeliveryBox::OnRep_BoxStateTags()
    ICarryableInterface 인터페이스
    ========================================================================== */
 
-bool ADeliveryBox::CanCarry(AActor* Carrier)
+bool ADeliveryBox::CanCarry_Implementation(AActor* Carrier)
 {
 	return BoxStateTags.HasTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 }
 
-void ADeliveryBox::OnPickedUp(AActor* Carrier)
+void ADeliveryBox::OnPickedUp_Implementation(AActor* Carrier)
 {
 	if (!HasAuthority() || !Carrier) return;
     
@@ -167,7 +167,7 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
 }
 
-void ADeliveryBox::OnDropped()
+void ADeliveryBox::OnDropped_Implementation()
 {
 	if (!HasAuthority()) return;
 
@@ -215,7 +215,7 @@ void ADeliveryBox::Interact_Implementation(AActor* Interactor)
 	if (!Interactor) return;
     
 	// 상태를 Held 태그로 바꿈
-	OnPickedUp(Interactor);
+	ICarryableInterface::Execute_OnPickedUp(this, Interactor);
     
 	// CharacterCarryComponent 호출하여 손에 붙임
 	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
