@@ -146,7 +146,14 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
 
     if (CarriedBox)
     {
-       // [상자를 잡았을 때] 시각적 부착 처리
+       // [상자를 잡았을 때] 클라이언트 측에서도 물리/콜리전을 끄고 부착해야 정상적으로 달라붙어 따라다님
+       if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(CarriedBox->GetRootComponent()))
+       {
+          RootPrim->SetSimulatePhysics(false);
+          RootPrim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+       }
+
+       // 시각적 부착 처리
        FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
        CarriedBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, HandSocketName);
 
