@@ -127,6 +127,8 @@ void UCharacterCarryComponent::ForceDropByTrap(float TrapDamage)
 {
     if (!GetOwner()->HasAuthority() || !CarriedBox) return;
 
+    // TODO: 캐릭터가 상자를 들고 있는 상태(NoCollision)에서도 함정(Trap) 오버랩 채널을 설계하여, 
+    // -> 캐릭터가 함정에 걸렸을 때 손에 든 상자(CarriedBox)의 체력도 함께 깎이도록 하는 충돌 검증 로직 추가 필요.
     ADeliveryBox* BoxActor = CarriedBox;
     Drop();
 
