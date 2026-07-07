@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "TeamScoreComponent.generated.h"
 
+//TODO: 나중에 결과에 따라 애니메이션/UI 출력이 바뀌거나 한다면 확장성을 고려했을 때 Tag로 바꾸는 것이 좋아보임
 UENUM(BlueprintType)
 enum class EGrade : uint8
 {
