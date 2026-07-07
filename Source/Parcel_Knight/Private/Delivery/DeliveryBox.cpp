@@ -39,6 +39,12 @@ void ADeliveryBox::BeginPlay()
 	if (HasAuthority() && CollisionComponent)
 	{
 		CollisionComponent->OnComponentHit.AddDynamic(this, &ADeliveryBox::OnPhysicsHit);
+
+		// 직접 월드에 배치된 상자 테스트용: 태그가 비어있으면 기본 Spawned 태그 자동 추가
+		if (BoxStateTags.IsEmpty())
+		{
+			AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
+		}
 	}
 }
 

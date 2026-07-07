@@ -81,7 +81,7 @@ private:
 	UPROPERTY(Replicated)
 	int32 BoxID;
 	
-	UPROPERTY(ReplicatedUsing = OnRep_BoxStateTags)
+	UPROPERTY(ReplicatedUsing = OnRep_BoxStateTags, EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery", meta = (AllowPrivateAccess = "true"))
 	FGameplayTagContainer BoxStateTags;
 	
 	UPROPERTY(ReplicatedUsing = OnRep_BoxData)

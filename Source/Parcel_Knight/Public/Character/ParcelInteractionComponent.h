@@ -5,6 +5,8 @@
 #include "Engine/EngineTypes.h"
 #include "ParcelInteractionComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractionFocusChanged, AActor*, NewFocusedActor);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class PARCEL_KNIGHT_API UParcelInteractionComponent : public UActorComponent
 {
@@ -19,6 +21,9 @@ public:
 
 	// 현재 조준 중인 대상을 외부에서 가져갈 수 있는 게터
 	FORCEINLINE AActor* GetCurrentFocusedActor() const { return CurrentFocusedActor; }
+
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
+	FOnInteractionFocusChanged OnFocusChanged;
 
 protected:
 

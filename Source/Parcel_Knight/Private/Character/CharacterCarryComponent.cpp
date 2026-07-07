@@ -127,6 +127,8 @@ void UCharacterCarryComponent::ForceDropByTrap(float TrapDamage)
 {
     if (!GetOwner()->HasAuthority() || !CarriedBox) return;
 
+    // TODO: 캐릭터가 상자를 들고 있는 상태(NoCollision)에서도 함정(Trap) 오버랩 채널을 설계하여, 
+    // -> 캐릭터가 함정에 걸렸을 때 손에 든 상자(CarriedBox)의 체력도 함께 깎이도록 하는 충돌 검증 로직 추가 필요.
     ADeliveryBox* BoxActor = CarriedBox;
     Drop();
 
@@ -146,13 +148,14 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
 
     if (CarriedBox)
     {
-    	// 상자 자체의 물리/충돌 컴포넌트가 복제되기 전에 클라이언트가 통제(레이턴시 해결)
-    	if (UPrimitiveComponent* BoxRootPrim = Cast<UPrimitiveComponent>(CarriedBox->GetRootComponent()))
-    	{
-    		BoxRootPrim->SetSimulatePhysics(false);
-    		BoxRootPrim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    	}
-    	// [상자를 잡았을 때] 시각적 부착 처리
+       // [상자를 잡았을 때] 클라이언트 측에서도 물리/콜리전을 끄고 부착해야 정상적으로 달라붙어 따라다님
+       if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(CarriedBox->GetRootComponent()))
+       {
+          RootPrim->SetSimulatePhysics(false);
+          RootPrim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+       }
+
+       // 시각적 부착 처리
        FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
        CarriedBox->AttachToComponent(OwnerCharacter->GetMesh(), AttachmentRules, HandSocketName);
 
