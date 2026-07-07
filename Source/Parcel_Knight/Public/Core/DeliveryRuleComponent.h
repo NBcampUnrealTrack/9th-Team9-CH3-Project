@@ -21,7 +21,7 @@ public:
 	UDeliveryRuleComponent();
 	
 	// [Server Only] GameMode::StartRound()에서 호출 — 타이머 시작
-	void StartRound(float InTimeLimit);
+	void StartRound(float InTimeLimit, int32 InTargetScore);
 
 	// [Server Only] GameMode::EndRound()에서 호출 — 타이머 정지
 	void EndRound();
@@ -31,16 +31,16 @@ private:
 	UPROPERTY()
 	float TimeLimit;
 	
-	// 이 점수 달성 시 클리어 판정 — DA_StageData에서 설정
+	// 등급 계산 기준 점수 — DA_StageData에서 설정
 	UPROPERTY()
 	int32 TargetScore;
 	
 	// "초" 당 감소되는 점수
-	UPROPERTY(EditDefaultsOnly, Category = "Stage")
+	UPROPERTY(EditAnywhere, Category = "Stage")
 	int32 DecreaseScore;
-	
+
 	//제한 시간 초과 시 감소되는 점수
-	UPROPERTY(EditDefaultsOnly, Category = "Stage")
+	UPROPERTY(EditAnywhere, Category = "Stage")
 	int32 TimeUpScore;
 	
 	// 1초 반복 타이머 핸들 — 시간 경과에 따른 점수 감소용
