@@ -11,124 +11,116 @@
 #include "Character/ParcelInteractionComponent.h"
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
-
+#include "Character/ParcelPlayerStateComponent.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
-namespace
-{
-	constexpr float RagdollCameraHeightOffset = 20.f;
-	constexpr float RagdollCameraBackOffset = 90.f;
-	constexpr float RagdollStopGroundTraceDistance = 120.f;
-	constexpr float CameraCollisionProbeSize = 18.f;
-}
-
 UParcelHeroComponent::UParcelHeroComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.bStartWithTickEnabled = false;
-	
-	// [Server] : 컴포넌트에서 Server RPC 가동
-	SetIsReplicatedByDefault(true);
+    PrimaryComponentTick.bCanEverTick = true;
+    PrimaryComponentTick.bStartWithTickEnabled = false;
+    
+    // [Server] : 컴포넌트에서 Server RPC 가동
+    SetIsReplicatedByDefault(true);
 
-	// 카메라
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
-	SpringArm->TargetArmLength = 350.f;
-	SpringArm->bDoCollisionTest = true;
-	SpringArm->ProbeChannel = ECC_Camera;
-	SpringArm->ProbeSize = CameraCollisionProbeSize;
-	SpringArm->bUsePawnControlRotation = true;
-	SpringArm->bEnableCameraLag = true;
-	SpringArm->CameraLagSpeed = 10.f;
+    // 카메라
+    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+    SpringArm->TargetArmLength = 350.f;
+    SpringArm->bDoCollisionTest = true;
+    SpringArm->ProbeChannel = ECC_Camera;
+    SpringArm->ProbeSize = CameraCollisionProbeSize;
+    SpringArm->bUsePawnControlRotation = true;
+    SpringArm->bEnableCameraLag = true;
+    SpringArm->CameraLagSpeed = 10.f;
 
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->bUsePawnControlRotation = false;
+    FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+    FollowCamera->bUsePawnControlRotation = false;
 }
 
 void UParcelHeroComponent::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-	// 부모 캐릭터 루트에 카메라 부착
-	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-	{
-		SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-		FollowCamera->AttachToComponent(SpringArm, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
-	
-		HEROCOMP_LOG(Log, TEXT("[%s] 캐릭터에 카메라 컴포넌트 부착 완료."), *Character->GetName());
-	}
+    // 부모 캐릭터 루트에 카메라 부착
+    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    {
+       SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+       FollowCamera->AttachToComponent(SpringArm, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
+    
+       HEROCOMP_LOG(Log, TEXT("[%s] 캐릭터에 카메라 컴포넌트 부착 완료."), *Character->GetName());
+    }
 
-	AddInputMappingContext();
+    AddInputMappingContext();
 }
 
 void UParcelHeroComponent::ResetCameraAttachment()
 {
-	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
-	{
-		if (SpringArm)
-		{
-			SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-			SpringArm->SetRelativeLocation(FVector::ZeroVector);
-		}
-	}
+    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    {
+       if (SpringArm)
+       {
+          SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+          SpringArm->SetRelativeLocation(FVector::ZeroVector);
+       }
+    }
 }
 
 void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!Character) return;
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
 
-	URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+    URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
 
-	// 래그돌 상태가 활성화 되었을 때만 카메라 연산 가동함(카메라 보정)
-	if (Character->IsLocallyControlled() && RagdollComp && RagdollComp->IsRagdoll() && Character->GetMesh() && SpringArm)
-	{
-		const FVector HeadLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
-		const FRotator ViewRotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
-		const FVector CameraBackDirection = -FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::X);
-		const FVector TargetLocation = HeadLocation + FVector::UpVector * RagdollCameraHeightOffset + CameraBackDirection * RagdollCameraBackOffset;
+    // 래그돌 상태가 활성화 되었을 때만 카메라 연산 가동함(카메라 보정)
+    if (Character->IsLocallyControlled() && RagdollComp && RagdollComp->IsRagdoll() && Character->GetMesh() && SpringArm)
+    {
+       const FVector HeadLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
+       const FRotator ViewRotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
+       const FVector CameraBackDirection = -FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::X);
+       const FVector TargetLocation = HeadLocation + FVector::UpVector * RagdollCameraHeightOffset + CameraBackDirection * RagdollCameraBackOffset;
 
-		SpringArm->SetWorldLocation(TargetLocation);
-	}
+       SpringArm->SetWorldLocation(TargetLocation);
+    }
 }
 
 void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputComponent)
 {
-	AddInputMappingContext();
+    AddInputMappingContext();
 
-	if (!CanProcessLocalInput()) return;
+    if (!CanProcessLocalInput()) return;
 
-	// IA 바인딩
-	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (!EnhancedInputComponent) return;
-	
-	if (MoveAction) EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Move);
-	
-	if (LookAction) EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Look);
-	
-	if (JumpAction)
-	{
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartJump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::StopJump);
-	}
-	
-	if (SprintAction)
-	{
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartSprint);
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::StopSprint);
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &UParcelHeroComponent::StopSprint);
-	}
-	
-	if (RagdollAction) EnhancedInputComponent->BindAction(RagdollAction, ETriggerEvent::Started, this, &UParcelHeroComponent::TestRagdoll);
-	
-	if (InteractAction) 
-	{
-		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
-	}
-	
-	HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
+    // IA 바인딩
+    UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
+    if (!EnhancedInputComponent) return;
+    
+    if (MoveAction) EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Move);
+    
+    if (LookAction) EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Look);
+    
+    if (JumpAction)
+    {
+       EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartJump);
+       EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::StopJump);
+    }
+    
+    if (SprintAction)
+    {
+       EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartSprint);
+       EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::StopSprint);
+       EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &UParcelHeroComponent::StopSprint);
+    }
+    
+    if (RagdollAction) EnhancedInputComponent->BindAction(RagdollAction, ETriggerEvent::Started, this, &UParcelHeroComponent::TestRagdoll);
+    
+    if (InteractAction) 
+    {
+       EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
+    }
+    
+    HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
 void UParcelHeroComponent::Move(const FInputActionValue& Value)
@@ -136,10 +128,10 @@ void UParcelHeroComponent::Move(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character || !Character->GetController()) return;
 
-	// [Add] 방어 코드 : 래그돌 상태에서는 입력 처리 불가
-	URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
-	if (RagdollComp && RagdollComp->IsRagdoll()) return;
-	
+    // [Add] 방어 코드 : 래그돌 상태에서는 입력 처리 불가
+    URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+    if (RagdollComp && RagdollComp->IsRagdoll()) return;
+    
     const FVector2D MoveValue = Value.Get<FVector2D>();
     const FRotator ControlRotation = Character->GetController()->GetControlRotation();
     const FRotator YawRotation(0.f, ControlRotation.Yaw, 0.f);
@@ -164,7 +156,18 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
 void UParcelHeroComponent::StartJump(const FInputActionValue& Value)
 {
     ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (CanProcessLocalInput() && Character) Character->Jump();
+    if (!CanProcessLocalInput() || !Character) return;
+
+    // Throwing 액션 중에는 물리적인 점프 발동을 차단
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")))) return;
+        }
+    }
+
+    Character->Jump();
 }
 
 void UParcelHeroComponent::StopJump(const FInputActionValue& Value)
@@ -196,117 +199,132 @@ void UParcelHeroComponent::StopSprint(const FInputActionValue& Value)
 
 void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 {
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!CanProcessLocalInput() || !Character) return;
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!CanProcessLocalInput() || !Character) return;
 
-	URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
-	if (!RagdollComp) return;
+    URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+    if (!RagdollComp) return;
 
-	const bool bWasRagdoll = RagdollComp->IsRagdoll();
-	if (bWasRagdoll && !IsRagdollCloseToGround()) 
+    const bool bWasRagdoll = RagdollComp->IsRagdoll();
+	if (bWasRagdoll && !RagdollComp->IsRagdollCloseToGround()) 
 	{
 		HEROCOMP_LOG(Warning, TEXT("래그돌 해제 실패 : 현재 공중에 떠 있는 상태입니다. (지면과 너무 멂)"));
 		return;
 	}
 
-	RagdollComp->ToggleRagdoll();
+    RagdollComp->ToggleRagdoll();
 
-	// 래그돌이 켜질 때만 컴포넌트 틱을 킴(Tick 최적화)
-	if (RagdollComp->IsRagdoll())
-	{
-		HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 카메라 보정을 위한 컴포넌트 틱 활성화"));
-		PrimaryComponentTick.SetTickFunctionEnable(true);
-	}
-	else
-	{
-		HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 카메라 위치 복구 및 컴포넌트 틱 비활성화"));
-		PrimaryComponentTick.SetTickFunctionEnable(false);
-		if (SpringArm)
-		{
-			SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-			SpringArm->SetRelativeLocation(FVector::ZeroVector);
-		}
-	}
+    // 래그돌이 켜질 때만 컴포넌트 틱을 킴
+    if (RagdollComp->IsRagdoll())
+    {
+       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 카메라 보정을 위한 컴포넌트 틱 활성화"));
+       PrimaryComponentTick.SetTickFunctionEnable(true);
+    }
+    else
+    {
+       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 카메라 위치 복구 및 컴포넌트 틱 비활성화"));
+       PrimaryComponentTick.SetTickFunctionEnable(false);
+       if (SpringArm)
+       {
+          SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+          SpringArm->SetRelativeLocation(FVector::ZeroVector);
+       }
+    }
 }
 
 void UParcelHeroComponent::Interact(const FInputActionValue& Value)
 {
-	if (!CanProcessLocalInput()) return;
-	
-	HEROCOMP_LOG(Log, TEXT("상호작용 조작(E키) 감지: InteractionComponent 호출"));
-	
-	// [Add] 방어 코드 : 캐릭터가 없으면 상호작용 중단
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!Character) return;
-	
-	// [Add] 방어 코드 : 래그돌 도중에는 상호작용 불가
-	URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
-	if (RagdollComp && RagdollComp->IsRagdoll()) return;
-	
-	// 장착된 InteractionComponent 호출
-	if (AParcelCharacter* OwnerChar = Cast<AParcelCharacter>(GetOwner()))
-	{
-		if (UParcelInteractionComponent* InteractComp = OwnerChar->GetParcelInteractionComponent())
-		{
-			InteractComp->PrimaryInteract();
-		}
-	}
+    if (!CanProcessLocalInput()) return;
+    
+    HEROCOMP_LOG(Log, TEXT("상호작용 조작(E키) 감지: InteractionComponent 호출"));
+    
+    // [Add] 방어 코드 : 캐릭터가 없으면 상호작용 중단
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+    
+    // [Add] 방어 코드 : 래그돌 도중에는 상호작용 불가
+    URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+    if (RagdollComp && RagdollComp->IsRagdoll()) return;
+
+    // InAir 상태에서는 집기 상호작용 불가
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir")))) return;
+        }
+    }
+    
+    // 장착된 InteractionComponent 호출
+    if (AParcelCharacter* OwnerChar = Cast<AParcelCharacter>(GetOwner()))
+    {
+       if (UParcelInteractionComponent* InteractComp = OwnerChar->GetParcelInteractionComponent())
+       {
+          InteractComp->PrimaryInteract();
+       }
+    }
 }
 
 
 void UParcelHeroComponent::ServerSetSprinting_Implementation(bool bNewIsSprinting)
 {
-	HEROCOMP_LOG(Log, TEXT("[Server] 클라이언트의 요청으로 달리기 상태 변경 적용: %s"), bNewIsSprinting ? TEXT("True") : TEXT("False"));
-	ApplySprintSpeed(bNewIsSprinting);
+    HEROCOMP_LOG(Log, TEXT("[Server] 클라이언트의 요청으로 달리기 상태 변경 적용: %s"), bNewIsSprinting ? TEXT("True") : TEXT("False"));
+    ApplySprintSpeed(bNewIsSprinting);
 }
 
 void UParcelHeroComponent::ApplySprintSpeed(bool bNewIsSprinting)
 {
-	if (UParcelMovementStatComponent* StatComp = GetOwner()->FindComponentByClass<UParcelMovementStatComponent>())
-	{
-		float CarrySubMultiplier = 1.0f;
-		if (UCharacterCarryComponent* CarryComp = GetOwner()->FindComponentByClass<UCharacterCarryComponent>())
-		{
-			CarrySubMultiplier = CarryComp->GetMoveSpeedMultiplier();
-		}
-		// MovementStat을 담당하는 매니저에 속도 계산 위임
-		StatComp->UpdateDynamicSpeedModifier(bNewIsSprinting, CarrySubMultiplier);
-	}
-}
+    AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner());
+    if (!ParcelChar) return;
 
-bool UParcelHeroComponent::IsRagdollCloseToGround() const
-{
-    ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (!Character || !GetWorld()) return true;
+    // 서버 전용 권한 확인 후 중앙 상태 창고 컴포넌트에 실시간 달리기 태그 토글 제어
+    if (ParcelChar->HasAuthority())
+    {
+       if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+       {
+          FGameplayTag SprintTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting"));
+          if (bNewIsSprinting) StateComp->AddStateTag(SprintTag);
+          else StateComp->RemoveStateTag(SprintTag);
+       }
+    }
 
-    const USkeletalMeshComponent* MeshComponent = Character->GetMesh();
-    if (!MeshComponent) return true;
-
-    const FVector TraceStart = MeshComponent->GetSocketLocation(TEXT("pelvis"));
-    const FVector TraceEnd = TraceStart - FVector::UpVector * RagdollStopGroundTraceDistance;
-
-    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(RagdollGroundTrace), false, Character);
-    FHitResult Hit;
-    return GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+    // MovementStat을 담당하는 매니저에 속도 계산 위임
+    if (UParcelMovementStatComponent* StatComp = ParcelChar->GetParcelMovementStatComponent())
+    {
+       StatComp->RefreshMoveSpeed();
+    }
 }
 
 void UParcelHeroComponent::AddInputMappingContext()
 {
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!Character || !Character->IsLocallyControlled()) return;
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character || !Character->IsLocallyControlled()) return;
 
-	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-	if (!PlayerController || !PlayerController->GetLocalPlayer()) return;
+    APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+    if (!PlayerController || !PlayerController->GetLocalPlayer()) return;
 
-	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
-	if (!Subsystem || !InputMappingContext) return;
+    UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+    if (!Subsystem || !InputMappingContext) return;
 
-	Subsystem->RemoveMappingContext(InputMappingContext);
-	Subsystem->AddMappingContext(InputMappingContext, 0);
+    Subsystem->RemoveMappingContext(InputMappingContext);
+    Subsystem->AddMappingContext(InputMappingContext, 0);
 }
 
 bool UParcelHeroComponent::CanProcessLocalInput() const
 {
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	return Character && Character->GetController() && Character->IsLocallyControlled();
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    return Character && Character->GetController() && Character->IsLocallyControlled();
+}
+
+void UParcelHeroComponent::EnterRagdollCameraMode()
+{
+	PrimaryComponentTick.SetTickFunctionEnable(true);
+	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 진입"));
+}
+
+void UParcelHeroComponent::ExitRagdollCameraMode()
+{
+	PrimaryComponentTick.SetTickFunctionEnable(false);
+	ResetCameraAttachment();
+	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
 }

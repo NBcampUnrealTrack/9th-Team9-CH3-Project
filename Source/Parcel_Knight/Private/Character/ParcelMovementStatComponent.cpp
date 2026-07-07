@@ -1,4 +1,7 @@
 #include "Character/ParcelMovementStatComponent.h"
+#include "Character/ParcelCharacter.h"
+#include "Character/ParcelPlayerStateComponent.h"
+#include "Character/CharacterCarryComponent.h"
 #include "ParcelLog.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -18,9 +21,6 @@ UParcelMovementStatComponent::UParcelMovementStatComponent()
     JumpZVelocity = 500.f;
     AirControl = 0.35f;
     RotationRate = FRotator(0.f, 540.f, 0.f);
-
-    bIsSprinting = false;
-    CurrentCarryMultiplier = 1.0f;
 }
 
 void UParcelMovementStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -37,17 +37,34 @@ void UParcelMovementStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimePr
 void UParcelMovementStatComponent::BeginPlay()
 {
     Super::BeginPlay();
-    ApplyStatsToMovement();
+    RefreshMoveSpeed();
 }
 
-void UParcelMovementStatComponent::UpdateDynamicSpeedModifier(bool bInSprinting, float InCarryMultiplier)
+void UParcelMovementStatComponent::RefreshMoveSpeed()
 {
-    bIsSprinting = bInSprinting;
-    CurrentCarryMultiplier = InCarryMultiplier;
-
     // (로컬과 서버 컴포넌트에 주입) 속도 공식 계산식
-    float SprintMod = bIsSprinting ? SprintSpeedMultiplier : 1.0f;
-    MaxWalkSpeed = BaseMaxWalkSpeed * SprintMod * CurrentCarryMultiplier;
+    float SprintMod = 1.0f;
+    float CarryMod = 1.0f;
+
+    AParcelCharacter* OwnerCharacter = Cast<AParcelCharacter>(GetOwner());
+    if (!OwnerCharacter) return;
+
+    // PlayerStateComponent에서 달리기 태그 유무 판정
+    if (UParcelPlayerStateComponent* StateComp = OwnerCharacter->GetParcelPlayerStateComponent())
+    {
+        if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting"))))
+        {
+            SprintMod = SprintSpeedMultiplier;
+        }
+    }
+
+    // CharacterCarryComponent에서 상자 감속 배율 획득
+    if (UCharacterCarryComponent* CarryComp = OwnerCharacter->GetCharacterCarryComponent())
+    {
+        CarryMod = CarryComp->GetMoveSpeedMultiplier();
+    }
+
+    MaxWalkSpeed = BaseMaxWalkSpeed * SprintMod * CarryMod;
     
     ApplyStatsToMovement();
 }
@@ -58,7 +75,7 @@ void UParcelMovementStatComponent::SetBaseMaxWalkSpeed(float NewSpeed)
     if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 
     BaseMaxWalkSpeed = NewSpeed;
-    UpdateDynamicSpeedModifier(bIsSprinting, CurrentCarryMultiplier);
+    RefreshMoveSpeed();
 }
 
 // RepNotify 함수
