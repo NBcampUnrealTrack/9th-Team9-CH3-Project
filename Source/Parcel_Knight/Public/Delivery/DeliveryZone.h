@@ -7,6 +7,7 @@
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class ADeliveryBox;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryZone : public AActor
@@ -37,5 +38,5 @@ private:
 				   UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
 				   bool bFromSweep, const FHitResult& SweepResult);
 
-	void ProcessDelivery(AActor* InBox);
+	void ProcessDelivery(ADeliveryBox* Box);
 };

@@ -12,10 +12,12 @@ class PARCEL_KNIGHT_API ICarryableInterface
 	GENERATED_BODY()
 
 public:
-	virtual bool CanCarry(AActor* Carrier) = 0;
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Carryable")
+	bool CanCarry(AActor* Carrier);
 
-	virtual void OnPickedUp(AActor* Carrier) = 0;
-
-
-	virtual void OnDropped() = 0;
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Carryable")
+	void OnPickedUp(AActor* Carrier);
+	
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Carryable")
+	void OnDropped();
 };

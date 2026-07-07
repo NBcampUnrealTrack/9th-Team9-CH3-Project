@@ -38,12 +38,19 @@ public:
     virtual void Landed(const FHitResult& Hit) override;
     
     // 양손, 무브먼트, UI 등이 상태 창고에 접근할 수 있도록 열어주는 게터
+    UFUNCTION(BlueprintPure, Category = "Character|Components")
     FORCEINLINE UParcelPlayerStateComponent* GetParcelPlayerStateComponent() const { return PlayerStateComp; }
-
+    UFUNCTION(BlueprintPure, Category = "Character|Components")
     FORCEINLINE UParcelInteractionComponent* GetParcelInteractionComponent() const { return InteractionComp; }
+    UFUNCTION(BlueprintPure, Category = "Character|Components")
     FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
+    UFUNCTION(BlueprintPure, Category = "Character|Components")
     FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
-
+    UFUNCTION(BlueprintPure, Category = "Components")
+    FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
+    UFUNCTION(BlueprintPure, Category = "Components")
+    FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
+    
 protected:
     // Player State Component
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
