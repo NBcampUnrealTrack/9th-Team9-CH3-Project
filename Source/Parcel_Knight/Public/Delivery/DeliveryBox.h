@@ -31,9 +31,9 @@ public:
     void InitializeBox(int32 InBoxID, const FBoxData& InBoxData);
 
     // [Interface] ICarryableInterface 오버라이드
-    virtual bool CanCarry(AActor* Carrier) override;
-    virtual void OnPickedUp(AActor* Carrier) override;
-    virtual void OnDropped() override;
+	virtual bool CanCarry_Implementation(AActor* Carrier) override;
+	virtual void OnPickedUp_Implementation(AActor* Carrier) override;
+	virtual void OnDropped_Implementation() override;
 	
 	// [Interface] IInteractableInterface 오버라이드
 	virtual bool CanInteract_Implementation(AActor* Interactor) override;
@@ -81,7 +81,7 @@ private:
 	UPROPERTY(Replicated)
 	int32 BoxID;
 	
-	UPROPERTY(ReplicatedUsing = OnRep_BoxStateTags)
+	UPROPERTY(ReplicatedUsing = OnRep_BoxStateTags, EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery", meta = (AllowPrivateAccess = "true"))
 	FGameplayTagContainer BoxStateTags;
 	
 	UPROPERTY(ReplicatedUsing = OnRep_BoxData)

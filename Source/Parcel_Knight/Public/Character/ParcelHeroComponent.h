@@ -23,10 +23,12 @@ public:
 	
 	// 캐릭터의 입력을 바인딩 (SetupPlayerInputComponent 시점에 호출)
 	void InitializePlayerInput(UInputComponent* PlayerInputComponent);
-	
 	void AddInputMappingContext();
 	
 	void ResetCameraAttachment();
+	
+	void EnterRagdollCameraMode();
+	void ExitRagdollCameraMode();
 	
 protected:
 	// 카메라 컴포넌트 (인게임에 시점 변경이 필요하다면 이것도 분리 가능)
@@ -67,12 +69,21 @@ protected:
 	void TestRagdoll(const FInputActionValue& Value);
 	void Interact(const FInputActionValue& Value);
 	
+	// Ragdoll 카메라 세팅 에디터 노출
+	UPROPERTY(EditAnywhere, Category = "Camera|Ragdoll")
+	float RagdollCameraHeightOffset = 20.f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Ragdoll")
+	float RagdollCameraBackOffset = 90.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera|Collision")
+	float CameraCollisionProbeSize = 18.f;
+	
 private:
 	// 달리기 기능을 위한 Server RPC
 	UFUNCTION(Server, Reliable)
 	void ServerSetSprinting(bool bNewIsSprinting);
 
 	void ApplySprintSpeed(bool bNewIsSprinting);
-	bool IsRagdollCloseToGround() const;
 	bool CanProcessLocalInput() const;
 };

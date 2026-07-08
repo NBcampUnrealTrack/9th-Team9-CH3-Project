@@ -95,6 +95,9 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
 void UDeliverySubsystem::DespawnBox(AActor* Box)
 {
     if (!Box) return;
+    
+    if (!Box->HasAuthority()) return;
+    
     ActiveBoxes.Remove(Box);
     Box->Destroy();
 }

@@ -8,6 +8,9 @@ AParcelPlayerState::AParcelPlayerState()
 	PlayerStatComp = CreateDefaultSubobject<UPlayerStatComponent>("PlayerStatComponent");
 }
 
+//---------------Get 함수 + 점수 증가------------------------------------------------
+
+
 int32 AParcelPlayerState::GetPersonalScore() const
 {
 	return PlayerStatComp->GetPersonalScore();
@@ -28,6 +31,8 @@ void AParcelPlayerState::AddScore(int32 Amount)
 {
 	PlayerStatComp->AddScore(Amount);
 }
+
+//---------------배송 성공,실패 판정------------------------------------------------
 
 void AParcelPlayerState::OnDeliverySuccess()
 {

@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "CollisionQueryParams.h"
 #include "TimerManager.h"
+#include "Character/ParcelCharacter.h"
+#include "Character/ParcelPlayerStateComponent.h"
+#include "GameplayTagContainer.h"
 
 DEFINE_LOG_CATEGORY(LogParcelInteraction);
 
@@ -13,7 +16,7 @@ UParcelInteractionComponent::UParcelInteractionComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
 
-    TraceDistance = 300.f;
+    TraceDistance = 800.f;
     CurrentFocusedActor = nullptr;
 }
 
@@ -40,7 +43,23 @@ void UParcelInteractionComponent::CheckTraceTarget()
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
     // 내가 조종하는 로컬 캐릭터 화면이 아니라면 레이저를 쏘지 않고 즉시 리턴
     if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled()) return;
-
+    
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+            {
+                if (CurrentFocusedActor != nullptr)
+                {
+                    INTERACT_LOG(Log, TEXT("래그돌 상태가 감지되어 조준 중이던 타겟을 강제 해제합니다."));
+                    CurrentFocusedActor = nullptr;
+                }
+                return;
+            }
+        }
+    }
+    
     APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController());
     if (!PC) return;
 
@@ -59,18 +78,31 @@ void UParcelInteractionComponent::CheckTraceTarget()
     // 이번 프레임에 새로 감지된 액터를 담을 임시 변수
     AActor* NewFocusedActor = nullptr;
     
-    if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+    FCollisionShape SweepSphere = FCollisionShape::MakeSphere(15.f); // 15cm SweepSingleByChannel로 변경
+
+    if (GetWorld()->SweepSingleByChannel(HitResult, TraceStart, TraceEnd, FQuat::Identity, ECC_Visibility, SweepSphere, QueryParams))
     {
         AActor* HitActor = HitResult.GetActor();
-       
-        // 조준된 액터가 인터페이스 규격을 구현했는지 검사
+    
+        // [디버그] 레이저나 Sweep이 무언가 물체를 물리적으로 맞추긴 했는지 확인
+        if (HitActor)
+        {
+            INTERACT_LOG(Log, TEXT("[Client Trace] 레이저가 무언가 맞춤: %s"), *HitActor->GetName());
+        }
+   
         if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
         {
-            IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(HitActor);
-            if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+            // [디버그] 인터페이스 계약 관계는 정상인지 확인
+            INTERACT_LOG(Log, TEXT("[Client Trace] %s 객체는 InteractableInterface를 구현함"), *HitActor->GetName());
+
+            if (IInteractableInterface::Execute_CanInteract(HitActor, OwnerCharacter))
             {
-                // 바로 대입하지 않고 변경점 체크를 위해 임시 변수에 보관
                 NewFocusedActor = HitActor;
+            }
+            else
+            {
+                // [디버그] 만약 1, 2단계는 통과했는데 여기서 막힌다면 상자의 태그(Spawned) 상태가 클라에 복제가 안 된 것임
+                INTERACT_LOG(Warning, TEXT("[Client Trace] %s 의 CanInteract 조건문 검사에서 탈락함(태그 공백 의심)"), *HitActor->GetName());
             }
         }
     }
@@ -86,9 +118,9 @@ void UParcelInteractionComponent::CheckTraceTarget()
         {
             INTERACT_LOG(Log, TEXT("조준 타겟 잃음. (이전 대상: %s)"), *CurrentFocusedActor->GetName());
         }
-    
-        // 새로운 타겟으로 최종 갱신 (아무것도 안 바라면 자연스럽게 nullptr이 들어감)
+        
         CurrentFocusedActor = NewFocusedActor;
+        OnFocusChanged.Broadcast(CurrentFocusedActor);
     }
 }
 
@@ -100,16 +132,27 @@ void UParcelInteractionComponent::PrimaryInteract()
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
     if (!OwnerCharacter) return;
 
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+            {
+                INTERACT_LOG(Warning, TEXT("래그돌 상태에서는 상호작용 입력을 처리할 수 없습니다."));
+                return;
+            }
+        }
+    }
+    
     if (CurrentFocusedActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
     {
-        IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(CurrentFocusedActor);
-        if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+        if (IInteractableInterface::Execute_CanInteract(CurrentFocusedActor, OwnerCharacter))
         {
             // 호스트 유저 : 즉시 실행
             if (OwnerCharacter->HasAuthority())
             {
                 INTERACT_LOG(Log, TEXT("호스트(서버)가 직접 상호작용 실행: [%s]"), *CurrentFocusedActor->GetName());
-                InteractableTarget->Interact(OwnerCharacter);
+                IInteractableInterface::Execute_Interact(CurrentFocusedActor, OwnerCharacter);
             }
             // 원격 클라이언트 유저 : 서버에 RPC 요청
             else
@@ -139,6 +182,18 @@ bool UParcelInteractionComponent::Server_RequestPrimaryInteract_Validate(AActor*
         INTERACT_LOG(Warning, TEXT("서버 검증 실패: 소유 캐릭터가 유효하지 않습니다."));
         return false;
     }
+    
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+            {
+                INTERACT_LOG(Warning, TEXT("서버 보안 검증 실패: 캐릭터[%s]가 쓰러진 상태에서 조작을 시도했습니다."), *OwnerCharacter->GetName());
+                return false;
+            }
+        }
+    }
 
     // 패킷 변조 핵 방어: 서버사이드에서 캐릭터와 타겟의 실제 거리를 역계산
     float DistSq = FVector::DistSquared(OwnerCharacter->GetActorLocation(), TargetActor->GetActorLocation());
@@ -163,14 +218,13 @@ void UParcelInteractionComponent::Server_RequestPrimaryInteract_Implementation(A
     
     if (TargetActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
     {
-        IInteractableInterface* InteractableTarget = Cast<IInteractableInterface>(TargetActor);
-        if (InteractableTarget && InteractableTarget->CanInteract(OwnerCharacter))
+        if (IInteractableInterface::Execute_CanInteract(TargetActor, OwnerCharacter))
         {
             // 서버 월드에서 상자의 상호작용 몸통 로직 실행
             INTERACT_LOG(Log, TEXT("서버에서 캐릭터[%s]의 요청으로 [%s] 상호작용 최종 승인 및 실행"), 
                 *OwnerCharacter->GetName(), *TargetActor->GetName());
                 
-            InteractableTarget->Interact(OwnerCharacter);
+            IInteractableInterface::Execute_Interact(TargetActor, OwnerCharacter);
         }
     }
 }

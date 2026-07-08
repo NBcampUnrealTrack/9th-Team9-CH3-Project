@@ -13,6 +13,7 @@ ADeliveryBox::ADeliveryBox()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
+	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
 
 	// 박스 콜리전 생성 >> 물리 바디 콜리전 세팅 >> Mesh 부착 후 자체 물리 Off
 	CollisionComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionComponent"));
@@ -32,9 +33,19 @@ ADeliveryBox::ADeliveryBox()
 
 void ADeliveryBox::BeginPlay()
 {
-	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
-	
 	Super::BeginPlay();
+	
+	// 원래 서브시스템에서 스폰되어야 하는데, 에디터에서 직접 드래그해서 배치하는 경우 사용할 값
+	if (BoxID == -1)
+	{
+		BoxData.Weight = 50.f;
+		BoxData.DamageThreshold = 500.f;
+        
+		if (BoxStateTags.IsEmpty())
+		{
+			BoxStateTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
+		}
+	}
 	
 	if (HasAuthority() && CollisionComponent)
 	{
@@ -140,12 +151,24 @@ void ADeliveryBox::OnRep_BoxStateTags()
    ICarryableInterface 인터페이스
    ========================================================================== */
 
-bool ADeliveryBox::CanCarry(AActor* Carrier)
+bool ADeliveryBox::CanCarry_Implementation(AActor* Carrier)
 {
-	return BoxStateTags.HasTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
+	if (!BoxStateTags.HasTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")))) return false;
+	if (Carrier)
+	{
+		// 방어 코드
+		if (UCharacterCarryComponent* CarryComp = Carrier->FindComponentByClass<UCharacterCarryComponent>())
+		{
+			if (CarryComp->IsCarrying())
+			{
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
-void ADeliveryBox::OnPickedUp(AActor* Carrier)
+void ADeliveryBox::OnPickedUp_Implementation(AActor* Carrier)
 {
 	if (!HasAuthority() || !Carrier) return;
     
@@ -167,7 +190,7 @@ void ADeliveryBox::OnPickedUp(AActor* Carrier)
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
 }
 
-void ADeliveryBox::OnDropped()
+void ADeliveryBox::OnDropped_Implementation()
 {
 	if (!HasAuthority()) return;
 
@@ -186,17 +209,20 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")))) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")))) return;
 
-	float ImpactForce = NormalImpulse.Size();
-	if (ImpactForce < 100.0f) return;
+	// 언리얼의 NormalImpulse를 그대로 사용하면 상자가 너무 쉽게 부서짐. 따라서 순간 속도 변화량을 역계산하여 사용.
+	float ImpactImpulse = NormalImpulse.Size();
+	float BoxMass = (BoxData.Weight > 0.0f) ? BoxData.Weight : 1.0f;
+	float VelocityChange = (BoxMass > 0.0f) ? (ImpactImpulse / BoxMass) : ImpactImpulse;
+	if (VelocityChange < 50.0f) return;
 	
-	DELIVERYBOX_LOG(Warning, TEXT("[Server] %d번 상자 물리 충돌 발생. 충돌 대상: %s, 검출된 충격량 수치: %f (파손 임계값: %f)"), 
-		BoxID, OtherActor ? *OtherActor->GetName() : TEXT("None"), ImpactForce, BoxData.DamageThreshold);
+	DELIVERYBOX_LOG(Warning, TEXT("[Server] %d번 상자 물리 충돌 발생. 충돌 대상: %s, 계산된 속도 변화량 수치: %f (파손 임계값: %f)"), 
+		BoxID, OtherActor ? *OtherActor->GetName() : TEXT("None"), VelocityChange, BoxData.DamageThreshold);
 
 	if (UWorld* World = GetWorld())
 	{
 		if (UPhysicsJudgeManager* DamageManager = World->GetSubsystem<UPhysicsJudgeManager>())
 		{
-		   DamageManager->EvaluateImpact(this, ImpactForce);
+		   DamageManager->EvaluateImpact(this, VelocityChange);
 		}
 	}
 }
@@ -207,7 +233,7 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 
 bool ADeliveryBox::CanInteract_Implementation(AActor* Interactor)
 {
-	return CanCarry(Interactor);
+	return ICarryableInterface::Execute_CanCarry(this, Interactor);
 }
 
 void ADeliveryBox::Interact_Implementation(AActor* Interactor)
@@ -215,7 +241,7 @@ void ADeliveryBox::Interact_Implementation(AActor* Interactor)
 	if (!Interactor) return;
     
 	// 상태를 Held 태그로 바꿈
-	OnPickedUp(Interactor);
+	ICarryableInterface::Execute_OnPickedUp(this, Interactor);
     
 	// CharacterCarryComponent 호출하여 손에 붙임
 	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
