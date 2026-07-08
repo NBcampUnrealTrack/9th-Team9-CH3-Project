@@ -14,6 +14,8 @@ AParcelCharacter::AParcelCharacter()
 {
     PrimaryActorTick.bCanEverTick = false;
 
+    SetReplicateMovement(true);
+    
     // 캐릭터 액터 자체를 네트워크에 복제
     bReplicates = true;
 
@@ -44,10 +46,6 @@ AParcelCharacter::AParcelCharacter()
 
 void AParcelCharacter::BeginPlay()
 {
-    // 위치, 회전 같은 Actor Movement를 서버에서 클라이언트로 복제
-    // ACharacter의 기본 CharacterMovement 복제와 함께 동작합니다.
-    SetReplicateMovement(true);
-    
     Super::BeginPlay();
 }
 
