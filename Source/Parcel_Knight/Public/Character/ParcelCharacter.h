@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "GameFramework/Character.h"
 #include "TimerManager.h"
 #include "ParcelCharacter.generated.h"
@@ -23,7 +24,9 @@ class PARCEL_KNIGHT_API AParcelCharacter : public ACharacter
     GENERATED_BODY()
 
 public:
-    AParcelCharacter();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	AParcelCharacter();
     virtual void BeginPlay() override;
     
     // 플레이어 입력 컴포넌트에 Enhanced Input 액션들을 바인딩
