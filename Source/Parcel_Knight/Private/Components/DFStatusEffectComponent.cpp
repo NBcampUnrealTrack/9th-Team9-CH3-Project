@@ -22,6 +22,7 @@ void UDFStatusEffectComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(UDFStatusEffectComponent, MoveSpeedEffectState);
+	DOREPLIFETIME(UDFStatusEffectComponent, InputInvertEffectState);
 }
 
 void UDFStatusEffectComponent::ApplyMoveSpeedModifier(FGameplayTag EffectTag, float Multiplier, float Duration)
@@ -113,15 +114,109 @@ void UDFStatusEffectComponent::Server_ApplyMoveSpeedModifier_Implementation(
 	ApplyMoveSpeedModifier(EffectTag, Multiplier, Duration);
 }
 
+void UDFStatusEffectComponent::ApplyInputInvert(FGameplayTag EffectTag, float Duration)
+{
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StatusEffect] ApplyInputInvert failed: owner is null"));
+		return;
+	}
+
+	if (!Owner->HasAuthority())
+	{
+		Server_ApplyInputInvert(EffectTag, Duration);
+		return;
+	}
+
+	const float SafeDuration = FMath::Max(0.0f, Duration);
+	InputInvertEffectState.EffectTag = EffectTag;
+	InputInvertEffectState.bIsActive = true;
+
+	Owner->ForceNetUpdate();
+	Client_ApplyInputInvertEffectState(InputInvertEffectState);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[StatusEffect] Input invert applied on server: Owner=%s Effect=%s Duration=%.2f"),
+		*GetNameSafe(Owner),
+		*EffectTag.ToString(),
+		SafeDuration
+	);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(InputInvertEffectTimerHandle);
+
+		if (SafeDuration > 0.0f)
+		{
+			World->GetTimerManager().SetTimer(
+				InputInvertEffectTimerHandle,
+				this,
+				&UDFStatusEffectComponent::ClearInputInvert_ServerOnly,
+				SafeDuration,
+				false
+			);
+		}
+	}
+}
+
+void UDFStatusEffectComponent::ClearInputInvert()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	if (!Owner->HasAuthority())
+	{
+		Server_ClearInputInvert();
+		return;
+	}
+
+	ClearInputInvert_ServerOnly();
+}
+
+void UDFStatusEffectComponent::Server_ApplyInputInvert_Implementation(FGameplayTag EffectTag, float Duration)
+{
+	ApplyInputInvert(EffectTag, Duration);
+}
+
+void UDFStatusEffectComponent::Server_ClearInputInvert_Implementation()
+{
+	ClearInputInvert();
+}
+
 void UDFStatusEffectComponent::Client_ApplyMoveSpeedEffectState_Implementation(FDFMoveSpeedEffectState NewState)
 {
 	MoveSpeedEffectState = NewState;
 	ApplyMoveSpeedState();
 }
 
+void UDFStatusEffectComponent::Client_ApplyInputInvertEffectState_Implementation(FDFInputInvertEffectState NewState)
+{
+	InputInvertEffectState = NewState;
+	OnRep_InputInvertEffectState();
+}
+
 void UDFStatusEffectComponent::OnRep_MoveSpeedEffectState()
 {
 	ApplyMoveSpeedState();
+}
+
+void UDFStatusEffectComponent::OnRep_InputInvertEffectState()
+{
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[StatusEffect] Input invert state applied: Owner=%s Authority=%d Active=%d Effect=%s"),
+		*GetNameSafe(GetOwner()),
+		GetOwner() ? GetOwner()->HasAuthority() : false,
+		InputInvertEffectState.bIsActive,
+		*InputInvertEffectState.EffectTag.ToString()
+	);
 }
 
 void UDFStatusEffectComponent::ApplyMoveSpeedState()
@@ -203,4 +298,36 @@ void UDFStatusEffectComponent::ClearMoveSpeedModifier_ServerOnly()
 	MoveSpeedEffectState.bIsActive = false;
 	Owner->ForceNetUpdate();
 	Client_ApplyMoveSpeedEffectState(MoveSpeedEffectState);
+}
+
+void UDFStatusEffectComponent::ClearInputInvert_ServerOnly()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner || !Owner->HasAuthority())
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(InputInvertEffectTimerHandle);
+	}
+
+	if (!InputInvertEffectState.bIsActive)
+	{
+		return;
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[StatusEffect] Input invert cleared on server: Owner=%s Effect=%s"),
+		*GetNameSafe(Owner),
+		*InputInvertEffectState.EffectTag.ToString()
+	);
+
+	InputInvertEffectState.EffectTag = FGameplayTag();
+	InputInvertEffectState.bIsActive = false;
+	Owner->ForceNetUpdate();
+	Client_ApplyInputInvertEffectState(InputInvertEffectState);
 }
