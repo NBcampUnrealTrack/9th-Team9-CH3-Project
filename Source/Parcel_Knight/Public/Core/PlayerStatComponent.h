@@ -7,7 +7,7 @@
 #include "PlayerStatComponent.generated.h"
 
 /**
- * 개인 점수, 콤보, 성공·실패 횟수를 관리하는 컴포넌트
+ * 개인 점수, 성공·실패 횟수를 관리하는 컴포넌트
  * PlayerState에 부착된다.
  *
  * 담당자: 한수현
@@ -36,12 +36,12 @@ public:
 
 	// [All] 배송 성공 횟수 반환
 	int32 GetSuccessCount() const;
-	
+
 	// [All] 배송 실패 횟수 반환
 	int32 GetFailCount() const;
 
 	// ─────────────────────────────────────
-	// 점수 및 콤보 처리
+	// 점수 처리
 	// ─────────────────────────────────────
 
 	/**
@@ -50,10 +50,10 @@ public:
 	 */
 	void AddScore(int32 Amount);
 
-	// [Server Only] 배송 성공 시 호출 
+	// [Server Only] 배송 성공 시 호출 — 성공 횟수 누적
 	void OnDeliverySuccess();
 
-	// [Server Only] 배송 실패·파손 시 호출 
+	// [Server Only] 배송 실패·파손 시 호출 — 실패 횟수 누적
 	void OnDeliveryFail();
 
 private:
@@ -62,8 +62,7 @@ private:
 
 	UPROPERTY(Replicated)
 	int32 SuccessCount;   // 배달 성공 횟수
-	
-	UPROPERTY(Replicated)
-	int32 FailCount;
 
+	UPROPERTY(Replicated)
+	int32 FailCount;      // 배달 실패 횟수
 };

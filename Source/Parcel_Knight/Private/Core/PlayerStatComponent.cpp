@@ -4,6 +4,7 @@
 #include "Net/UnrealNetwork.h"
 #include "ParcelLog.h"
 
+// ========================= 초기화 =========================
 
 UPlayerStatComponent::UPlayerStatComponent()
 {
@@ -19,9 +20,7 @@ void UPlayerStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME(UPlayerStatComponent, FailCount);
 }
 
-// ─────────────────────────────────────
-// 조회
-// ─────────────────────────────────────
+// ========================= 조회 =========================
 
 int32 UPlayerStatComponent::GetPersonalScore() const
 {
@@ -38,15 +37,15 @@ int32 UPlayerStatComponent::GetFailCount() const
 	return FailCount;
 }
 
-// ─────────────────────────────────────
-// 점수 및 콤보 처리
-// ─────────────────────────────────────
+// ========================= 점수 =========================
 
 void UPlayerStatComponent::AddScore(int32 Amount)
 {
 	if (!GetOwner()->HasAuthority()) return;
 	PersonalScore += Amount;
 }
+
+// ========================= 배달 판정 =========================
 
 void UPlayerStatComponent::OnDeliverySuccess()
 {

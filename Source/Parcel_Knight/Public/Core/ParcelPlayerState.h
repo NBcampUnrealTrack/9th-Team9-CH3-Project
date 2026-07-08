@@ -23,14 +23,18 @@ public:
 	
 	AParcelPlayerState();
 
+	// [All] 개인 누적 점수 반환
 	int32 GetPersonalScore() const;
+	// [All] 배달 성공 횟수 반환
 	int32 GetSuccessCount() const;
+	// [All] 배달 실패 횟수 반환
 	int32 GetFailCount() const;
-	
+
+	// [Server Only] 배달 성공·감점 결과를 개인 점수에 반영
 	void AddScore(int32 Amount);
-	
+	// [Server Only] 배달 성공 시 호출 — 성공 횟수 누적
 	void OnDeliverySuccess();
-	
+	// [Server Only] 배달 실패·파손 시 호출 — 실패 횟수 누적
 	void OnDeliveryFail();
 	
 private:

@@ -3,13 +3,14 @@
 #include "Core/ParcelPlayerState.h"
 #include "Core/PlayerStatComponent.h"
 
+// ========================= 초기화 =========================
+
 AParcelPlayerState::AParcelPlayerState()
 {
 	PlayerStatComp = CreateDefaultSubobject<UPlayerStatComponent>("PlayerStatComponent");
 }
 
-//---------------Get 함수 + 점수 증가------------------------------------------------
-
+// ========================= 조회 =========================
 
 int32 AParcelPlayerState::GetPersonalScore() const
 {
@@ -26,13 +27,14 @@ int32 AParcelPlayerState::GetFailCount() const
 	return PlayerStatComp->GetFailCount();
 }
 
+// ========================= 점수 =========================
 
 void AParcelPlayerState::AddScore(int32 Amount)
 {
 	PlayerStatComp->AddScore(Amount);
 }
 
-//---------------배송 성공,실패 판정------------------------------------------------
+// ========================= 배달 판정 =========================
 
 void AParcelPlayerState::OnDeliverySuccess()
 {

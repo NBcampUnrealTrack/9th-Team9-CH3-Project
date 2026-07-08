@@ -5,6 +5,7 @@
 #include "Character/ParcelCharacter.h"
 #include "Core/DeliveryRuleComponent.h"
 #include "Core/ParcelGameState.h"
+#include "Core/TeamScoreComponent.h"
 #include "Core/ParcelPlayerController.h"
 #include "Core/ParcelPlayerState.h"
 #include "Delivery/StageData.h"
@@ -53,4 +54,53 @@ void AParcelGameMode::StartRound(UStageData* InStageData)
 void AParcelGameMode::EndRound()
 {
 	DeliveryRuleComp->EndRound();
+}
+
+void AParcelGameMode::OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount)
+{
+	DeliveryRuleComp->OnDeliveryCompleted(Deliverer, ScoreAmount);
+}
+
+void AParcelGameMode::OnDeliveryFailed(APlayerController* Deliverer)
+{
+	DeliveryRuleComp->OnDeliveryFailed(Deliverer);
+}
+
+// ========================= 콘솔 명령어 =========================
+
+void AParcelGameMode::DebugDeliverySuccess()
+{
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		OnDeliveryCompleted(PC, 100);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 배달 성공 시뮬레이션"));
+}
+
+void AParcelGameMode::DebugDeliveryFail()
+{
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		OnDeliveryFailed(PC);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 배달 실패 시뮬레이션"));
+}
+
+void AParcelGameMode::DebugAddScore(int32 Amount)
+{
+	AParcelGameState* GS = GetGameState<AParcelGameState>();
+	if (!GS) return;
+
+	GS->GetTeamScoreComponent()->AddTeamScore(Amount);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 점수 추가: %d"), Amount);
+}
+
+void AParcelGameMode::DebugPrintScore()
+{
+	AParcelGameState* GS = GetGameState<AParcelGameState>();
+	if (!GS) return;
+
+	UTeamScoreComponent* TSC = GS->GetTeamScoreComponent();
+	FString Msg = FString::Printf(TEXT("TeamScore: %d | 콤보배율: %.1fx"),
+		TSC->GetTeamScore(), TSC->GetComboMultiplier());
+
+	GAMERULE_LOG(Log, TEXT("[콘솔] %s"), *Msg);
+	if (GEngine)
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, Msg);
 }

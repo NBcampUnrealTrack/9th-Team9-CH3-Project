@@ -4,6 +4,7 @@
 #include "Net/UnrealNetwork.h"
 #include "ParcelLog.h"
 
+// ========================= 초기화 =========================
 
 UTeamScoreComponent::UTeamScoreComponent()
 {
@@ -23,55 +24,7 @@ void UTeamScoreComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME(UTeamScoreComponent, CurrentGrade);
 }
 
-void UTeamScoreComponent::OnRep_TeamScore()
-{
-	GAMERULE_LOG(Log, TEXT("[클라이언트] TeamScore 수신 → %d"), TeamScore);
-	//TODO: UI작업 BroadCast(3단계)
-}
-
-void UTeamScoreComponent::InitRemainingTime(float InTimeLimit)
-{
-	if (GetOwner()->HasAuthority())
-		RemainingTime = InTimeLimit;
-}
-
-void UTeamScoreComponent::AddTeamScore(int32 Amount)
-{
-	if (GetOwner()->HasAuthority())
-	{
-		TeamScore += Amount * GetComboMultiplier();
-		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount 변경 → %d"), TeamScore, ComboCount);
-	}
-}
-
-void UTeamScoreComponent::DecreaseRemainingTime(float Amount)
-{
-	if (GetOwner()->HasAuthority())
-	{
-		RemainingTime -= Amount;
-	}
-}
-
-float UTeamScoreComponent::GetComboMultiplier()
-{
-	return FMath::Clamp(MinComboMultiplier + ComboCount * 0.1f, MinComboMultiplier, MaxComboMultiplier);
-}
-
-void UTeamScoreComponent::OnDeliverySuccess()
-{
-	if (GetOwner()->HasAuthority())
-	{
-	ComboCount++;
-	}
-	
-}
-
-void UTeamScoreComponent::OnDeliveryFail()
-{
-	if (!GetOwner()->HasAuthority()) return;
-	ComboCount = 0;
-}
-
+// ========================= 조회 =========================
 
 int32 UTeamScoreComponent::GetTeamScore() const
 {
@@ -88,8 +41,62 @@ EGrade UTeamScoreComponent::GetGrade() const
 	return CurrentGrade;
 }
 
+float UTeamScoreComponent::GetComboMultiplier()
+{
+	return FMath::Clamp(MinComboMultiplier + ComboCount * 0.1f, MinComboMultiplier, MaxComboMultiplier);
+}
+
+// ========================= 점수 =========================
+
+void UTeamScoreComponent::AddTeamScore(int32 Amount)
+{
+	if (GetOwner()->HasAuthority())
+	{
+		TeamScore += Amount * GetComboMultiplier();
+		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount → %d"), TeamScore, ComboCount);
+	}
+}
+
+// ========================= 콤보 =========================
+
+void UTeamScoreComponent::OnDeliverySuccess()
+{
+	if (!GetOwner()->HasAuthority()) return;
+	ComboCount++;
+}
+
+void UTeamScoreComponent::OnDeliveryFail()
+{
+	if (!GetOwner()->HasAuthority()) return;
+	ComboCount = 0;
+}
+
+// ========================= 시간 =========================
+
+void UTeamScoreComponent::InitRemainingTime(float InTimeLimit)
+{
+	if (GetOwner()->HasAuthority())
+		RemainingTime = InTimeLimit;
+}
+
+void UTeamScoreComponent::DecreaseRemainingTime(float Amount)
+{
+	if (GetOwner()->HasAuthority())
+		RemainingTime -= Amount;
+}
+
+// ========================= 등급 =========================
+
 void UTeamScoreComponent::SetGrade(EGrade InGrade)
 {
 	if (GetOwner()->HasAuthority())
 		CurrentGrade = InGrade;
+}
+
+// ========================= 복제 콜백 =========================
+
+void UTeamScoreComponent::OnRep_TeamScore()
+{
+	GAMERULE_LOG(Log, TEXT("[클라이언트] TeamScore 수신 → %d"), TeamScore);
+	//TODO: UI작업 BroadCast(3단계)
 }
