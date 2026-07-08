@@ -12,6 +12,7 @@ class URagdollComponent;
 class UParcelHeroComponent;
 class UParcelInteractionComponent;
 class UCharacterCarryComponent;
+class UDFStatusEffectComponent;
 class UAnimMontage;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
@@ -63,6 +64,9 @@ protected:
   // Ragdoll Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<URagdollComponent> RagdollComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDFStatusEffectComponent> StatusEffectComponent;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
 	bool bIsRagdoll = false;
@@ -117,4 +121,6 @@ public:
     FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
     UFUNCTION(BlueprintPure, Category = "Components")
     FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UDFStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 };
