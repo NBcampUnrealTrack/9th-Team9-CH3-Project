@@ -45,6 +45,9 @@ private:
 	UFUNCTION(Server, Reliable)
 	void Server_ApplyMoveSpeedModifier(FGameplayTag EffectTag, float Multiplier, float Duration);
 
+	UFUNCTION(Client, Reliable)
+	void Client_ApplyMoveSpeedEffectState(FDFMoveSpeedEffectState NewState);
+
 	UFUNCTION()
 	void OnRep_MoveSpeedEffectState();
 

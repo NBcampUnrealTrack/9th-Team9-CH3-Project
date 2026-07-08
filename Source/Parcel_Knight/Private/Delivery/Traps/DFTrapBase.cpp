@@ -74,16 +74,57 @@ void ADFTrapBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (HasAuthority())
+	if (!CurrentStateTag.IsValid())
 	{
-		if (!CurrentStateTag.IsValid())
+		CurrentStateTag = DFTrapTags::Ready();
+	}
+
+	if (TriggerVolume)
+	{
+		TriggerVolume->OnComponentBeginOverlap.AddUniqueDynamic(this, &ADFTrapBase::OnTrapBeginOverlap);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Trap] BeginPlay: Trap=%s Authority=%d DataAsset=%s Trigger=%s Effect=%s State=%s OverlapEvents=%d Collision=%d PawnResponse=%d"),
+		*GetNameSafe(this),
+		HasAuthority(),
+		*GetNameSafe(TrapDataAsset),
+		TrapDataAsset ? *TrapDataAsset->TriggerTypeTag.ToString() : TEXT("None"),
+		TrapDataAsset ? *TrapDataAsset->EffectTypeTag.ToString() : TEXT("None"),
+		*CurrentStateTag.ToString(),
+		TriggerVolume ? TriggerVolume->GetGenerateOverlapEvents() : false,
+		TriggerVolume ? static_cast<int32>(TriggerVolume->GetCollisionEnabled()) : -1,
+		TriggerVolume ? static_cast<int32>(TriggerVolume->GetCollisionResponseToChannel(ECC_Pawn)) : -1
+	);
+
+	if (!TrapDataAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Trap] TrapDataAsset is null: %s"), *GetNameSafe(this));
+	}
+	else
+	{
+		if (!IsOverlapTrigger())
 		{
-			CurrentStateTag = DFTrapTags::Ready();
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Trap] TriggerTypeTag is not Trap.Trigger.Overlap: Trap=%s Trigger=%s"),
+				*GetNameSafe(this),
+				*TrapDataAsset->TriggerTypeTag.ToString()
+			);
 		}
 
-		if (TriggerVolume)
+		if (!IsSlowEffect())
 		{
-			TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &ADFTrapBase::OnTrapBeginOverlap);
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Trap] EffectTypeTag is not Trap.Effect.Slow: Trap=%s Effect=%s"),
+				*GetNameSafe(this),
+				*TrapDataAsset->EffectTypeTag.ToString()
+			);
 		}
 	}
 }
@@ -234,8 +275,43 @@ void ADFTrapBase::OnTrapBeginOverlap(
 	const FHitResult& SweepResult
 )
 {
-	if (!HasAuthority() || !OtherActor || OtherActor == this || !IsOverlapTrigger())
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Trap] BeginOverlap: Trap=%s Other=%s Authority=%d TrapRole=%d OtherRole=%d State=%s"),
+		*GetNameSafe(this),
+		*GetNameSafe(OtherActor),
+		HasAuthority(),
+		static_cast<int32>(GetLocalRole()),
+		OtherActor ? static_cast<int32>(OtherActor->GetLocalRole()) : -1,
+		*CurrentStateTag.ToString()
+	);
+
+	if (!HasAuthority())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[Trap] BeginOverlap ignored on non-authority instance: %s"), *GetNameSafe(this));
+		return;
+	}
+
+	if (!OtherActor || OtherActor == this)
+	{
+		return;
+	}
+
+	if (!TrapDataAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Trap] BeginOverlap ignored: TrapDataAsset is null (%s)"), *GetNameSafe(this));
+		return;
+	}
+
+	if (!IsOverlapTrigger())
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Trap] BeginOverlap ignored: TriggerTypeTag is not Trap.Trigger.Overlap (%s)"),
+			*TrapDataAsset->TriggerTypeTag.ToString()
+		);
 		return;
 	}
 
@@ -377,27 +453,64 @@ void ADFTrapBase::ApplyTrapEffectToOverlappingActors_ServerOnly()
 
 void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 {
-	if (!HasAuthority() || !TrapDataAsset || !TargetActor)
+	if (!HasAuthority())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect ignored on non-authority instance: %s"), *GetNameSafe(this));
+		return;
+	}
+
+	if (!TrapDataAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect failed: TrapDataAsset is null (%s)"), *GetNameSafe(this));
+		return;
+	}
+
+	if (!TargetActor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect failed: TargetActor is null (%s)"), *GetNameSafe(this));
 		return;
 	}
 
 	if (TrapDataAsset->bAffectsPlayer)
 	{
-		if (ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor))
+		if (IsSlowEffect())
 		{
-			if (IsSlowEffect())
+			if (UDFStatusEffectComponent* StatusEffectComponent =
+				TargetActor->FindComponentByClass<UDFStatusEffectComponent>())
 			{
-				if (UDFStatusEffectComponent* StatusEffectComponent =
-					TargetCharacter->FindComponentByClass<UDFStatusEffectComponent>())
-				{
-					StatusEffectComponent->ApplyMoveSpeedModifier(
-						TrapDataAsset->EffectTypeTag,
-						TrapDataAsset->EffectMagnitude,
-						TrapDataAsset->EffectDuration
-					);
-				}
+				UE_LOG(
+					LogTemp,
+					Warning,
+					TEXT("[Trap] UDFStatusEffectComponent found: Target=%s Effect=%s Magnitude=%.2f Duration=%.2f"),
+					*GetNameSafe(TargetActor),
+					*TrapDataAsset->EffectTypeTag.ToString(),
+					TrapDataAsset->EffectMagnitude,
+					TrapDataAsset->EffectDuration
+				);
+
+				StatusEffectComponent->ApplyMoveSpeedModifier(
+					TrapDataAsset->EffectTypeTag,
+					TrapDataAsset->EffectMagnitude,
+					TrapDataAsset->EffectDuration
+				);
+				return;
 			}
+
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Trap] No UDFStatusEffectComponent on %s"),
+				*GetNameSafe(TargetActor)
+			);
+		}
+		else
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Trap] ApplyTrapEffect ignored: EffectTypeTag is not Trap.Effect.Slow (%s)"),
+				*TrapDataAsset->EffectTypeTag.ToString()
+			);
 		}
 	}
 }
