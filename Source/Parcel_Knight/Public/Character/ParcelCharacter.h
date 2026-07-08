@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "GameFramework/Character.h"
+#include "TimerManager.h"
 #include "ParcelCharacter.generated.h"
 
 class UParcelMovementStatComponent;
@@ -14,6 +15,7 @@ class UInputComponent;
 class UInputMappingContext;
 class USpringArmComponent;
 class UCharacterCarryComponent;
+class UAnimMontage;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
 // 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원
@@ -61,10 +63,38 @@ public:
 	FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
 	FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
 
+	void SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp);
+
+	UFUNCTION(BlueprintCallable, Category = "Ragdoll")
+	void FinishGetUp();
+
+	UFUNCTION(BlueprintPure, Category = "Ragdoll")
+	bool GetIsRagdoll() const { return bIsRagdoll; }
+
+	UFUNCTION(BlueprintPure, Category = "Ragdoll")
+	bool GetIsGettingUp() const { return bIsGettingUp; }
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ragdoll")
+	TObjectPtr<UAnimMontage> GetUpMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	TObjectPtr<UAnimMontage> GetUpBackMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	TObjectPtr<UAnimMontage> GetUpFrontMontage;
+
 protected:
 	// Ragdoll Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<URagdollComponent> RagdollComp;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
+	bool bIsRagdoll = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
+	bool bIsGettingUp = false;
+
+	FTimerHandle GetUpTimerHandle;
 	
 	// Hero Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")

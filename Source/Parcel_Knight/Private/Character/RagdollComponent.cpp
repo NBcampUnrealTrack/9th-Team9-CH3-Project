@@ -4,7 +4,9 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Character/ParcelCharacter.h"
 #include "Character/ParcelHeroComponent.h"
+#include "Animation/AnimInstance.h"
 #include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogRagdoll);
@@ -37,6 +39,13 @@ void URagdollComponent::BeginPlay()
 	if (!OwnerCharacter)
 	{
 		RAGDOLL_LOG(Warning, TEXT("Owner is not a Character."));
+		return;
+	}
+
+	if (USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh())
+	{
+		DefaultMeshRelativeLocation = Mesh->GetRelativeLocation();
+		DefaultMeshRelativeRotation = Mesh->GetRelativeRotation();
 	}
 }
 
@@ -91,6 +100,37 @@ bool URagdollComponent::IsRagdoll() const
 {
 	// 현재 캐싱된 래그돌 상태를 반환
 	return bIsRagdoll;
+}
+
+void URagdollComponent::PlayGetUpAnimation(bool bFront)
+{
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	if (UAnimMontage* SelectedMontage = GetSelectedGetUpMontage(bFront))
+	{
+		OwnerCharacter->PlayAnimMontage(SelectedMontage);
+	}
+}
+
+void URagdollComponent::PlayLandRollAnimation()
+{
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	if (UAnimMontage* SelectedMontage = LandRollDefault.Get())
+	{
+		OwnerCharacter->PlayAnimMontage(SelectedMontage);
+	}
+}
+
+UAnimMontage* URagdollComponent::GetSelectedGetUpMontage(bool bFront) const
+{
+	return bFront ? GetUpFrontDefault.Get() : GetUpBackDefault.Get();
 }
 
 void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
@@ -155,8 +195,7 @@ void URagdollComponent::ApplyStartRagdoll()
 		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
-	// 애니메이션 블루프린트 제어를 멈추고 메시를 래그돌 충돌 프로파일로 전환합니다.
-	Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	// 메시를 래그돌 충돌 프로파일로 전환합니다.
 	Mesh->SetCollisionProfileName(TEXT("Ragdoll"));
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
@@ -171,6 +210,11 @@ void URagdollComponent::ApplyStartRagdoll()
 
 	// 서버에서 바뀐 이 값은 클라이언트로 복제되어 OnRep_IsRagdoll을 호출합니다.
 	bIsRagdoll = true;
+
+	if (AParcelCharacter* ParcelCharacter = Cast<AParcelCharacter>(OwnerCharacter))
+	{
+		ParcelCharacter->SetRagdollState(true, false);
+	}
 	
 	// [Add] 최종 연산을 받아서 카메라 틱 원격 스위칭
 	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
@@ -203,35 +247,43 @@ void URagdollComponent::ApplyStopRagdoll()
 		return;
 	}
 
-	// 래그돌 종료 시 캐릭터 루트를 pelvis 위치 근처로 옮겨 순간 이동처럼 보이는 어긋남을 줄입니다.
+	// 물리 종료 전에 현재 골반 위치와 회전을 저장합니다.
 	FVector PelvisLocation = Mesh->GetSocketLocation(TEXT("pelvis"));
-
-	// 캡슐 중심을 맞추기 위해 캡슐 반 높이를 사용합니다.
 	float CapsuleHalfHeight = Capsule->GetScaledCapsuleHalfHeight();
 
-	// 전체 메시 물리 시뮬레이션을 끕니다.
+	// Line Trace로 바닥 높이를 찾아 캡슐을 바닥 위에 올립니다.
+	FVector TraceStart = PelvisLocation;
+	FVector TraceEnd = PelvisLocation + FVector(0.f, 0.f, -500.f);
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerCharacter);
+
+	float GroundZ = PelvisLocation.Z;
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
+	{
+		GroundZ = HitResult.ImpactPoint.Z;
+	}
+
+	if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
+	{
+		AnimInstance->SavePoseSnapshot(TEXT("RagdollPose"));
+	}
+
+	// 먼저 물리 시뮬레이션을 종료합니다.
 	Mesh->SetSimulatePhysics(false);
 	Mesh->SetAllBodiesSimulatePhysics(false);
 	Mesh->SetAllBodiesBelowSimulatePhysics(TEXT("pelvis"), false, true);
-
-	// 물리 블렌드 상태를 해제합니다.
+	Mesh->SetAllBodiesBelowPhysicsBlendWeight(TEXT("pelvis"), 0.0f, false, true);
 	Mesh->bBlendPhysics = false;
+	Mesh->SetCollisionProfileName(TEXT("CharacterMesh"));
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
-	// 다시 애니메이션 블루프린트가 메시를 제어하게 합니다.
-	Mesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-
-	// pelvis 위치를 기준으로 캡슐 중심 위치를 계산합니다.
-	FVector NewActorLocation = PelvisLocation;
-	NewActorLocation.Z += CapsuleHalfHeight;
-
-	// 캐릭터 액터를 계산한 위치로 텔레포트해 물리 보정 충돌을 줄입니다.
+	FVector NewActorLocation = FVector(PelvisLocation.X, PelvisLocation.Y, GroundZ + CapsuleHalfHeight);
 	OwnerCharacter->SetActorLocation(NewActorLocation, false, nullptr, ETeleportType::TeleportPhysics);
 
-	// 메시를 캡슐 기준 기본 상대 위치로 되돌립니다.
-	Mesh->SetRelativeLocation(FVector(0.f, 0.f, -CapsuleHalfHeight), false, nullptr, ETeleportType::TeleportPhysics);
-
-	// 메시를 캐릭터 기본 방향에 맞게 되돌립니다.
-	Mesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f), false, nullptr, ETeleportType::TeleportPhysics);
+	Mesh->SetRelativeLocation(DefaultMeshRelativeLocation, false, nullptr, ETeleportType::TeleportPhysics);
+	Mesh->SetRelativeRotation(DefaultMeshRelativeRotation, false, nullptr, ETeleportType::TeleportPhysics);
 
 	// 꺼두었던 캡슐 충돌을 다시 켭니다.
 	Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -244,6 +296,16 @@ void URagdollComponent::ApplyStopRagdoll()
 
 	// 서버에서 바뀐 이 값은 클라이언트로 복제되어 OnRep_IsRagdoll을 호출합니다.
 	bIsRagdoll = false;
+
+	if (AParcelCharacter* ParcelCharacter = Cast<AParcelCharacter>(OwnerCharacter))
+	{
+		ParcelCharacter->SetRagdollState(false, true);
+
+		if (ParcelCharacter->GetUpMontage)
+		{
+			ParcelCharacter->PlayAnimMontage(ParcelCharacter->GetUpMontage);
+		}
+	}
 
 	// [Add] 복구 시 카메라 원위치 및 컴포넌트 틱 중단
 	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())

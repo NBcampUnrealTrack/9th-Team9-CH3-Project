@@ -7,6 +7,7 @@
 #include "Character/CharacterCarryComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "TimerManager.h"
 
 
 DEFINE_LOG_CATEGORY(LogCharacter);
@@ -40,6 +41,9 @@ AParcelCharacter::AParcelCharacter()
 	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
 	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
 	CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
+
+	bIsRagdoll = false;
+	bIsGettingUp = false;
 }
 
 void AParcelCharacter::BeginPlay()
@@ -99,6 +103,34 @@ void AParcelCharacter::RemoveStateTag(FGameplayTag StateTag)
 		// 호스트 유저의 화면 연출을 위해 OnRep 수동 강제 트리거
 		OnRep_CharacterStateTags();
 	}
+}
+
+void AParcelCharacter::SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp)
+{
+	bIsRagdoll = bNewIsRagdoll;
+	bIsGettingUp = bNewIsGettingUp;
+
+	if (bIsGettingUp)
+	{
+		GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
+
+		GetWorldTimerManager().SetTimer(
+			GetUpTimerHandle,
+			this,
+			&AParcelCharacter::FinishGetUp,
+			1.3f,
+			false
+		);
+	}
+	else
+	{
+		GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
+	}
+}
+
+void AParcelCharacter::FinishGetUp()
+{
+	bIsGettingUp = false;
 }
 
 void AParcelCharacter::OnRep_CharacterStateTags()
