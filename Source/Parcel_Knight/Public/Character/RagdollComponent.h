@@ -9,6 +9,7 @@
 #include "RagdollComponent.generated.h"
 
 class ACharacter;
+class UAnimMontage;
 
 // 캐릭터의 래그돌 시작/종료 상태를 관리하고 네트워크로 복제하는 컴포넌트입니다.
 // 클라이언트에서 호출해도 서버 RPC를 통해 서버가 최종 상태를 결정합니다.
@@ -42,10 +43,48 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool IsRagdoll() const;
 
-	UFUNCTION(BlueprintCallable)
-	bool IsRagdollCloseToGround() const;
-	
+	// 캐릭터가 바라보는 방향에 따라 앞/뒤 일어나기 몽타주를 재생합니다.
+	UFUNCTION(BlueprintCallable, Category = "Ragdoll")
+	void PlayGetUpAnimation(bool bFront);
+
+	// Plays the default land roll montage.
+	UFUNCTION(BlueprintCallable, Category = "Ragdoll")
+	void PlayLandRollAnimation();
+
+protected:
+	virtual void BeginPlay() override;
+
+	// =========================
+	// Get Up Animations
+	// =========================
+
+	// 땅을 보고 엎드렸을 때 사용하는 기본 일어나기 몽타주입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Get Up Animations", meta = (DisplayName = "Get Up Front Default"))
+	TObjectPtr<UAnimMontage> GetUpFrontDefault;
+
+	// 하늘을 보고 누웠을 때 사용하는 기본 일어나기 몽타주입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Get Up Animations", meta = (DisplayName = "Get Up Back Default"))
+	TObjectPtr<UAnimMontage> GetUpBackDefault;
+
+	// =========================
+	// Roll Animations
+	// =========================
+
+	// Default land roll montage.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Roll Animations", meta = (DisplayName = "Land Roll Default"))
+	TObjectPtr<UAnimMontage> LandRollDefault;
+
+	// 스켈레탈 메시의 기본 상대 위치와 회전값을 저장할 변수
+	UPROPERTY()
+	FVector DefaultMeshRelativeLocation;
+
+	UPROPERTY()
+	FRotator DefaultMeshRelativeRotation;
+
 private:
+	// 앞/뒤 상태에 맞는 일어나기 몽타주를 반환합니다.
+	UAnimMontage* GetSelectedGetUpMontage(bool bFront) const;
+
 	// 클라이언트가 래그돌 상태 변경을 서버에 요청할 때 사용하는 RPC입니다.
 	UFUNCTION(Server, Reliable)
 	void ServerSetRagdoll(bool bNewIsRagdoll);

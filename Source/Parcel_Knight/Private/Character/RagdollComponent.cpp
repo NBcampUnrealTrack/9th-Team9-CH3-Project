@@ -4,9 +4,9 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelCharacter.h"
-#include "Character/ParcelPlayerStateComponent.h"
+#include "Character/ParcelHeroComponent.h"
+#include "Animation/AnimInstance.h"
 #include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogRagdoll);
@@ -22,15 +22,22 @@ URagdollComponent::URagdollComponent()
 
 void URagdollComponent::BeginPlay()
 {
-    // 부모 클래스의 BeginPlay 로직을 먼저 실행합니다.
-    Super::BeginPlay();
+	// 부모 클래스의 BeginPlay 로직을 먼저 실행합니다.
+	Super::BeginPlay();
 
-    // 이 컴포넌트는 캐릭터에 붙어 있어야 정상 동작하므로 소유자를 캐릭터로 캐싱합니다.
-    OwnerCharacter = Cast<ACharacter>(GetOwner());
-    if (!OwnerCharacter)
-    {
-       RAGDOLL_LOG(Warning, TEXT("Owner is not a Character."));
-    }
+	// 이 컴포넌트는 캐릭터에 붙어 있어야 정상 동작하므로 소유자를 캐릭터로 캐싱합니다.
+	OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!OwnerCharacter)
+	{
+		RAGDOLL_LOG(Warning, TEXT("Owner is not a Character."));
+		return;
+	}
+
+	if (USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh())
+	{
+		DefaultMeshRelativeLocation = Mesh->GetRelativeLocation();
+		DefaultMeshRelativeRotation = Mesh->GetRelativeRotation();
+	}
 }
 
 void URagdollComponent::StartRagdoll()
@@ -75,7 +82,49 @@ void URagdollComponent::ToggleRagdoll()
 
 bool URagdollComponent::IsRagdoll() const
 {
-	if (const AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner()))
+	// 현재 캐싱된 래그돌 상태를 반환
+	return bIsRagdoll;
+}
+
+void URagdollComponent::PlayGetUpAnimation(bool bFront)
+{
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	if (UAnimMontage* SelectedMontage = GetSelectedGetUpMontage(bFront))
+	{
+		OwnerCharacter->PlayAnimMontage(SelectedMontage);
+	}
+}
+
+void URagdollComponent::PlayLandRollAnimation()
+{
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	if (UAnimMontage* SelectedMontage = LandRollDefault.Get())
+	{
+		OwnerCharacter->PlayAnimMontage(SelectedMontage);
+	}
+}
+
+UAnimMontage* URagdollComponent::GetSelectedGetUpMontage(bool bFront) const
+{
+	return bFront ? GetUpFrontDefault.Get() : GetUpBackDefault.Get();
+}
+
+void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
+{
+	// 클라이언트 요청을 받은 서버가 최종적으로 래그돌 상태를 적용
+	if (bNewIsRagdoll)
+	{
+		ApplyStartRagdoll();
+	}
+	else
 	{
 		if (const UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
 		{
@@ -100,67 +149,60 @@ void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
 
 void URagdollComponent::ApplyStartRagdoll()
 {
-    // 소유 캐릭터가 없으면 래그돌을 적용할 대상이 없습니다.
-    if (!OwnerCharacter)
-    {
-       RAGDOLL_LOG(Warning, TEXT("OwnerCharacter is missing."));
-       return;
-    }
+	// 소유 캐릭터가 없으면 래그돌을 적용할 대상이 없습니다.
+	if (!OwnerCharacter)
+	{
+		RAGDOLL_LOG(Warning, TEXT("OwnerCharacter is missing."));
+		return;
+	}
 
-    // 물리 시뮬레이션을 적용할 Skeletal Mesh를 가져옵니다.
-    USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
-    if (!Mesh)
-    {
-       RAGDOLL_LOG(Warning, TEXT("Character mesh is missing."));
-       return;
-    }
+	// 물리 시뮬레이션을 적용할 Skeletal Mesh를 가져옵니다.
+	USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
+	if (!Mesh)
+	{
+		RAGDOLL_LOG(Warning, TEXT("Character mesh is missing."));
+		return;
+	}
 
-    // Physics Asset이 없으면 Skeletal Mesh가 래그돌 물리 시뮬레이션을 할 수 없습니다.
-    if (!Mesh->GetPhysicsAsset())
-    {
-       RAGDOLL_LOG(Warning, TEXT("Mesh has no Physics Asset. Ragdoll cannot simulate."));
-       return;
-    }
+	// Physics Asset이 없으면 Skeletal Mesh가 래그돌 물리 시뮬레이션을 할 수 없습니다.
+	if (!Mesh->GetPhysicsAsset())
+	{
+		RAGDOLL_LOG(Warning, TEXT("Mesh has no Physics Asset. Ragdoll cannot simulate."));
+		return;
+	}
 
-    // 래그돌 중에는 CharacterMovement가 캐릭터를 움직이지 않도록 비활성화합니다.
-    if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-    {
-       Movement->DisableMovement();
-    }
+	// 래그돌 중에는 CharacterMovement가 캐릭터를 움직이지 않도록 비활성화합니다.
+	if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
+	{
+		Movement->DisableMovement();
+	}
 
-    // 캡슐 충돌이 켜져 있으면 물리 중인 메시와 충돌이 겹칠 수 있으므로 끕니다.
-    if (UCapsuleComponent* Capsule = OwnerCharacter->GetCapsuleComponent())
-    {
-       Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
+	// 캡슐 충돌이 켜져 있으면 물리 중인 메시와 충돌이 겹칠 수 있으므로 끕니다.
+	if (UCapsuleComponent* Capsule = OwnerCharacter->GetCapsuleComponent())
+	{
+		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 
-    // 애니메이션 블루프린트 제어를 멈추고 메시를 래그돌 충돌 프로파일로 전환합니다.
-    Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-    Mesh->SetCollisionProfileName(TEXT("Ragdoll"));
-    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// 메시를 래그돌 충돌 프로파일로 전환합니다.
+	Mesh->SetCollisionProfileName(TEXT("Ragdoll"));
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-    // pelvis 아래 본들에 물리 시뮬레이션을 켭니다.
-    Mesh->SetAllBodiesBelowSimulatePhysics(TEXT("pelvis"), true, true);
+	// pelvis 아래 본들에 물리 시뮬레이션을 켭니다.
+	Mesh->SetAllBodiesBelowSimulatePhysics(TEXT("pelvis"), true, true);
 
-    // pelvis 아래 본들이 물리 결과를 완전히 따르도록 블렌드 가중치를 1로 설정합니다.
-    Mesh->SetAllBodiesBelowPhysicsBlendWeight(TEXT("pelvis"), 1.0f, false, true);
+	// pelvis 아래 본들이 물리 결과를 완전히 따르도록 블렌드 가중치를 1로 설정합니다.
+	Mesh->SetAllBodiesBelowPhysicsBlendWeight(TEXT("pelvis"), 1.0f, false, true);
 
-    // 잠들어 있는 물리 바디가 있으면 깨워서 바로 시뮬레이션되게 합니다.
-    Mesh->WakeAllRigidBodies();
-   
-    // [Add] 방어 코드: 기절해서 쓰러지는 순간, 달리던 상태 태그를 안전하게 제거
-   
-    if (OwnerCharacter->HasAuthority())
-    {
-    	if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
-    	{
-    		if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-    		{
-    			StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting")));
-    			StateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
-    		}
-    	}
-    }
+	// 잠들어 있는 물리 바디가 있으면 깨워서 바로 시뮬레이션되게 합니다.
+	Mesh->WakeAllRigidBodies();
+
+	// 서버에서 바뀐 이 값은 클라이언트로 복제되어 OnRep_IsRagdoll을 호출합니다.
+	bIsRagdoll = true;
+
+	if (AParcelCharacter* ParcelCharacter = Cast<AParcelCharacter>(OwnerCharacter))
+	{
+		ParcelCharacter->SetRagdollState(true, false);
+	}
 	
     // [Add] 최종 연산을 받아서 카메라 틱 원격 스위칭
 	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
@@ -253,10 +295,46 @@ void URagdollComponent::ApplyStopRagdoll()
     RAGDOLL_LOG(Warning, TEXT("Ragdoll stopped."));
 }
 
-bool URagdollComponent::IsRagdollCloseToGround() const
-{
-    ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (!Character || !GetWorld()) return true;
+	// 물리 종료 전에 현재 골반 위치와 회전을 저장합니다.
+	FVector PelvisLocation = Mesh->GetSocketLocation(TEXT("pelvis"));
+	float CapsuleHalfHeight = Capsule->GetScaledCapsuleHalfHeight();
+
+	// Line Trace로 바닥 높이를 찾아 캡슐을 바닥 위에 올립니다.
+	FVector TraceStart = PelvisLocation;
+	FVector TraceEnd = PelvisLocation + FVector(0.f, 0.f, -500.f);
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerCharacter);
+
+	float GroundZ = PelvisLocation.Z;
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
+	{
+		GroundZ = HitResult.ImpactPoint.Z;
+	}
+
+	if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
+	{
+		AnimInstance->SavePoseSnapshot(TEXT("RagdollPose"));
+	}
+
+	// 먼저 물리 시뮬레이션을 종료합니다.
+	Mesh->SetSimulatePhysics(false);
+	Mesh->SetAllBodiesSimulatePhysics(false);
+	Mesh->SetAllBodiesBelowSimulatePhysics(TEXT("pelvis"), false, true);
+	Mesh->SetAllBodiesBelowPhysicsBlendWeight(TEXT("pelvis"), 0.0f, false, true);
+	Mesh->bBlendPhysics = false;
+	Mesh->SetCollisionProfileName(TEXT("CharacterMesh"));
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+	FVector NewActorLocation = FVector(PelvisLocation.X, PelvisLocation.Y, GroundZ + CapsuleHalfHeight);
+	OwnerCharacter->SetActorLocation(NewActorLocation, false, nullptr, ETeleportType::TeleportPhysics);
+
+	Mesh->SetRelativeLocation(DefaultMeshRelativeLocation, false, nullptr, ETeleportType::TeleportPhysics);
+	Mesh->SetRelativeRotation(DefaultMeshRelativeRotation, false, nullptr, ETeleportType::TeleportPhysics);
+
+	// 꺼두었던 캡슐 충돌을 다시 켭니다.
+	Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
     const USkeletalMeshComponent* MeshComponent = Character->GetMesh();
     if (!MeshComponent) return true;
@@ -264,7 +342,22 @@ bool URagdollComponent::IsRagdollCloseToGround() const
     const FVector TraceStart = MeshComponent->GetSocketLocation(TEXT("pelvis"));
 	const FVector TraceEnd = TraceStart - FVector::UpVector * RagdollStopGroundTraceDistance;
 
-    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(RagdollGroundTrace), false, Character);
-    FHitResult Hit;
-    return GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+	if (AParcelCharacter* ParcelCharacter = Cast<AParcelCharacter>(OwnerCharacter))
+	{
+		ParcelCharacter->SetRagdollState(false, true);
+
+		if (ParcelCharacter->GetUpMontage)
+		{
+			ParcelCharacter->PlayAnimMontage(ParcelCharacter->GetUpMontage);
+		}
+	}
+
+	// [Add] 복구 시 카메라 원위치 및 컴포넌트 틱 중단
+	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->PrimaryComponentTick.SetTickFunctionEnable(false);
+		HeroComp->ResetCameraAttachment();
+	}
+	
+	RAGDOLL_LOG(Warning, TEXT("Ragdoll stopped."));
 }
