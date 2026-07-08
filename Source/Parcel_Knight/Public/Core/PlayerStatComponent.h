@@ -34,11 +34,11 @@ public:
 	// [All] 개인 누적 점수 반환
 	int32 GetPersonalScore() const;
 
-	// [All] 현재 콤보 횟수 반환
-	int32 GetComboCount() const;
-
 	// [All] 배송 성공 횟수 반환
 	int32 GetSuccessCount() const;
+	
+	// [All] 배송 실패 횟수 반환
+	int32 GetFailCount() const;
 
 	// ─────────────────────────────────────
 	// 점수 및 콤보 처리
@@ -50,10 +50,10 @@ public:
 	 */
 	void AddScore(int32 Amount);
 
-	// [Server Only] 배송 성공 시 호출 — 콤보 증가 및 성공 횟수 누적
+	// [Server Only] 배송 성공 시 호출 
 	void OnDeliverySuccess();
 
-	// [Server Only] 배송 실패·파손 시 호출 — 콤보 리셋
+	// [Server Only] 배송 실패·파손 시 호출 
 	void OnDeliveryFail();
 
 private:
@@ -61,8 +61,9 @@ private:
 	int32 PersonalScore;  // 개인 누적 점수
 
 	UPROPERTY(Replicated)
-	int32 SuccessCount;   // 연속 성공 콤보 계산 기준
-
+	int32 SuccessCount;   // 배달 성공 횟수
+	
 	UPROPERTY(Replicated)
-	int32 ComboCount;     // 콤보 배율 적용에 사용
+	int32 FailCount;
+
 };

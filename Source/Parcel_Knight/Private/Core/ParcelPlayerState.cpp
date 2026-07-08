@@ -16,14 +16,14 @@ int32 AParcelPlayerState::GetPersonalScore() const
 	return PlayerStatComp->GetPersonalScore();
 }
 
-int32 AParcelPlayerState::GetComboCount() const
-{
-	return PlayerStatComp->GetComboCount();
-}
-
 int32 AParcelPlayerState::GetSuccessCount() const
 {
 	return PlayerStatComp->GetSuccessCount();
+}
+
+int32 AParcelPlayerState::GetFailCount() const
+{
+	return PlayerStatComp->GetFailCount();
 }
 
 

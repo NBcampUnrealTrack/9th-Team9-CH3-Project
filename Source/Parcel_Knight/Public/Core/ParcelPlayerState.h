@@ -9,7 +9,7 @@
 class UPlayerStatComponent;
 
 /**
- * 개인 점수, 콤보, 성공·실패 횟수를 관리하는 PlayerState
+ * 개인 점수, 성공·실패 횟수를 관리하는 PlayerState
  * 실제 로직은 UPlayerStatComponent가 담당한다.
  *
  * 담당자: 한수현
@@ -24,8 +24,8 @@ public:
 	AParcelPlayerState();
 
 	int32 GetPersonalScore() const;
-	int32 GetComboCount() const; 
 	int32 GetSuccessCount() const;
+	int32 GetFailCount() const;
 	
 	void AddScore(int32 Amount);
 	

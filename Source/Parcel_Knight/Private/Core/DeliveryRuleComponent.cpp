@@ -22,7 +22,7 @@ void UDeliveryRuleComponent::StartRound(float InTimeLimit, int32 InTargetScore)
 	GetWorld()->GetGameState<AParcelGameState>()
 	->GetTeamScoreComponent()->InitRemainingTime(TimeLimit);
 	//로그
-	GAMERULE_LOG(Log, TEXT("StartRound — TimeLimit: %.0f / TargetScore: %d"), InTimeLimit, InTargetScore);
+	GAMERULE_LOG(Log, TEXT("라운드 시작 시간제한: %.0f / 목표 점수: %d"), InTimeLimit, InTargetScore);
 	
 	// 1초마다 반복 — 시간 경과 점수 감소
 	GetWorld()->GetTimerManager().SetTimer(
