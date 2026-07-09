@@ -6,6 +6,11 @@
 #include "Components/ActorComponent.h"
 #include "TeamScoreComponent.generated.h"
 
+// [UI]
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamScoreChangedSignature, int32, NewTeamScore);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChangedSignature, float, RemainingTime);
+
+
 //TODO: 나중에 결과에 따라 애니메이션/UI 출력이 바뀌거나 한다면 확장성을 고려했을 때 Tag로 바꾸는 것이 좋아보임
 UENUM(BlueprintType)
 enum class EGrade : uint8
@@ -55,6 +60,17 @@ public:
 	void OnDeliveryFail();
 	// [All] 현재 콤보 배율 반환
 	float GetComboMultiplier();
+	
+	// [UI] HUD 위젯 바인딩 BroadCast 변수
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnTeamScoreChangedSignature OnTeamScoreChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnRemainingTimeChangedSignature OnRemainingTimeChanged;
+	
+	// [UI] 남은 시간 복제 수신 콜백 함수
+	UFUNCTION()
+	void OnRep_RemainingTime();
 
 private:
 	// 모든 클라이언트에 복제 — UI 점수판 갱신용
@@ -66,7 +82,7 @@ private:
 	int32 ComboCount;
 
 	// 남은 시간 복제 — 서버 타이머 기준, 클라이언트는 읽기만
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing=OnRep_RemainingTime)
 	float RemainingTime;
 
 	// 콤보 배율 최솟값 — 에디터에서 조정 가능 (기본값 1.0)
