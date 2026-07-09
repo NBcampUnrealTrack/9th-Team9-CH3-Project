@@ -149,6 +149,8 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
     if (CarriedBox)
     {
        // [상자를 잡았을 때] 클라이언트 측에서도 물리/콜리전을 끄고 부착해야 정상적으로 달라붙어 따라다님
+       CarriedBox->SetActorEnableCollision(false);
+    	
        if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(CarriedBox->GetRootComponent()))
        {
           RootPrim->SetSimulatePhysics(false);
@@ -169,7 +171,9 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
           // Transform 보존하고 바인딩을 해제함
           FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, true);
           PreviousCarriedBox->DetachFromActor(DetachRules);
-
+       	
+       	  PreviousCarriedBox->SetActorEnableCollision(true);
+       	
           // 물리 및 콜리전 복구
           if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(PreviousCarriedBox->GetRootComponent()))
           {

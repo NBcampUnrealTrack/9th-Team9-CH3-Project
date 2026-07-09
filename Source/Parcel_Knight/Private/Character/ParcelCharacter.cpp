@@ -6,7 +6,11 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
+#include "TimerManager.h"
+
 
 DEFINE_LOG_CATEGORY(LogCharacter);
 
@@ -14,6 +18,8 @@ AParcelCharacter::AParcelCharacter()
 {
     PrimaryActorTick.bCanEverTick = false;
 
+    SetReplicateMovement(true);
+    
     // 캐릭터 액터 자체를 네트워크에 복제
     bReplicates = true;
 
@@ -33,21 +39,21 @@ AParcelCharacter::AParcelCharacter()
     // 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
     GetCharacterMovement()->AirControl = 0.35f;
 
-    // 컴포넌트 조립
-    PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
-    RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
-    HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
-    InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
-    MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
-    CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
+	// 컴포넌트 조립
+  PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
+	RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
+	StatusEffectComponent = CreateDefaultSubobject<UDFStatusEffectComponent>(TEXT("StatusEffectComponent"));
+	HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
+	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
+	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
+	CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
+
+	bIsRagdoll = false;
+	bIsGettingUp = false;
 }
 
 void AParcelCharacter::BeginPlay()
 {
-    // 위치, 회전 같은 Actor Movement를 서버에서 클라이언트로 복제
-    // ACharacter의 기본 CharacterMovement 복제와 함께 동작합니다.
-    SetReplicateMovement(true);
-    
     Super::BeginPlay();
 }
 
@@ -87,6 +93,34 @@ void AParcelCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
     }
 }
 
+void AParcelCharacter::SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp)
+{
+	bIsRagdoll = bNewIsRagdoll;
+	bIsGettingUp = bNewIsGettingUp;
+
+	if (bIsGettingUp)
+	{
+		GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
+
+		GetWorldTimerManager().SetTimer(
+			GetUpTimerHandle,
+			this,
+			&AParcelCharacter::FinishGetUp,
+			1.3f,
+			false
+		);
+	}
+	else
+	{
+		GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
+	}
+}
+
+void AParcelCharacter::FinishGetUp()
+{
+	bIsGettingUp = false;
+}
+
 void AParcelCharacter::PossessedBy(AController* NewController)
 {
     // 서버의 possession 처리 흐름을 유지
@@ -101,12 +135,12 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 
 void AParcelCharacter::OnRep_Controller()
 {
-    Super::OnRep_Controller();
-    
-    if (HeroComp)
-    {
-       PLAYER_LOG(Log, TEXT("[%s] 클라이언트 컨트롤러 복제 완료 -> Input Mapping Context 등록 시도"), *GetName());
-       // 클라이언트의 Controller 복제 시점에 HeroComponent에 이벤트를 넘김
-       HeroComp->AddInputMappingContext();
-    }
+	// 클라이언트에서 복제된 Controller 변경 처리를 부모 클래스에 맡깁니다.
+	Super::OnRep_Controller();
+
+	// 클라이언트의 Controller 복제 시점에 HeroComponent에 이벤트를 넘김
+	if (HeroComp)
+	{
+		HeroComp->AddInputMappingContext();
+	}
 }

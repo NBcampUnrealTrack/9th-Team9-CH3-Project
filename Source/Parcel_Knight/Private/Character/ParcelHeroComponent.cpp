@@ -12,6 +12,7 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
@@ -132,7 +133,16 @@ void UParcelHeroComponent::Move(const FInputActionValue& Value)
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     if (RagdollComp && RagdollComp->IsRagdoll()) return;
     
-    const FVector2D MoveValue = Value.Get<FVector2D>();
+	// 반전 함정
+	FVector2D MoveValue = Value.Get<FVector2D>();
+	if (const UDFStatusEffectComponent* StatusEffectComponent = Character->FindComponentByClass<UDFStatusEffectComponent>())
+	{
+		if (StatusEffectComponent->IsInputInverted())
+		{
+			MoveValue *= -1.0f;
+		}
+	}
+
     const FRotator ControlRotation = Character->GetController()->GetControlRotation();
     const FRotator YawRotation(0.f, ControlRotation.Yaw, 0.f);
 

@@ -16,7 +16,7 @@ UParcelInteractionComponent::UParcelInteractionComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
 
-    TraceDistance = 300.f;
+    TraceDistance = 800.f;
     CurrentFocusedActor = nullptr;
 }
 
@@ -43,7 +43,7 @@ void UParcelInteractionComponent::CheckTraceTarget()
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
     // 내가 조종하는 로컬 캐릭터 화면이 아니라면 레이저를 쏘지 않고 즉시 리턴
     if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled()) return;
-
+    
     if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
     {
         if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
@@ -78,17 +78,31 @@ void UParcelInteractionComponent::CheckTraceTarget()
     // 이번 프레임에 새로 감지된 액터를 담을 임시 변수
     AActor* NewFocusedActor = nullptr;
     
-    if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+    FCollisionShape SweepSphere = FCollisionShape::MakeSphere(15.f); // 15cm SweepSingleByChannel로 변경
+
+    if (GetWorld()->SweepSingleByChannel(HitResult, TraceStart, TraceEnd, FQuat::Identity, ECC_Visibility, SweepSphere, QueryParams))
     {
         AActor* HitActor = HitResult.GetActor();
-       
-        // 조준된 액터가 인터페이스 규격을 구현했는지 검사
+    
+        // [디버그] 레이저나 Sweep이 무언가 물체를 물리적으로 맞추긴 했는지 확인
+        if (HitActor)
+        {
+            INTERACT_LOG(Log, TEXT("[Client Trace] 레이저가 무언가 맞춤: %s"), *HitActor->GetName());
+        }
+   
         if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
         {
+            // [디버그] 인터페이스 계약 관계는 정상인지 확인
+            INTERACT_LOG(Log, TEXT("[Client Trace] %s 객체는 InteractableInterface를 구현함"), *HitActor->GetName());
+
             if (IInteractableInterface::Execute_CanInteract(HitActor, OwnerCharacter))
             {
-                // 바로 대입하지 않고 변경점 체크를 위해 임시 변수에 보관
                 NewFocusedActor = HitActor;
+            }
+            else
+            {
+                // [디버그] 만약 1, 2단계는 통과했는데 여기서 막힌다면 상자의 태그(Spawned) 상태가 클라에 복제가 안 된 것임
+                INTERACT_LOG(Warning, TEXT("[Client Trace] %s 의 CanInteract 조건문 검사에서 탈락함(태그 공백 의심)"), *HitActor->GetName());
             }
         }
     }
