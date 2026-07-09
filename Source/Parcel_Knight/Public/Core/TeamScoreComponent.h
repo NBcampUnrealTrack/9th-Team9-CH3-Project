@@ -49,17 +49,36 @@ public:
 	void InitRemainingTime(float InTimeLimit);
 	// [Server Only] 등급 설정 — OnTimeUp에서 호출
 	void SetGrade(EGrade InGrade);
+	// [Server Only] 배달 성공 — 콤보 증가
+	void OnDeliverySuccess();
+	// [Server Only] 배달 실패 — 콤보 초기화
+	void OnDeliveryFail();
+	// [All] 현재 콤보 배율 반환
+	float GetComboMultiplier();
 
 private:
 	// 모든 클라이언트에 복제 — UI 점수판 갱신용
 	UPROPERTY(ReplicatedUsing=OnRep_TeamScore)
 	int32 TeamScore;
 
+	// 점수 배율을 적용시키는 콤보 카운트
+	UPROPERTY(Replicated)
+	int32 ComboCount;
+
 	// 남은 시간 복제 — 서버 타이머 기준, 클라이언트는 읽기만
 	UPROPERTY(Replicated)
 	float RemainingTime;
 
+	// 콤보 배율 최솟값 — 에디터에서 조정 가능 (기본값 1.0)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(AllowPrivateAccess="true"))
+	float MinComboMultiplier;
+	// 콤보 배율 최댓값 — 에디터에서 조정 가능 (기본값 2.0, 콤보 10회에서 도달)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(AllowPrivateAccess="true"))
+	float MaxComboMultiplier;
+
 	// 최종 등급 복제 — 결과 화면 표시용 (3단계)
 	UPROPERTY(Replicated)
 	EGrade CurrentGrade;
+	
+	
 };

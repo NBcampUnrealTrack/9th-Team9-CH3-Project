@@ -6,6 +6,9 @@
 #include "Components/ActorComponent.h"
 #include "DeliveryRuleComponent.generated.h"
 
+class APlayerController;
+class AParcelPlayerState;
+
 /**
  * 게임 룰 로직을 담당하는 컴포넌트
  * GameMode에 부착되며 점수 계산, 시간 관리, 배송 판정을 처리한다.
@@ -25,6 +28,12 @@ public:
 
 	// [Server Only] GameMode::EndRound()에서 호출 — 타이머 정지
 	void EndRound();
+
+	// [Server Only] 배달 성공 시 호출 — 팀/개인 점수 및 콤보 처리
+	void OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount);
+
+	// [Server Only] 배달 실패 시 호출 — 콤보 리셋 및 실패 횟수 처리
+	void OnDeliveryFailed(APlayerController* Deliverer);
 
 private:
 	// 스테이지 제한시간 — DA_StageData에서 설정
@@ -53,8 +62,6 @@ private:
 	//HACK: 다른 코드로 변경 가능할 수 있음
 	void OnEverySecond();
 	
-	/*
-	 * [Server Only] 제한시간 만료 시 호출 — 점수 대폭 감소 및 라운드 종료
-	*/
+	// [Server Only] 제한시간 만료 시 호출 — 점수 감소 및 라운드 종료
 	void OnTimeUp();
 };
