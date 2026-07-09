@@ -73,17 +73,43 @@ void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!Character) return;
 
+    if (Character->IsLocallyControlled() && bIsChargingThrow)
+    {
+        CurrentThrowChargeTime += DeltaTime;
+        if (CurrentThrowChargeTime > MaxThrowChargeTime)
+        {
+            CurrentThrowChargeTime = MaxThrowChargeTime;
+        }
+
+        if (GEngine)
+        {
+            float ChargeRatio = FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f);
+            int32 Percentage = FMath::RoundToInt(ChargeRatio * 100.f);
+            
+            FString ProgressBar = TEXT("[");
+            int32 BarCount = Percentage / 10;
+            for (int32 i = 0; i < 10; ++i)
+            {
+                ProgressBar += (i < BarCount) ? TEXT("■") : TEXT("□");
+            }
+            ProgressBar += TEXT("]");
+
+            FString ChargeMsg = FString::Printf(TEXT("던지기 충전 중... %s %d%%"), *ProgressBar, Percentage);
+            GEngine->AddOnScreenDebugMessage(8888, 0.1f, FColor::Yellow, ChargeMsg);
+        }
+    }
+
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
 
     // 래그돌 상태가 활성화 되었을 때만 카메라 연산 가동함(카메라 보정)
     if (Character->IsLocallyControlled() && RagdollComp && RagdollComp->IsRagdoll() && Character->GetMesh() && SpringArm)
     {
-       const FVector HeadLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
-       const FRotator ViewRotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
-       const FVector CameraBackDirection = -FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::X);
-       const FVector TargetLocation = HeadLocation + FVector::UpVector * RagdollCameraHeightOffset + CameraBackDirection * RagdollCameraBackOffset;
+        const FVector HeadLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
+        const FRotator ViewRotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
+        const FVector CameraBackDirection = -FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::X);
+        const FVector TargetLocation = HeadLocation + FVector::UpVector * RagdollCameraHeightOffset + CameraBackDirection * RagdollCameraBackOffset;
 
-       SpringArm->SetWorldLocation(TargetLocation);
+        SpringArm->SetWorldLocation(TargetLocation);
     }
 }
 
@@ -119,6 +145,12 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
     if (InteractAction) 
     {
        EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
+    }
+    
+    if (ThrowAction)
+    {
+       EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartThrow);
+       EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::ReleaseThrow);
     }
     
     HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
@@ -249,12 +281,24 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
     HEROCOMP_LOG(Log, TEXT("상호작용 조작(E키) 감지: InteractionComponent 호출"));
     
     // [Add] 방어 코드 : 캐릭터가 없으면 상호작용 중단
+    
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!Character) return;
     
     // [Add] 방어 코드 : 래그돌 도중에는 상호작용 불가
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     if (RagdollComp && RagdollComp->IsRagdoll()) return;
+
+    // 만약 이미 상자를 들고 있다면 내려놓기(Drop) 실행
+    if (UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>())
+    {
+        if (CarryComp->IsCarrying())
+        {
+            HEROCOMP_LOG(Log, TEXT("이미 상자를 운반 중: 내려놓기(Drop) 실행"));
+            CarryComp->Drop();
+            return;
+        }
+    }
 
     // InAir 상태에서는 집기 상호작용 불가
     if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
@@ -337,4 +381,58 @@ void UParcelHeroComponent::ExitRagdollCameraMode()
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 	ResetCameraAttachment();
 	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
+}
+
+void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
+{
+    if (!CanProcessLocalInput()) return;
+
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+    if (CarryComp && CarryComp->IsCarrying())
+    {
+        bIsChargingThrow = true;
+        CurrentThrowChargeTime = 0.f;
+        
+        // 게이지 모으는 중 틱 활성화
+        PrimaryComponentTick.SetTickFunctionEnable(true);
+        HEROCOMP_LOG(Log, TEXT("던지기 충전 시작: 틱 활성화"));
+    }
+}
+
+void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
+{
+    if (!bIsChargingThrow) return;
+
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+    if (CarryComp && CarryComp->IsCarrying())
+    {
+        float ChargeRatio = FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f);
+        float ForceMag = FMath::Lerp(MinThrowForce, MaxThrowForce, ChargeRatio);
+        
+        // 카메라의 조준 방향 계산 (약간 위로 향해 포물선을 그리도록 보정)
+        FVector ThrowDir = FollowCamera->GetForwardVector();
+        ThrowDir.Z += 0.2f;
+        ThrowDir.Normalize();
+        
+        FVector ThrowForce = ThrowDir * ForceMag;
+        CarryComp->Throw(ThrowForce);
+        HEROCOMP_LOG(Log, TEXT("던지기 실행! 충전 비율: %f, 최종 힘: %f"), ChargeRatio, ForceMag);
+    }
+
+    bIsChargingThrow = false;
+    CurrentThrowChargeTime = 0.f;
+
+    // 만약 래그돌 상태가 아니라면 틱을 다시 꺼줍니다.
+    URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+    bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
+    if (!bNeedsTick)
+    {
+        PrimaryComponentTick.SetTickFunctionEnable(false);
+    }
 }
