@@ -25,6 +25,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Delivery")
 	AActor* SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocation, FRotator SpawnRotation);
 
+	UFUNCTION(BlueprintCallable, Category = "Delivery")
+	AActor* SpawnRandomBox(FVector SpawnLocation, FRotator SpawnRotation);
+
 	void DespawnBox(AActor* Box);
 	int32 GenerateBoxID();
 
@@ -42,6 +45,8 @@ private:
 
 	UPROPERTY()
 	TMap<FGameplayTag, FBoxData> CachedBoxData;
+
+	void EnsureCacheLoaded();
 
 	int32 NextBoxID;
 };

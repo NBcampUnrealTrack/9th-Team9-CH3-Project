@@ -60,6 +60,8 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
 {
     if (!GetWorld() || GetWorld()->GetNetMode() == NM_Client) return nullptr;
     
+    EnsureCacheLoaded();
+    
     const FBoxData* FoundDataPtr = CachedBoxData.Find(BoxTypeTag);
     if (!FoundDataPtr)
     {
@@ -92,6 +94,25 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
     return nullptr;
 }
 
+AActor* UDeliverySubsystem::SpawnRandomBox(FVector SpawnLocation, FRotator SpawnRotation)
+{
+	EnsureCacheLoaded();
+
+	if (CachedBoxData.IsEmpty())
+	{
+		DELIVERYSUBSYSTEM_LOG(Warning, TEXT("[Subsystem] 캐시된 박스 데이터가 없어 랜덤 스폰이 불가능합니다."));
+		return nullptr;
+	}
+
+	TArray<FGameplayTag> Keys;
+	CachedBoxData.GetKeys(Keys);
+
+	int32 RandomIndex = FMath::RandRange(0, Keys.Num() - 1);
+	FGameplayTag SelectedTag = Keys[RandomIndex];
+
+	return SpawnBox(SelectedTag, SpawnLocation, SpawnRotation);
+}
+
 void UDeliverySubsystem::DespawnBox(AActor* Box)
 {
     if (!Box) return;
@@ -100,4 +121,25 @@ void UDeliverySubsystem::DespawnBox(AActor* Box)
     
     ActiveBoxes.Remove(Box);
     Box->Destroy();
+}
+
+void UDeliverySubsystem::EnsureCacheLoaded()
+{
+	if (!CachedBoxData.IsEmpty()) return;
+
+	// 테스트용 폴백: 스테이지 데이터가 로드되지 않은 상태에서 테스트할 수 있도록 기본 데이터 테이블을 자동 로드합니다.
+	UDataTable* DefaultTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, TEXT("/Game/Data/DataTables/DT_BoxData")));
+	if (DefaultTable)
+	{
+		TArray<FBoxData*> AllRows;
+		DefaultTable->GetAllRows<FBoxData>(TEXT(""), AllRows);
+		for (FBoxData* RowData : AllRows)
+		{
+			if (RowData)
+			{
+				CachedBoxData.Add(RowData->BoxTypeTag, *RowData);
+			}
+		}
+		DELIVERYSUBSYSTEM_LOG(Log, TEXT("[Subsystem] 테스트용 기본 데이터 테이블(DT_BoxData)을 자동으로 로드하여 캐싱했습니다."));
+	}
 }
