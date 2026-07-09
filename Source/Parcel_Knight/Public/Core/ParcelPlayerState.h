@@ -7,6 +7,7 @@
 #include "ParcelPlayerState.generated.h"
 
 class UPlayerStatComponent;
+class UInventoryComponent;
 
 /**
  * 개인 점수, 성공·실패 횟수를 관리하는 PlayerState
@@ -36,8 +37,17 @@ public:
 	void OnDeliverySuccess();
 	// [Server Only] 배달 실패·파손 시 호출 — 실패 횟수 누적
 	void OnDeliveryFail();
-	
+
+	// [All] 인벤토리 컴포넌트 반환 — 캐릭터의 아이템 사용 시 참조
+	UInventoryComponent* GetInventoryComponent() const;
+
+protected:
+	virtual void BeginPlay() override;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UPlayerStatComponent> PlayerStatComp;
+
+	UPROPERTY()
+	TObjectPtr<UInventoryComponent> InventoryComp;
 };
