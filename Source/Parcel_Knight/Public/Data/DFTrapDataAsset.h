@@ -40,6 +40,30 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
 	float EffectMagnitude = 0.5f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
+	float PushStrength = 900.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
+	float PushUpStrength = 100.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
+	float MaxPushSpeed = 400.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect")
+	bool bUseTrapForwardAsPushDirection = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect")
+	bool bUseOppositeVelocityForReverse = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.01"))
+	float RepeatInterval = 0.1f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect")
+	bool bRepeatWhileOverlapping = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect")
+	bool bRemoveEffectOnEndOverlap = true;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Behavior")
 	bool bTriggerOnce = false;
 

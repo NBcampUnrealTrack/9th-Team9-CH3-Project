@@ -6,6 +6,7 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
@@ -41,6 +42,7 @@ AParcelCharacter::AParcelCharacter()
 	// 컴포넌트 조립
   PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
 	RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
+	StatusEffectComponent = CreateDefaultSubobject<UDFStatusEffectComponent>(TEXT("StatusEffectComponent"));
 	HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
 	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
 	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
