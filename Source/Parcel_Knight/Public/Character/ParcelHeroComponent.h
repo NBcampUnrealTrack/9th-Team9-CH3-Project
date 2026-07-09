@@ -59,6 +59,21 @@ protected:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> ThrowAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Carry|Throw")
+	float MinThrowForce = 800.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Carry|Throw")
+	float MaxThrowForce = 2200.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Carry|Throw")
+	float MaxThrowChargeTime = 1.5f;
+
+	bool bIsChargingThrow = false;
+	float CurrentThrowChargeTime = 0.f;
 	
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
@@ -68,6 +83,8 @@ protected:
 	void StopSprint(const FInputActionValue& Value);
 	void TestRagdoll(const FInputActionValue& Value);
 	void Interact(const FInputActionValue& Value);
+	void StartThrow(const FInputActionValue& Value);
+	void ReleaseThrow(const FInputActionValue& Value);
 	
 	// Ragdoll 카메라 세팅 에디터 노출
 	UPROPERTY(EditAnywhere, Category = "Camera|Ragdoll")
