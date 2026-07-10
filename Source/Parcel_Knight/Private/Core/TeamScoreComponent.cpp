@@ -53,6 +53,8 @@ void UTeamScoreComponent::AddTeamScore(int32 Amount)
 	if (GetOwner()->HasAuthority())
 	{
 		TeamScore += Amount * GetComboMultiplier();
+		// 음수 값 방지
+		TeamScore = FMath::Max(0, TeamScore + Amount);
 		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount → %d"), TeamScore, ComboCount);
 	}
 	

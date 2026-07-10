@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -45,6 +43,8 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameRules", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStageData> DefaultStageData;
 	
 	// ========================= 콘솔 명령어 =========================
 	//NOTE: ~(콘솔)에서 해당 명령어 사용시 실제 해당 코드 사용됨
@@ -58,6 +58,4 @@ private:
 	UFUNCTION(Exec) void DebugAddScore(int32 Amount);
 	//점수 및 콤보 출력
 	UFUNCTION(Exec) void DebugPrintScore();
-	
-	
 };
