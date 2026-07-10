@@ -205,8 +205,8 @@ void UParcelHeroComponent::StartJump(const FInputActionValue& Value)
     {
         if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
         {
-            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")))) return;
-        }
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing")))) return;
+        } //TODO: 게임플레이 태그 Action 추가 및 State.Throwing 변경 필요
     }
 
     Character->Jump();
@@ -340,12 +340,12 @@ void UParcelHeroComponent::ApplySprintSpeed(bool bNewIsSprinting)
           if (bNewIsSprinting) StateComp->AddStateTag(SprintTag);
           else StateComp->RemoveStateTag(SprintTag);
        }
-    }
-
-    // MovementStat을 담당하는 매니저에 속도 계산 위임
-    if (UParcelMovementStatComponent* StatComp = ParcelChar->GetParcelMovementStatComponent())
-    {
-       StatComp->RefreshMoveSpeed();
+        
+        // MovementStat을 담당하는 매니저에 속도 계산 위임
+        if (UParcelMovementStatComponent* StatComp = ParcelChar->GetParcelMovementStatComponent())
+        {
+            StatComp->RefreshMoveSpeed();
+        }
     }
 }
 
