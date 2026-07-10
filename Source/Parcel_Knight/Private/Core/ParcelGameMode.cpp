@@ -11,6 +11,7 @@
 #include "Core/ParcelGameInstance.h"
 #include "Delivery/StageData.h"
 #include "ParcelLog.h"
+#include "Core/ParcelGameInstance.h"
 #include "Delivery/StageData.h"
 #include "Delivery/DeliverySubsystem.h"
 #include "Delivery/DeliveryBoxSpawner.h"
@@ -189,6 +190,7 @@ void AParcelGameMode::DebugPrintScore()
 	if (GEngine)
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, Msg);
 }
+
 
 // ========================= 로드아웃 콘솔 명령어 =========================
 

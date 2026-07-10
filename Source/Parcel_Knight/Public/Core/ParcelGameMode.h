@@ -47,15 +47,38 @@ private:
 	TObjectPtr<UStageData> DefaultStageData;
 	
 	// ========================= 콘솔 명령어 =========================
-	//NOTE: ~(콘솔)에서 해당 명령어 사용시 실제 해당 코드 사용됨
+	// NOTE: ~(콘솔)에서 해당 명령어 사용시 실제 해당 코드 사용됨
+	// NOTE: ~(콘솔)에서 입력 시 실제 해당 코드가 실행됨
+	// 실제 로직은 각 담당 클래스로 위임한다
+	//   배달 관련 → DeliveryRuleComponent
+	//   재화 관련 → GameInstance
 	
 	public:
-	//배달 성공 및 점수추가
+	// [배달] 배달 성공 시뮬레이션 — 콤보+1, 팀/개인 점수 +100
 	UFUNCTION(Exec) void DebugDeliverySuccess();
-	//배달 실패로 콤보 끊김
+	// [배달] 배달 실패 시뮬레이션 — 콤보 초기화
 	UFUNCTION(Exec) void DebugDeliveryFail();
-	//원하는 점수 추가
+	// [배달] 팀 점수 직접 추가
 	UFUNCTION(Exec) void DebugAddScore(int32 Amount);
-	//점수 및 콤보 출력
+	// [배달] 현재 팀 점수 및 콤보 배율 출력
 	UFUNCTION(Exec) void DebugPrintScore();
+	
+	//------------ 세이브 관련 콘솔코드----------
+	//   재화 관련 → GameInstance
+	//   로드아웃 관련 → GameInstance
+
+	// [재화] 재화 직접 추가
+	UFUNCTION(Exec) void DebugAddMoney(int32 Amount);
+	// [재화] 현재 보유 재화 출력
+	UFUNCTION(Exec) void DebugPrintMoney();
+	// [로드아웃] 슬롯에 아이템 장착 (태그 문자열로 입력)
+	UFUNCTION(Exec) void DebugSetLoadoutSlot(int32 SlotIndex, FString ItemTagStr);
+	// [로드아웃] 슬롯 비우기
+	UFUNCTION(Exec) void DebugClearLoadoutSlot(int32 SlotIndex);
+	// [로드아웃] 현재 로드아웃 출력
+	UFUNCTION(Exec) void DebugPrintLoadout();
+	// [로드아웃] 최대 슬롯 수 변경
+	UFUNCTION(Exec) void DebugSetMaxSlots(int32 Count);
+	// [로드아웃] 중복 장착 허용 토글
+	UFUNCTION(Exec) void DebugToggleDuplicateLoadout();
 };
