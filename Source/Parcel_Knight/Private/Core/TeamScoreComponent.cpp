@@ -53,8 +53,13 @@ void UTeamScoreComponent::AddTeamScore(int32 Amount)
 	if (GetOwner()->HasAuthority())
 	{
 		TeamScore += Amount * GetComboMultiplier();
+		// 음수 값 방지
+		TeamScore = FMath::Max(0, TeamScore + Amount);
 		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount → %d"), TeamScore, ComboCount);
 	}
+	
+	// [UI] 호스트 UI 대시보드 동기화
+	OnRep_TeamScore();
 }
 
 // ========================= 콤보 =========================
@@ -77,12 +82,18 @@ void UTeamScoreComponent::InitRemainingTime(float InTimeLimit)
 {
 	if (GetOwner()->HasAuthority())
 		RemainingTime = InTimeLimit;
+	
+	// [UI] 초기화 시간 반영
+	OnRep_RemainingTime();
 }
 
 void UTeamScoreComponent::DecreaseRemainingTime(float Amount)
 {
 	if (GetOwner()->HasAuthority())
 		RemainingTime -= Amount;
+	
+	// [UI] 매 초 타이머UI 동기화
+	OnRep_RemainingTime();
 }
 
 // ========================= 등급 =========================
@@ -98,5 +109,19 @@ void UTeamScoreComponent::SetGrade(EGrade InGrade)
 void UTeamScoreComponent::OnRep_TeamScore()
 {
 	GAMERULE_LOG(Log, TEXT("[클라이언트] TeamScore 수신 → %d"), TeamScore);
-	//TODO: UI작업 BroadCast(3단계)
+	
+	// [UI] 수신 시점에 위젯 델리게이트 브로드캐스트
+	if (OnTeamScoreChanged.IsBound())
+	{
+		OnTeamScoreChanged.Broadcast(TeamScore);
+	}
+}
+
+// [UI] 타이머 복제 알림
+void UTeamScoreComponent::OnRep_RemainingTime()
+{
+	if (OnRemainingTimeChanged.IsBound())
+	{
+		OnRemainingTimeChanged.Broadcast(RemainingTime);
+	}
 }

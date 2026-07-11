@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -45,13 +43,16 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameRules", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStageData> DefaultStageData;
 	
 	// ========================= 콘솔 명령어 =========================
+	// NOTE: ~(콘솔)에서 해당 명령어 사용시 실제 해당 코드 사용됨
 	// NOTE: ~(콘솔)에서 입력 시 실제 해당 코드가 실행됨
 	// 실제 로직은 각 담당 클래스로 위임한다
 	//   배달 관련 → DeliveryRuleComponent
 	//   재화 관련 → GameInstance
-
+	
 	public:
 	// [배달] 배달 성공 시뮬레이션 — 콤보+1, 팀/개인 점수 +100
 	UFUNCTION(Exec) void DebugDeliverySuccess();
@@ -81,6 +82,3 @@ private:
 	// [로드아웃] 중복 장착 허용 토글
 	UFUNCTION(Exec) void DebugToggleDuplicateLoadout();
 };
-
-
-
