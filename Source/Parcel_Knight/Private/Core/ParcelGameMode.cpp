@@ -9,6 +9,8 @@
 #include "Core/ParcelPlayerController.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/ParcelGameInstance.h"
+#include "Core/ShopComponent.h"
+#include "Core/InventoryComponent.h"
 #include "Delivery/StageData.h"
 #include "ParcelLog.h"
 
@@ -186,6 +188,106 @@ void AParcelGameMode::DebugAddMoney(int32 Amount)
 	GI->AddMoney(Amount);
 	GAMERULE_LOG(Log, TEXT("[콘솔] 재화 추가: %d → 현재: %d"), Amount, GI->GetMoney());
 }
+
+// ========================= 아이템 콘솔 명령어 =========================
+
+void AParcelGameMode::DebugAddConsumable(FString ItemTagStr)
+{
+	UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>();
+	if (!GI) return;
+
+	FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*ItemTagStr), false);
+	if (!Tag.IsValid())
+	{
+		GAMERULE_LOG(Warning, TEXT("[콘솔] 유효하지 않은 태그: %s"), *ItemTagStr);
+		return;
+	}
+
+	GI->AddOwnedConsumable(Tag);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 소모품 지급: %s"), *ItemTagStr);
+}
+
+void AParcelGameMode::DebugAddCosmetic(FString ItemTagStr)
+{
+	UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>();
+	if (!GI) return;
+
+	FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*ItemTagStr), false);
+	if (!Tag.IsValid())
+	{
+		GAMERULE_LOG(Warning, TEXT("[콘솔] 유효하지 않은 태그: %s"), *ItemTagStr);
+		return;
+	}
+
+	GI->AddOwnedCosmetic(Tag);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 코스메틱 지급: %s"), *ItemTagStr);
+}
+
+void AParcelGameMode::DebugPrintOwnedItems()
+{
+	UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>();
+	if (!GI) return;
+
+	// 소모품 출력
+	FString Msg = TEXT("=== 보유 소모품 ===");
+	for (const FGameplayTag& Tag : GI->GetOwnedConsumables())
+		Msg += FString::Printf(TEXT("\n  %s"), *Tag.ToString());
+	if (GI->GetOwnedConsumables().IsEmpty())
+		Msg += TEXT("\n  (없음)");
+
+	// 코스메틱 출력
+	Msg += TEXT("\n=== 보유 코스메틱 ===");
+	for (const FGameplayTag& Tag : GI->GetOwnedCosmetics())
+		Msg += FString::Printf(TEXT("\n  %s"), *Tag.ToString());
+	if (GI->GetOwnedCosmetics().IsEmpty())
+		Msg += TEXT("\n  (없음)");
+
+	GAMERULE_LOG(Log, TEXT("[콘솔] %s"), *Msg);
+	if (GEngine)
+		GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Orange, Msg);
+}
+
+void AParcelGameMode::DebugBuyItem(FString ItemTagStr)
+{
+	AParcelGameState* GS = GetGameState<AParcelGameState>();
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!GS || !PC) return;
+
+	FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*ItemTagStr), false);
+	if (!Tag.IsValid())
+	{
+		GAMERULE_LOG(Warning, TEXT("[콘솔] 유효하지 않은 태그: %s"), *ItemTagStr);
+		return;
+	}
+
+	bool bSuccess = GS->GetShopComponent()->BuyItem(PC, Tag);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 구매 시뮬레이션 %s → %s"),
+		*ItemTagStr, bSuccess ? TEXT("성공") : TEXT("실패 (잔액부족/중복/미등록)"));
+}
+
+void AParcelGameMode::DebugPrintInventory()
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC) return;
+
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+
+	FString Msg = TEXT("=== 스테이지 인벤토리 ===");
+	for (const FGameplayTag& Tag : Inv->GetItems())
+		Msg += FString::Printf(TEXT("\n  %s"), *Tag.ToString());
+	if (Inv->GetItems().IsEmpty())
+		Msg += TEXT("\n  (없음)");
+
+	GAMERULE_LOG(Log, TEXT("[콘솔] %s"), *Msg);
+	if (GEngine)
+		GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Purple, Msg);
+}
+
+// ========================= 재화 콘솔 명령어 =========================
 
 // [재화] 현재 보유 재화를 로그와 화면에 출력
 void AParcelGameMode::DebugPrintMoney()
