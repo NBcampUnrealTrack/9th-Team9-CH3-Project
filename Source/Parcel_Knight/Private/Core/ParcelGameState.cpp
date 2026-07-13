@@ -7,6 +7,9 @@
 AParcelGameState::AParcelGameState()
 {
 	TeamScoreComp = CreateDefaultSubobject<UTeamScoreComponent>("TeamScoreComponent");
+	
+	// [UI] 클라이언트에 의해 복제 허용
+	TeamScoreComp->SetIsReplicated(true);
 }
 
 UTeamScoreComponent* AParcelGameState::GetTeamScoreComponent() const

@@ -36,6 +36,9 @@ DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryZone, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryPhysics, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliverySubsystem, Log, All);
 
+// UI
+DECLARE_LOG_CATEGORY_EXTERN(LogInGameHUD, Log, All);
+
 //GameRule
 DECLARE_LOG_CATEGORY_EXTERN(LogGameRule, Log, All);
 
@@ -56,6 +59,9 @@ DECLARE_LOG_CATEGORY_EXTERN(LogGameRule, Log, All);
 #define DELIVERYZONE_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryZone, Verbosity, Format, ##__VA_ARGS__)
 #define PHYSICSJUDGE_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryPhysics, Verbosity, Format, ##__VA_ARGS__)
 #define DELIVERYSUBSYSTEM_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliverySubsystem, Verbosity, Format, ##__VA_ARGS__)
+
+// UI
+#define INGAMEHUD_LOG(Verbosity, Format, ...)    UE_LOG(LogInGameHUD, Verbosity, Format, ##__VA_ARGS__)
 
 // GameRule
 #define GAMERULE_LOG(Verbosity, Format, ...) UE_LOG(LogGameRule, Verbosity, Format, ##__VA_ARGS__)

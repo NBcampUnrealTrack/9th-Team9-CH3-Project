@@ -43,6 +43,9 @@ void UPlayerStatComponent::AddScore(int32 Amount)
 {
 	if (!GetOwner()->HasAuthority()) return;
 	PersonalScore += Amount;
+	
+	// [UI] 호스트 UI 대시보드 즉시 동기화
+	OnRep_PersonalScore();
 }
 
 // ========================= 배달 판정 =========================
@@ -59,4 +62,13 @@ void UPlayerStatComponent::OnDeliveryFail()
 	if (!GetOwner()->HasAuthority()) return;
 	FailCount++;
 	GAMERULE_LOG(Log, TEXT("[서버] 배달 실패 — FailCount: %d"), FailCount);
+}
+
+// [UI] 개인 점수 복제 알림 및 위젯 전송 구현
+void UPlayerStatComponent::OnRep_PersonalScore()
+{
+	if (OnPersonalScoreChanged.IsBound())
+	{
+		OnPersonalScoreChanged.Broadcast(PersonalScore);
+	}
 }
