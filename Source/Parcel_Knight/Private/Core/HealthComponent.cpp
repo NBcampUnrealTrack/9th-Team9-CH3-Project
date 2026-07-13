@@ -31,6 +31,7 @@ void UHealthComponent::AddHP(float Amount)
 	if (GetOwner()->HasAuthority())
 	{
 		HP = FMath::Clamp((HP+Amount), 0.0f, MaxHP);
+		OnHPChanged.Broadcast(HP, MaxHP);
 	}
 }
 
@@ -39,9 +40,16 @@ void UHealthComponent::TakeDamage(float Amount)
 	if (GetOwner()->HasAuthority())
 	{
 		HP = FMath::Clamp((HP-Amount), 0.0f, MaxHP);
+		OnHPChanged.Broadcast(HP, MaxHP);
 		if (!bIsDead && HP <= 0.0f)
 		OnDeath();
 	}
+}
+
+void UHealthComponent::OnRep_HP()
+{
+	// 랜선 타고 체력 데이터가 바뀌어 들어왔으니 UI에게 알림!
+	OnHPChanged.Broadcast(HP, MaxHP);
 }
 
 void UHealthComponent::OnDeath()

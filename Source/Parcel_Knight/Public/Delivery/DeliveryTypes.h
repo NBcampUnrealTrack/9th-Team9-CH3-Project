@@ -51,4 +51,8 @@ struct FBoxData : public FTableRowBase
 	// 스폰할 상자 액터 클래스 (비어있으면 기본 ADeliveryBox 사용)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delivery Box Data")
 	TSubclassOf<class ADeliveryBox> BoxClass;
+	
+	// [UI] 화면에 출력할 상자 2D 아이콘 이미지
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Delivery Box Data")
+	TObjectPtr<UTexture2D> BoxIcon;
 };
