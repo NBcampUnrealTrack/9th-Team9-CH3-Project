@@ -6,7 +6,6 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Delivery/DeliveryBox.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
@@ -281,13 +280,30 @@ bool ADFTeleportPad::TeleportPlayer_ServerOnly(AParcelCharacter* PlayerCharacter
 	const FVector TargetLocation = DestinationActor->GetActorLocation();
 	const FRotator TargetRotation = DestinationActor->GetActorRotation();
 
-	UCharacterCarryComponent* CarryComponent = PlayerCharacter->GetCharacterCarryComponent();
-	ADeliveryBox* CarriedBox = CarryComponent && CarryComponent->IsCarrying()
-		? CarryComponent->GetCarriedBox()
-		: nullptr;
-	const FTransform CarriedBoxSourceTransform = IsValid(CarriedBox)
-		? CarriedBox->GetActorTransform()
-		: FTransform::Identity;
+	UCharacterCarryComponent* CarryComponent = PlayerCharacter->FindComponentByClass<UCharacterCarryComponent>();
+	switch (CarryPolicy)
+	{
+	case EDFTeleportCarryPolicy::KeepHeldAfterTeleport:
+		UE_LOG(LogDFTeleportPad, Warning, TEXT("TeleportPad: CarryPolicy=KeepHeldAfterTeleport"));
+		break;
+
+	case EDFTeleportCarryPolicy::DropBeforeTeleport:
+		UE_LOG(LogDFTeleportPad, Warning, TEXT("TeleportPad: CarryPolicy=DropBeforeTeleport"));
+		if (CarryComponent && CarryComponent->IsCarrying())
+		{
+			UE_LOG(LogDFTeleportPad, Warning, TEXT("TeleportPad: Dropping carried box before teleport"));
+			CarryComponent->Drop();
+		}
+		break;
+
+	case EDFTeleportCarryPolicy::DropAfterTeleport:
+		UE_LOG(LogDFTeleportPad, Warning, TEXT("TeleportPad: CarryPolicy=DropAfterTeleport"));
+		break;
+
+	default:
+		UE_LOG(LogDFTeleportPad, Warning, TEXT("TeleportPad: Unknown CarryPolicy; keeping carried box held"));
+		break;
+	}
 
 	if (bResetVelocityOnTeleport)
 	{
@@ -324,28 +340,12 @@ bool ADFTeleportPad::TeleportPlayer_ServerOnly(AParcelCharacter* PlayerCharacter
 		return false;
 	}
 
-	if (!bTeleportCarriedBox && IsValid(CarriedBox) && CarryComponent)
+	if (CarryPolicy == EDFTeleportCarryPolicy::DropAfterTeleport
+		&& CarryComponent
+		&& CarryComponent->IsCarrying())
 	{
+		UE_LOG(LogDFTeleportPad, Warning, TEXT("TeleportPad: Dropping carried box after teleport"));
 		CarryComponent->Drop();
-
-		const bool bRestoredBox = CarriedBox->SetActorLocationAndRotation(
-			CarriedBoxSourceTransform.GetLocation(),
-			CarriedBoxSourceTransform.Rotator(),
-			false,
-			nullptr,
-			ETeleportType::TeleportPhysics
-		);
-
-		if (!bRestoredBox)
-		{
-			UE_LOG(
-				LogDFTeleportPad,
-				Warning,
-				TEXT("Carried box could not be restored to the source location. Pad=%s Box=%s"),
-				*GetNameSafe(this),
-				*GetNameSafe(CarriedBox)
-			);
-		}
 	}
 
 	const float CooldownDuration = FMath::Max(0.0f, TeleportCooldown);

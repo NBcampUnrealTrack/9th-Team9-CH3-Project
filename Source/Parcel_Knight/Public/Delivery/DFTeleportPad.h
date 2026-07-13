@@ -15,6 +15,14 @@ class USceneComponent;
 class USoundBase;
 class UStaticMeshComponent;
 
+UENUM(BlueprintType)
+enum class EDFTeleportCarryPolicy : uint8
+{
+	KeepHeldAfterTeleport UMETA(DisplayName = "Keep Held After Teleport"),
+	DropBeforeTeleport UMETA(DisplayName = "Drop Before Teleport"),
+	DropAfterTeleport UMETA(DisplayName = "Drop After Teleport")
+};
+
 UCLASS(Blueprintable)
 class PARCEL_KNIGHT_API ADFTeleportPad : public AActor, public IIDFTrap, public IIDFActivatableTrap
 {
@@ -80,8 +88,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trap|Networking")
 	bool bUseServerAuthority = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trap|Teleport")
-	bool bTeleportCarriedBox = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Teleport|Carry")
+	EDFTeleportCarryPolicy CarryPolicy = EDFTeleportCarryPolicy::KeepHeldAfterTeleport;
 
 private:
 	bool CanActivate_ServerOnly(AActor* Activator) const;
