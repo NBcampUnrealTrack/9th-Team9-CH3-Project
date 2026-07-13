@@ -80,4 +80,18 @@ private:
 	UFUNCTION(Exec) void DebugSetMaxSlots(int32 Count);
 	// [로드아웃] 중복 장착 허용 토글
 	UFUNCTION(Exec) void DebugToggleDuplicateLoadout();
+
+	//------------ 아이템 관련 콘솔코드 ----------
+	//   아이템 관련 → GameInstance / ShopComponent / InventoryComponent
+
+	// [아이템] 소모품 직접 지급 — 구매 없이 보유 목록에 추가
+	UFUNCTION(Exec) void DebugAddConsumable(FString ItemTagStr);
+	// [아이템] 코스메틱 직접 지급 — 구매 없이 보유 목록에 추가
+	UFUNCTION(Exec) void DebugAddCosmetic(FString ItemTagStr);
+	// [아이템] 보유 중인 소모품/코스메틱 전체 출력
+	UFUNCTION(Exec) void DebugPrintOwnedItems();
+	// [아이템] 상점 구매 흐름 시뮬레이션 — BuyItem 직접 호출
+	UFUNCTION(Exec) void DebugBuyItem(FString ItemTagStr);
+	// [아이템] 현재 스테이지 인벤토리(InventoryComponent) 출력
+	UFUNCTION(Exec) void DebugPrintInventory();
 };

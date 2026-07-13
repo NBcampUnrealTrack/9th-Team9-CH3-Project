@@ -44,11 +44,19 @@ bool UInventoryComponent::UseItem(FGameplayTag ItemTag)
 
 	if (ConsumableDataTable)
 	{
-		FItemData* Row = ConsumableDataTable->FindRow<FItemData>(
-			FName(*ItemTag.ToString()), TEXT("UseItem"));
+		// GetAllRows로 전체 행을 꺼낸 뒤 ItemTag 필드로 검색
+		TArray<FItemData*> AllRows;
+		ConsumableDataTable->GetAllRows<FItemData>(TEXT("UseItem"), AllRows);
 
-		// 영구 아이템이면 제거하지 않고 성공 반환
-		if (Row && Row->bIsPermanent) return true;
+		for (FItemData* Row : AllRows)
+		{
+			if (Row->ItemTag == ItemTag)
+			{
+				// 영구 아이템이면 제거하지 않고 성공 반환
+				if (Row->bIsPermanent) return true;
+				break;
+			}
+		}
 	}
 
 	Items.Remove(ItemTag);

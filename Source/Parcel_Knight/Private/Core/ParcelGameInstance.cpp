@@ -62,6 +62,40 @@ bool UParcelGameInstance::SpendMoney(int32 Amount)
 	return true;
 }
 
+// ========================= 보유 아이템 =========================
+
+bool UParcelGameInstance::HasOwnedConsumable(FGameplayTag ItemTag) const
+{
+	return OwnedConsumables.Contains(ItemTag);
+}
+
+bool UParcelGameInstance::HasOwnedCosmetic(FGameplayTag ItemTag) const
+{
+	return OwnedCosmetics.Contains(ItemTag);
+}
+
+void UParcelGameInstance::AddOwnedConsumable(FGameplayTag ItemTag)
+{
+	OwnedConsumables.AddUnique(ItemTag);
+	SaveData();
+}
+
+void UParcelGameInstance::AddOwnedCosmetic(FGameplayTag ItemTag)
+{
+	OwnedCosmetics.AddUnique(ItemTag);
+	SaveData();
+}
+
+const TArray<FGameplayTag>& UParcelGameInstance::GetOwnedConsumables() const
+{
+	return OwnedConsumables;
+}
+
+const TArray<FGameplayTag>& UParcelGameInstance::GetOwnedCosmetics() const
+{
+	return OwnedCosmetics;
+}
+
 // ========================= 로드아웃 =========================
 
 const TArray<FGameplayTag>& UParcelGameInstance::GetLoadout() const

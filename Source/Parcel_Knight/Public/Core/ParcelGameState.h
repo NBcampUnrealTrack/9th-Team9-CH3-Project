@@ -7,6 +7,7 @@
 #include "ParcelGameState.generated.h"
 
 class UTeamScoreComponent;
+class UShopComponent;
 
 /**
  * 팀 점수 및 남은 시간을 관리하는 GameState
@@ -22,8 +23,13 @@ class PARCEL_KNIGHT_API AParcelGameState : public AGameState
 public:
 	AParcelGameState();
 	UTeamScoreComponent* GetTeamScoreComponent() const;
+	UShopComponent* GetShopComponent() const;
 
 private:
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UTeamScoreComponent> TeamScoreComp;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UShopComponent> ShopComp;
 };
+

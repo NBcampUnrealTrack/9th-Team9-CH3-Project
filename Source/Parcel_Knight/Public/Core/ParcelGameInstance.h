@@ -37,6 +37,21 @@ public:
 	// [All] 재화 차감 — 잔액 부족 시 false 반환
 	bool SpendMoney(int32 Amount);
 
+	// ========================= 보유 아이템 =========================
+
+	// [All] 소모품 보유 여부 — 중복 구매 방지 및 로드아웃 장착 검증용
+	bool HasOwnedConsumable(FGameplayTag ItemTag) const;
+	// [All] 코스메틱 보유 여부 — 중복 구매 방지용
+	bool HasOwnedCosmetic(FGameplayTag ItemTag) const;
+	// [All] 소모품 소유 목록에 추가 — 구매 완료 후 호출
+	void AddOwnedConsumable(FGameplayTag ItemTag);
+	// [All] 코스메틱 소유 목록에 추가 — 구매 완료 후 호출
+	void AddOwnedCosmetic(FGameplayTag ItemTag);
+	// [All] 보유 소모품 전체 목록 반환 — 디버그/UI용
+	const TArray<FGameplayTag>& GetOwnedConsumables() const;
+	// [All] 보유 코스메틱 전체 목록 반환 — 디버그/UI용
+	const TArray<FGameplayTag>& GetOwnedCosmetics() const;
+
 	// ========================= 로드아웃 =========================
 
 	// [All] 현재 로드아웃 반환 — UI 표시 및 스테이지 초기화용
