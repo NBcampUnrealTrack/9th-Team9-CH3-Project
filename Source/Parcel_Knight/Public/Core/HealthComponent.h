@@ -8,7 +8,7 @@
 #include "HealthComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChangedSignature, float, CurrentHP, float, MaxHP);
 
 /**
  * 체력 관리 컴포넌트
@@ -30,6 +30,10 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnDeathSignature OnDeathDelegate;
 	
+	// [UI]
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnHPChangedSignature OnHPChanged;
+	
 	// IHealthInterface 구현
 	virtual float GetHP() const override;
 	virtual float GetMaxHP() const override;
@@ -40,8 +44,12 @@ public:
 
 private:
 	// 복제 — 클라이언트 체력바 갱신용
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_HP)
 	float HP;
+	
+	// [Client] Notify 함수
+	UFUNCTION()
+	void OnRep_HP();
 
 	// 초기/최대 체력 — 추후 DataAsset 등에서 설정 가능
 	UPROPERTY(EditDefaultsOnly)

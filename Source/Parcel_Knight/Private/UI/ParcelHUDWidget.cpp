@@ -5,6 +5,11 @@
 #include "Core/ParcelPlayerState.h"
 #include "Core/TeamScoreComponent.h"
 #include "Core/PlayerStatComponent.h"
+#include "Character/ParcelInteractionComponent.h" 
+#include "Core/HealthComponent.h"
+#include "Character/CharacterCarryComponent.h"
+#include "Delivery/DeliveryBox.h"
+#include "GameFramework/Pawn.h"
 
 DEFINE_LOG_CATEGORY(LogInGameHUD);
 
@@ -16,6 +21,10 @@ void UParcelHUDWidget::NativeConstruct()
 
 void UParcelHUDWidget::TryBindUIEvents()
 {
+	bool bInteractionBound = false;
+	bool bHealthBound = false;
+	bool bCarryBound = false;
+	
 	// GameState와 TeamScore 바인딩
 	if (!CachedGameState.IsValid())
 	{
@@ -64,21 +73,53 @@ void UParcelHUDWidget::TryBindUIEvents()
 			}
 		}
 	}
-	// 3. 멀티플레이 안전장치
-	if (CachedGameState.IsValid() && CachedPlayerState.IsValid())
+	
+	// 3. 컴포넌트 바인딩
+	if (APawn* OwningPawn = GetOwningPlayerPawn())
+	{
+		// 상호작용
+		if (UParcelInteractionComponent* InteractComp = OwningPawn->FindComponentByClass<UParcelInteractionComponent>())
+		{
+			InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnInteractionFocusChanged);
+			InteractComp->OnFocusChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnInteractionFocusChanged);
+			HandleOnInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
+			bInteractionBound = true;
+		}
+
+		// 체력
+		if (UHealthComponent* HealthComp = OwningPawn->FindComponentByClass<UHealthComponent>())
+		{
+			HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::K2_OnHPChanged);
+			HealthComp->OnHPChanged.AddDynamic(this, &UParcelHUDWidget::K2_OnHPChanged);
+			K2_OnHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+			bHealthBound = true;
+		}
+
+		// 운반
+		if (UCharacterCarryComponent* CarryComp = OwningPawn->FindComponentByClass<UCharacterCarryComponent>())
+		{
+			CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCarriedBoxChanged);
+			CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCarriedBoxChanged);
+
+			HandleOnCarriedBoxChanged(CarryComp->GetCarriedBox());
+			bCarryBound = true;
+		}
+	}
+	
+	// 4. 멀티플레이 안전장치
+	if (CachedGameState.IsValid() && CachedPlayerState.IsValid() && bInteractionBound && bHealthBound && bCarryBound)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
-		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 요소가 안전하게 바인딩되어 재시도 타이머를 해제."));
+		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
 	}
 	else
 	{
 		if (!RetryBindTimerHandle.IsValid() && GetWorld())
 		{
 			GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
-			INGAMEHUD_LOG(Warning, TEXT("[UI] 일부 액터가 nullptr입니다. 복제 동기화를 기다리며 0.1초 후 재시도합니다"));
+			INGAMEHUD_LOG(Warning, TEXT("[UI] 일부 액터 복제 대기 중. 0.1초 후 결합을 재시도합니다."));
 		}
 	}
-		
 }
 
 // 핸들러 함수
@@ -104,6 +145,52 @@ void UParcelHUDWidget::HandleOnExpirationTimeChanged(float NewExpirationTime)
 		GetWorld()->GetTimerManager().ClearTimer(UILocalTimerHandle);
 		GetWorld()->GetTimerManager().SetTimer(UILocalTimerHandle, this, &UParcelHUDWidget::UpdateLocalTimer, 0.2f, true);
 	}
+}
+
+void UParcelHUDWidget::HandleOnInteractionFocusChanged(AActor* NewFocusedActor)
+{
+	if (NewFocusedActor)
+	{
+		FText PromptText = FText::FromString(TEXT("E 키를 눌러 상호작용"));
+		K2_OnCrosshairStateChanged(true, PromptText);
+	}
+	else
+	{
+		K2_OnCrosshairStateChanged(false, FText::GetEmpty());
+	}
+}
+
+void UParcelHUDWidget::HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
+{
+	if (!NewCarriedBox)
+	{
+		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag());
+		return;
+	}
+	
+	FBoxData CarriedBoxData = NewCarriedBox->GetBoxData();
+	
+	FText BoxNameText = FText::FromString(CarriedBoxData.DisplayName);
+	FText FormattedName = FText::Format(
+		FText::FromString(TEXT("{0} ({1}kg)")), 
+		BoxNameText, 
+		FText::AsNumber(CarriedBoxData.Weight)
+	);
+	
+	FText DestinationText = FText::FromString(TEXT("목적지 : 미지정 구역"));
+	if (CarriedBoxData.TargetZoneTag.IsValid())
+	{
+		FString ZoneString = CarriedBoxData.TargetZoneTag.ToString();
+		ZoneString.ReplaceInline(TEXT("Delivery."), TEXT(""));
+		ZoneString.ReplaceInline(TEXT("Zone."), TEXT(""));
+		
+		DestinationText = FText::Format(
+			FText::FromString(TEXT("목적지 : {0} 구역")), 
+			FText::FromString(ZoneString)
+		);
+	}
+	
+	K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag);
 }
 
 void UParcelHUDWidget::UpdateLocalTimer()

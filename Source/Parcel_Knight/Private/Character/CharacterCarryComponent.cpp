@@ -185,6 +185,12 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
           PreviousCarriedBox = nullptr;
        }
     }
+	
+	// [Broadcast]
+	if (OwnerCharacter->IsLocallyControlled())
+	{
+		OnCarriedBoxChanged.Broadcast(CarriedBox);
+	}
 }
 
 void UCharacterCarryComponent::SyncWeightToMovement()

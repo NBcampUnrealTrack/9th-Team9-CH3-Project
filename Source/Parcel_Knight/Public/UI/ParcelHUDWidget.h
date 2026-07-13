@@ -2,11 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "GameplayTagContainer.h"
 #include "ParcelHUDWidget.generated.h"
 
 class AParcelGameState;
 class AParcelPlayerState;
-
+class ADeliveryBox;
 /**
  *  UParcelWidget
  *  인게임 HUD 요소의 이벤트 바인딩하고 관리하는 베이스 위젯
@@ -37,6 +38,12 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnRemainingTimeChanged(const FText& DisplayText, float RawRemainingTime);
 	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnCrosshairStateChanged(bool bCanInteract, const FText& InteractionPrompt);
+	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag);
+	
 private:
 	
 	UFUNCTION()
@@ -48,6 +55,12 @@ private:
 	// [Timestamp] 핸들러(종료 시각)
 	UFUNCTION()
 	void HandleOnExpirationTimeChanged(float NewExpirationTime);
+	
+	UFUNCTION() 
+	void HandleOnInteractionFocusChanged(AActor* NewFocusedActor);
+	
+	UFUNCTION() 
+	void HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox);
 	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
