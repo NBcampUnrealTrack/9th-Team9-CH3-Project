@@ -6,6 +6,7 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Components/DFKnockbackComponent.h"
 #include "Components/DFStatusEffectComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -43,6 +44,7 @@ AParcelCharacter::AParcelCharacter()
   PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
 	RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
 	StatusEffectComponent = CreateDefaultSubobject<UDFStatusEffectComponent>(TEXT("StatusEffectComponent"));
+	KnockbackComponent = CreateDefaultSubobject<UDFKnockbackComponent>(TEXT("KnockbackComponent"));
 	HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
 	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
 	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));

@@ -84,3 +84,8 @@ DerivedDataCache/*
 
 # Prerequisites
 *.d
+
+# Developers Folder for Test
+/Content/Developers/
+Saved/
+Intermediate/

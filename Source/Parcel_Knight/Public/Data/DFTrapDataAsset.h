@@ -41,6 +41,9 @@ public:
 	float EffectMagnitude = 0.5f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
+	float TrapDamage = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
 	float PushStrength = 900.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
