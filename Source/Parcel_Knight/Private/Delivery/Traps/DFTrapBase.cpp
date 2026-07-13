@@ -10,6 +10,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "Delivery/PhysicsJudgeManager.h"
+#include "Delivery/DeliveryBox.h"
 
 namespace DFTrapTags
 {
@@ -550,6 +552,33 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		return;
 	}
 
+	// 캐릭터가 상자를 들고 있는 상태(NoCollision)에서도 함정 효과가 상자에 영향을 준다면(bAffectsCarriedBox) 상자 체력을 깎습니다.
+	// 단, ForcedDrop 효과는 ApplyForcedDropEffect_ServerOnly에서 직접 강제 낙하 및 피해를 동시 처리하므로 여기선 제외
+	if (TrapDataAsset->bAffectsCarriedBox && !IsForcedDropEffect())
+	{
+		if (UCharacterCarryComponent* CarryComponent = TargetActor->FindComponentByClass<UCharacterCarryComponent>())
+		{
+			if (CarryComponent->IsCarrying() && CarryComponent->GetCarriedBox())
+			{
+				if (UWorld* World = GetWorld())
+				{
+					if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
+					{
+						float TrapDamage = TrapDataAsset->TrapDamage;
+						JudgeManager->EvaluateTrapImpact(CarryComponent->GetCarriedBox(), TrapDamage);
+						UE_LOG(
+							LogTemp,
+							Warning,
+							TEXT("[Trap] 캐릭터가 함정을 밟아 들고 있는 상자(ID: %d)에 함정 피해 %f 가 누적되었습니다."),
+							CarryComponent->GetCarriedBox()->GetBoxID(),
+							TrapDamage
+						);
+					}
+				}
+			}
+		}
+	}
+
 	if (IsSlowEffect())
 	{
 		if (!TrapDataAsset->bAffectsPlayer)
@@ -670,7 +699,7 @@ void ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
 		return;
 	}
 
-	const float TrapDamage = TrapDataAsset ? TrapDataAsset->EffectMagnitude : 0.0f;
+	const float TrapDamage = TrapDataAsset ? TrapDataAsset->TrapDamage : 0.0f;
 	UE_LOG(
 		LogTemp,
 		Warning,

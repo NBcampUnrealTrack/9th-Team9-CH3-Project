@@ -3,6 +3,8 @@
 #include "Delivery/DeliveryBox.h"
 #include "Delivery/StageData.h"
 #include "Engine/DataTable.h"
+#include "Delivery/DeliveryZone.h"
+#include "Kismet/GameplayStatics.h"
 
 DEFINE_LOG_CATEGORY(LogDeliverySubsystem);
 
@@ -85,7 +87,46 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
     if (NewBox)
     {
         int32 AssignedID = GenerateBoxID();
-        NewBox->InitializeBox(AssignedID, FoundData);
+
+        // 박스 기본 데이터 복사
+        FBoxData RandomizedData = FoundData;
+
+        // 만약 긴급 배송 상자(Zone.Type.Emergency)가 아니라면, 현재 레벨에 배치된 배송 구역(DeliveryZone)들의 태그 중 무작위로 매핑합니다.
+        FGameplayTag EmergencyZoneTag = FGameplayTag::RequestGameplayTag(TEXT("Zone.Type.Emergency"));
+        if (!FoundData.TargetZoneTag.MatchesTagExact(EmergencyZoneTag))
+        {
+            TArray<AActor*> FoundZones;
+            UGameplayStatics::GetAllActorsOfClass(GetWorld(), ADeliveryZone::StaticClass(), FoundZones);
+
+            TArray<FGameplayTag> ActiveZoneTags;
+            for (AActor* ZoneActor : FoundZones)
+            {
+                if (ADeliveryZone* Zone = Cast<ADeliveryZone>(ZoneActor))
+                {
+                    if (Zone->ZoneTag.IsValid() && !Zone->ZoneTag.MatchesTagExact(EmergencyZoneTag))
+                    {
+                        ActiveZoneTags.AddUnique(Zone->ZoneTag);
+                    }
+                }
+            }
+
+            // 배치된 배송 구역이 존재할 때만 그 중에서 무작위로 선택 (예: 2개가 배치되면 2개 중 하나)
+            if (ActiveZoneTags.Num() > 0)
+            {
+                int32 RandomIndex = FMath::RandRange(0, ActiveZoneTags.Num() - 1);
+                RandomizedData.TargetZoneTag = ActiveZoneTags[RandomIndex];
+            }
+            else
+            {
+                // 월드에 배치된 구역이 없는 경우에 대비한 기본 폴백 (A, B, C 중 랜덤 선택)
+                TArray<FString> ZoneTagStrings = { TEXT("Zone.Type.A"), TEXT("Zone.Type.B"), TEXT("Zone.Type.C") };
+                int32 RandomZoneIndex = FMath::RandRange(0, ZoneTagStrings.Num() - 1);
+                RandomizedData.TargetZoneTag = FGameplayTag::RequestGameplayTag(*ZoneTagStrings[RandomZoneIndex]);
+            }
+        }
+
+        // 랜덤화된 정보로 상자 초기화
+        NewBox->InitializeBox(AssignedID, RandomizedData);
         
         ActiveBoxes.Add(NewBox);
         return NewBox;
