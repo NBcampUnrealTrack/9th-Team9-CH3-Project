@@ -54,7 +54,7 @@ void UTeamScoreComponent::AddTeamScore(int32 Amount)
 	{
 		TeamScore += Amount * GetComboMultiplier();
 		// 음수 값 방지
-		TeamScore = FMath::Max(0, TeamScore + Amount);
+		TeamScore = FMath::Max(0, TeamScore);
 		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount → %d"), TeamScore, ComboCount);
 	}
 	

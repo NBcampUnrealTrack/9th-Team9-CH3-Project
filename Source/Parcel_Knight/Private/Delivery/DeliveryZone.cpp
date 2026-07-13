@@ -9,6 +9,7 @@
 #include "Core/ParcelPlayerState.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Character.h"
+#include "Core/ParcelGameMode.h"
 #include "Character/CharacterCarryComponent.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryZone);
@@ -72,6 +73,13 @@ void ADeliveryZone::ProcessDelivery(ADeliveryBox* Box)
 {
 	if (!Box || !HasAuthority()) return;
 
+	// 중복 처리 방지: 이미 배송 완료/실패 처리된 상자라면 건너뜁니다.
+	if (Box->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Delivered"))) ||
+		Box->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Failed"))))
+	{
+		return;
+	}
+
 	FBoxData Data = Box->GetBoxData();
 	
 	// 게임플레이태그 시스템으로 리팩토링 (조건문 간소화)
@@ -105,27 +113,31 @@ void ADeliveryZone::ProcessDelivery(ADeliveryBox* Box)
 		PlayerState = Box->GetLastCarrierPlayerState().Get();
 	}
 
-	// 1) 개인 점수 가산
-	if (PlayerState)
+	// GameMode를 통해 배송 성공/실패 점수 처리와 콤보 처리를 일원화합니다.
+	int32 CurrentTeamScore = 0;
+	if (AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>())
 	{
-		PlayerState->AddScore(ScoreChange);
+		APlayerController* DelivererPC = nullptr;
+		if (PlayerState)
+		{
+			DelivererPC = PlayerState->GetPlayerController();
+		}
+
 		if (bIsCorrectZone)
 		{
-			PlayerState->OnDeliverySuccess();
+			GM->OnDeliveryCompleted(DelivererPC, ScoreChange);
 		}
 		else
 		{
-			PlayerState->OnDeliveryFail();
+			GM->OnDeliveryFailed(DelivererPC, ScoreChange);
 		}
 	}
 
-	// 2) 팀 점수 가산 및 현재 총점 획득
-	int32 CurrentTeamScore = 0;
+	// 갱신된 최신 팀 총점을 가져옵니다.
 	if (AParcelGameState* GameState = GetWorld()->GetGameState<AParcelGameState>())
 	{
 		if (UTeamScoreComponent* TeamScoreComp = GameState->GetTeamScoreComponent())
 		{
-			TeamScoreComp->AddTeamScore(ScoreChange);
 			CurrentTeamScore = TeamScoreComp->GetTeamScore();
 		}
 	}

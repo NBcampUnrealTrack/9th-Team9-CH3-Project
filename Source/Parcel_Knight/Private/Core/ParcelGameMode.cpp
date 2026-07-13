@@ -147,9 +147,9 @@ void AParcelGameMode::OnDeliveryCompleted(APlayerController* Deliverer, int32 Sc
 	DeliveryRuleComp->OnDeliveryCompleted(Deliverer, ScoreAmount);
 }
 
-void AParcelGameMode::OnDeliveryFailed(APlayerController* Deliverer)
+void AParcelGameMode::OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount)
 {
-	DeliveryRuleComp->OnDeliveryFailed(Deliverer);
+	DeliveryRuleComp->OnDeliveryFailed(Deliverer, ScoreAmount);
 }
 
 // ========================= 콘솔 명령어 =========================
