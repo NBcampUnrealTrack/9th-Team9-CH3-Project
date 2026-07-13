@@ -8,6 +8,8 @@
 
 class ADeliveryBox;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCarriedBoxChangedSignature, ADeliveryBox*, NewCarriedBox);
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PARCEL_KNIGHT_API UCharacterCarryComponent : public UActorComponent
 {
@@ -39,6 +41,10 @@ public:
 	FORCEINLINE ADeliveryBox* GetCarriedBox() const { return CarriedBox; }
 
 	FORCEINLINE float GetMoveSpeedMultiplier() const { return MoveSpeedMultiplier; }
+	
+	// [UI]
+	UPROPERTY(BlueprintAssignable, Category = "Carry")
+	FOnCarriedBoxChangedSignature OnCarriedBoxChanged;
 	
 protected:
 	UFUNCTION(Server, Reliable, WithValidation) void Server_Drop();
