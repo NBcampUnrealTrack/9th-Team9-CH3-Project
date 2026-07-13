@@ -488,7 +488,8 @@ void ADFChickenTrapAI::DropCarriedBox_ServerOnly(AParcelCharacter* HitCharacter)
 	UCharacterCarryComponent* CarryComponent = HitCharacter->GetCharacterCarryComponent();
 	if (CarryComponent && CarryComponent->IsCarrying())
 	{
-		CarryComponent->Drop();
+		// 넉백 힘(KnockbackStrength)을 폭발 충격 데미지로 간주하여 강제 낙하 or 피해 처리함
+		CarryComponent->ForceDropByTrap(KnockbackStrength);
 	}
 }
 
