@@ -6,7 +6,6 @@
 #include "ParcelHUDWidget.generated.h"
 
 class AParcelGameState;
-class AParcelPlayerState;
 class ADeliveryBox;
 /**
  *  UParcelWidget
@@ -31,9 +30,6 @@ protected:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
 	void K2_OnTeamScoreChanged(const FText& DisplayText);
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
-	void K2_OnPersonalScoreChanged(const FText& DisplayText);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnRemainingTimeChanged(const FText& DisplayText, float RawRemainingTime);
@@ -44,13 +40,19 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag);
 	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnComboChanged(int32 NewComboCount, const FText& DisplayText);
+	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnCharacterStateChanged(const FGameplayTagContainer& ActiveTags);
+	
 private:
 	
 	UFUNCTION()
 	void HandleOnTeamScoreChanged(int32 NewTeamScore);
-
+	
 	UFUNCTION()
-	void HandleOnPersonalScoreChanged(int32 NewPersonalScore);
+	void HandleOnComboChanged(int32 NewComboCount);
 	
 	// [Timestamp] 핸들러(종료 시각)
 	UFUNCTION()
@@ -62,15 +64,15 @@ private:
 	UFUNCTION() 
 	void HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox);
 	
+	UFUNCTION()
+	void HandleOnCharacterStateChanged(const FGameplayTagContainer& ActiveTags);
+	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
 	
 	// 안전한 접근을 위해 캐싱
 	UPROPERTY()
 	TWeakObjectPtr<AParcelGameState> CachedGameState;
-	
-	UPROPERTY()
-	TWeakObjectPtr<AParcelPlayerState> CachedPlayerState;
 	
 	// 안전장치용 타이머 핸들
 	FTimerHandle RetryBindTimerHandle;

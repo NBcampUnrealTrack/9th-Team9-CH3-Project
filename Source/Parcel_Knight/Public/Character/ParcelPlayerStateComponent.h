@@ -7,6 +7,7 @@
 
 // 상태 변화를 구독할 수 있는 멀티캐스트 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerStateTagChanged, FGameplayTag, ChangedTag);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterStateTagsChangedSignature, const FGameplayTagContainer&, ActiveTags);
 
 /**
  * 캐릭터의 런타임 상태 Tags를 관리하고 Replication을 처리하는 상태 창고 컴포넌트
@@ -29,6 +30,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Character|State")
 	FOnPlayerStateTagChanged OnStateTagRemoved;
+	
+	UPROPERTY(BlueprintAssignable, Category = "Character|State")
+	FOnCharacterStateTagsChangedSignature OnCharacterStateTagsChanged;
 
 	// 태그 제어 및 조회
 	UFUNCTION(BlueprintCallable, Category = "Character|State")
