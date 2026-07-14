@@ -280,13 +280,3 @@ void URagdollComponent::ApplyStopRagdoll()
     
     RAGDOLL_LOG(Log, TEXT("Ragdoll stopped successfully."));
 }
-
-void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-}
-
-void AParcelCharacter::OnRep_CharacterStateTags()
-{
-
-}

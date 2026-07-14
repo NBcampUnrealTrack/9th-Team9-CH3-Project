@@ -146,3 +146,8 @@ void AParcelCharacter::OnRep_Controller()
 		HeroComp->AddInputMappingContext();
 	}
 }
+
+void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+}

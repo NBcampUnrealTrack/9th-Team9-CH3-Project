@@ -54,4 +54,9 @@ void UParcelPlayerStateComponent::OnRep_CharacterStateTags()
 	// Todo : 원격 클라이언트 기기에서 서버의 상태 복제를 받았을 때 로그 및 애니메이션 연동 처리 지원
 	PLAYERSTATECOMP_LOG(Log, TEXT("[%s] 플레이어 상태 태그 컨테이너 동기화 완료: %s"), 
 	   GetOwner() ? *GetOwner()->GetName() : TEXT("None"), *CharacterStateTags.ToString());
+	
+	if (OnCharacterStateTagsChanged.IsBound())
+	{
+		OnCharacterStateTagsChanged.Broadcast(CharacterStateTags);
+	}
 }

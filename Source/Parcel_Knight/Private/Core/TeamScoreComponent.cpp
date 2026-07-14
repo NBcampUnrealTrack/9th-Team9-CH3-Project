@@ -67,12 +67,14 @@ void UTeamScoreComponent::OnDeliverySuccess()
 {
 	if (!GetOwner()->HasAuthority()) return;
 	ComboCount++;
+	OnRep_ComboCount();
 }
 
 void UTeamScoreComponent::OnDeliveryFail()
 {
 	if (!GetOwner()->HasAuthority()) return;
 	ComboCount = 0;
+	OnRep_ComboCount();
 }
 
 // ========================= 시간 =========================
@@ -123,4 +125,20 @@ void UTeamScoreComponent::OnRep_RemainingTime()
 	{
 		OnRemainingTimeChanged.Broadcast(RemainingTime);
 	}
+}
+
+// [UI] 콤보 카운트 복제 알림
+void UTeamScoreComponent::OnRep_ComboCount()
+{
+	GAMERULE_LOG(Log, TEXT("[클라이언트] ComboCount 수신 → %d"), ComboCount);
+	if (OnComboChanged.IsBound())
+	{
+		OnComboChanged.Broadcast(ComboCount);
+	}
+}
+
+// [UI] 콤보 카운트 게터 함수
+int32 UTeamScoreComponent::GetComboCount() const
+{
+	return ComboCount;
 }
