@@ -6,6 +6,7 @@
 #include "Character/CharacterCarryComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Net/UnrealNetwork.h"
+#include "Materials/MaterialInterface.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -76,6 +77,10 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 		// 무게 적용 (밸런싱 수치 조절 (현재 1.0f))
 		CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 1.0f, true);
 	}
+	
+	// 목적지 구역에 맞는 색상 머티리얼 적용
+	ApplyZoneMaterial();
+
 	// Spawned 태그 부여
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 	
@@ -89,6 +94,9 @@ void ADeliveryBox::OnRep_BoxData()
 	if (BoxData.BoxMeshAsset && BoxMesh)
 	{
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
+		
+		// 목적지 구역에 맞는 색상 머티리얼 적용
+		ApplyZoneMaterial();
 	}
 	
 	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 상자 타입 태그: %s"), 
@@ -247,5 +255,20 @@ void ADeliveryBox::Interact_Implementation(AActor* Interactor)
 	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
 	{
 		CharacterCarryComp->Pickup(this);
+	}
+}
+
+void ADeliveryBox::ApplyZoneMaterial()
+{
+	if (!BoxMesh || !BoxData.TargetZoneTag.IsValid()) return;
+
+	if (TObjectPtr<UMaterialInterface>* FoundMaterial = ZoneMaterials.Find(BoxData.TargetZoneTag))
+	{
+		if (*FoundMaterial)
+		{
+			BoxMesh->SetMaterial(0, *FoundMaterial);
+			DELIVERYBOX_LOG(Log, TEXT("[Material] 상자 ID %d번의 목적지 구역 %s에 맞는 머티리얼을 적용했습니다."), 
+				BoxID, *BoxData.TargetZoneTag.ToString());
+		}
 	}
 }

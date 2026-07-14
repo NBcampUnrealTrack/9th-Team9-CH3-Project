@@ -10,6 +10,7 @@
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class UMaterialInterface;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -93,4 +94,13 @@ private:
 
 	// [Server] 서버에서 스코어링 판정용 PlayerState 캐시
 	TWeakObjectPtr<AParcelPlayerState> LastCarrierPlayerState;
+
+protected:
+	// 각 구역 태그별로 머티리얼을 매핑할 수 있는 맵 (A, B, C 구역별 색상 지정용)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Material")
+	TMap<FGameplayTag, TObjectPtr<UMaterialInterface>> ZoneMaterials;
+
+private:
+	// 상자 목적지 구역 태그에 맞춰 머티리얼을 동적으로 적용합니다.
+	void ApplyZoneMaterial();
 };

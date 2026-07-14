@@ -24,6 +24,17 @@ ADeliveryBoxSpawner::ADeliveryBoxSpawner()
 	ForwardArrowVisualizer->bHiddenInGame = true;
 }
 
+void ADeliveryBoxSpawner::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 서버 권한이 있을 때만 타이머를 가동하여 상자를 주기적으로 스폰합니다.
+	if (HasAuthority())
+	{
+		ActivateSpawner(SpawnInterval);
+	}
+}
+
 void ADeliveryBoxSpawner::ActivateSpawner(float InInterval)
 {
 	// 리슨 서버에서만 스폰 타이머가 작동
