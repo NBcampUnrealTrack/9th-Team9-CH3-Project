@@ -9,7 +9,8 @@
 // [UI]
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamScoreChangedSignature, int32, NewTeamScore);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChangedSignature, float, RemainingTime);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnComboChangedSignature, int32, NewComboCount);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnScoreAddedSignature, int32, AddedScore, int32, BaseScore, int32, CurrentCombo);
 
 //TODO: 나중에 결과에 따라 애니메이션/UI 출력이 바뀌거나 한다면 확장성을 고려했을 때 Tag로 바꾸는 것이 좋아보임
 UENUM(BlueprintType)
@@ -71,6 +72,18 @@ public:
 	// [UI] 남은 시간 복제 수신 콜백 함수
 	UFUNCTION()
 	void OnRep_RemainingTime();
+	
+	// [UI] 콤보 복제 수신 콜백 함수
+	UFUNCTION()
+	void OnRep_ComboCount();
+	
+	// [UI] 현재 콤보 카운트 반환 게터 함수
+	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
+	int32 GetComboCount() const;
+	
+	// [UI] 콤보 위젯 바인딩 Broadcast
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnComboChangedSignature OnComboChanged;
 
 private:
 	// 모든 클라이언트에 복제 — UI 점수판 갱신용
@@ -78,7 +91,7 @@ private:
 	int32 TeamScore;
 
 	// 점수 배율을 적용시키는 콤보 카운트
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing=OnRep_ComboCount)
 	int32 ComboCount;
 
 	// 남은 시간 복제 — 서버 타이머 기준, 클라이언트는 읽기만

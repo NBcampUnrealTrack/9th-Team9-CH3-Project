@@ -95,14 +95,6 @@ protected:
 	// CharacterCarry Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCharacterCarryComponent> CarryComp;
-	
-private:
-	// 서버에서 상태를 받아 클라이언트의 애니메이션/효과를 켜기 위한 RepNotify 함수
-	UFUNCTION()
-	void OnRep_CharacterStateTags();
-
-	UPROPERTY(ReplicatedUsing = OnRep_CharacterStateTags, VisibleAnywhere, Category = "Character|State")
-	FGameplayTagContainer CharacterStateTags;
 
 public: 
     // 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출, 원격 접속 클라이언트가 possession 이후 입력 매핑을 놓치지 않게 합니다.
