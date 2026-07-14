@@ -187,6 +187,18 @@ bool ADFTrapBase::CanActivate_Implementation(AActor* Activator) const
 
 void ADFTrapBase::Server_RequestActivate_Implementation(AActor* Activator)
 {
+	if (IsOverlapTrigger() && (!TriggerVolume || !TriggerVolume->IsOverlappingActor(Activator)))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Trap] Server activation request rejected: Activator is not overlapping TriggerVolume. Trap=%s Activator=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(Activator)
+		);
+		return;
+	}
+
 	TryActivate(Activator);
 }
 
@@ -194,7 +206,21 @@ bool ADFTrapBase::TryActivate(AActor* Activator)
 {
 	if (!HasAuthority())
 	{
-		Server_RequestActivate(Activator);
+		if (HasLocalNetOwner())
+		{
+			Server_RequestActivate(Activator);
+		}
+		else
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Trap] Client activation ignored: placed trap has no local net owner; server overlap must activate it. Trap=%s Activator=%s"),
+				*GetNameSafe(this),
+				*GetNameSafe(Activator)
+			);
+		}
+
 		return false;
 	}
 
@@ -253,6 +279,9 @@ void ADFTrapBase::ResetTrap_ServerOnly()
 		World->GetTimerManager().ClearTimer(ActiveTimerHandle);
 		World->GetTimerManager().ClearTimer(CooldownTimerHandle);
 	}
+
+	RepeatingReversePushTargets.Empty();
+	StopRepeatEffectTimer_ServerOnly();
 
 	PendingActivator = nullptr;
 	SetTrapState_ServerOnly(DFTrapTags::Ready());
@@ -470,6 +499,8 @@ void ADFTrapBase::EnterCooldownState_ServerOnly()
 		return;
 	}
 
+	RepeatingReversePushTargets.Empty();
+	StopRepeatEffectTimer_ServerOnly();
 	PendingActivator = nullptr;
 
 	if (TrapDataAsset && TrapDataAsset->bTriggerOnce)
@@ -1081,7 +1112,10 @@ void ADFTrapBase::AddRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
 	{
 		if (ExistingTarget.Get() == TargetCharacter)
 		{
-			StartRepeatEffectTimer_ServerOnly();
+			if (CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
+			{
+				StartRepeatEffectTimer_ServerOnly();
+			}
 			return;
 		}
 	}
@@ -1096,7 +1130,10 @@ void ADFTrapBase::AddRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
 		RepeatingReversePushTargets.Num()
 	);
 
-	StartRepeatEffectTimer_ServerOnly();
+	if (CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
+	{
+		StartRepeatEffectTimer_ServerOnly();
+	}
 }
 
 void ADFTrapBase::RemoveRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
@@ -1139,7 +1176,10 @@ void ADFTrapBase::RemoveRepeatingReversePushTarget_ServerOnly(AActor* TargetActo
 
 void ADFTrapBase::StartRepeatEffectTimer_ServerOnly()
 {
-	if (!HasAuthority() || !ShouldRepeatReversePush() || RepeatingReversePushTargets.Num() == 0)
+	if (!HasAuthority()
+		|| !CurrentStateTag.MatchesTagExact(DFTrapTags::Active())
+		|| !ShouldRepeatReversePush()
+		|| RepeatingReversePushTargets.Num() == 0)
 	{
 		return;
 	}
@@ -1190,6 +1230,12 @@ void ADFTrapBase::ApplyRepeatEffect_ServerOnly()
 {
 	if (!HasAuthority())
 	{
+		return;
+	}
+
+	if (!CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
+	{
+		StopRepeatEffectTimer_ServerOnly();
 		return;
 	}
 
