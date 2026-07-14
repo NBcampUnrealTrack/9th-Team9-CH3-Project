@@ -52,13 +52,11 @@ void UTeamScoreComponent::AddTeamScore(int32 Amount)
 	if (GetOwner()->HasAuthority())
 	{
 		TeamScore += Amount * GetComboMultiplier();
-		// 음수 값 방지
 		TeamScore = FMath::Max(0, TeamScore);
 		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount → %d"), TeamScore, ComboCount);
+		// [UI] 리슨 서버는 OnRep가 자동 호출되지 않으므로 수동 호출
+		OnRep_TeamScore();
 	}
-	
-	// [UI] 호스트 UI 대시보드 동기화
-	OnRep_TeamScore();
 }
 
 // ========================= 콤보 =========================
@@ -82,19 +80,21 @@ void UTeamScoreComponent::OnDeliveryFail()
 void UTeamScoreComponent::InitRemainingTime(float InTimeLimit)
 {
 	if (GetOwner()->HasAuthority())
+	{
 		RemainingTime = InTimeLimit;
-	
-	// [UI] 초기화 시간 반영
-	OnRep_RemainingTime();
+		// [UI] 초기화 시간 반영
+		OnRep_RemainingTime();
+	}
 }
 
 void UTeamScoreComponent::DecreaseRemainingTime(float Amount)
 {
 	if (GetOwner()->HasAuthority())
+	{
 		RemainingTime -= Amount;
-	
-	// [UI] 매 초 타이머UI 동기화
-	OnRep_RemainingTime();
+		// [UI] 매 초 타이머UI 동기화
+		OnRep_RemainingTime();
+	}
 }
 
 // ========================= 등급 =========================

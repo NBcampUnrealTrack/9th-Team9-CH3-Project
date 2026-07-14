@@ -1,9 +1,19 @@
 #include "Core/CustomizationComponent.h"
 #include "Core/ParcelGameInstance.h"
+#include "Net/UnrealNetwork.h"
 
 UCustomizationComponent::UCustomizationComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
+}
+
+void UCustomizationComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCustomizationComponent, CurrentSkin);
+	DOREPLIFETIME(UCustomizationComponent, CurrentTitle);
+	DOREPLIFETIME(UCustomizationComponent, CurrentEffect);
 }
 
 // ========================= 초기화 =========================

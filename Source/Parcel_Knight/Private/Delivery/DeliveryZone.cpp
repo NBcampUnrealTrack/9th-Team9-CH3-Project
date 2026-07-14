@@ -17,6 +17,7 @@ DEFINE_LOG_CATEGORY(LogDeliveryZone);
 ADeliveryZone::ADeliveryZone()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
 
 	ZoneMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ZoneMesh"));
 	RootComponent = ZoneMesh;

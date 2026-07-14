@@ -15,9 +15,7 @@ DEFINE_LOG_CATEGORY(LogRagdoll);
 URagdollComponent::URagdollComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
-    
-    // 컴포넌트 자체는 복제하지 않으며 PlayerState의 태그 동기화 기능을 빌려 씁니다.
-    SetIsReplicatedByDefault(false);
+    SetIsReplicatedByDefault(true);
 }
 
 void URagdollComponent::BeginPlay()
@@ -46,8 +44,7 @@ void URagdollComponent::StartRagdoll()
        ServerSetRagdoll(true);
        return;
     }
-
-    ApplyStartRagdoll();
+    Multicast_SetRagdoll(true);
 }
 
 void URagdollComponent::StopRagdoll()
@@ -57,28 +54,19 @@ void URagdollComponent::StopRagdoll()
        ServerSetRagdoll(false);
        return;
     }
-
-    ApplyStopRagdoll();
+    Multicast_SetRagdoll(false);
 }
 
 void URagdollComponent::ToggleRagdoll()
 {
     bool bCurrentlyRagdoll = IsRagdoll();
-    
+
     if (!GetOwner() || !GetOwner()->HasAuthority())
     {
        ServerSetRagdoll(!bCurrentlyRagdoll);
        return;
     }
-
-    if (bCurrentlyRagdoll) 
-    {
-        ApplyStopRagdoll();
-    }
-    else 
-    {
-        ApplyStartRagdoll();
-    }
+    Multicast_SetRagdoll(!bCurrentlyRagdoll);
 }
 
 bool URagdollComponent::IsRagdoll() const
@@ -139,14 +127,13 @@ UAnimMontage* URagdollComponent::GetSelectedGetUpMontage(bool bFront) const
 
 void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
 {
-    if (bNewIsRagdoll)
-    {
-       ApplyStartRagdoll();
-    }
-    else
-    {
-       ApplyStopRagdoll();
-    }
+    Multicast_SetRagdoll(bNewIsRagdoll);
+}
+
+void URagdollComponent::Multicast_SetRagdoll_Implementation(bool bNewIsRagdoll)
+{
+    if (bNewIsRagdoll) ApplyStartRagdoll();
+    else               ApplyStopRagdoll();
 }
 
 void URagdollComponent::ApplyStartRagdoll()
@@ -194,13 +181,20 @@ void URagdollComponent::ApplyStartRagdoll()
             }
         }
     }
-    
-    // 4. 카메라 제어권 변경
-    if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+
+    // 4. AnimBP 상태 갱신 — Multicast로 모든 클라이언트에서 호출되므로 직접 설정
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
     {
-       HeroComp->EnterRagdollCameraMode();
+        ParcelChar->SetRagdollState(true, false);
     }
-   
+
+    // 5. 카메라 제어권 변경 — 로컬 플레이어만 적용
+    if (OwnerCharacter->IsLocallyControlled())
+    {
+        if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+            HeroComp->EnterRagdollCameraMode();
+    }
+
     RAGDOLL_LOG(Log, TEXT("Ragdoll started successfully."));
 }
 
@@ -269,13 +263,20 @@ void URagdollComponent::ApplyStopRagdoll()
        }
     }
 
-    // 7. 카메라 원위치 복구
-    if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+    // 7. AnimBP 상태 갱신
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
     {
-       HeroComp->ExitRagdollCameraMode();
+        ParcelChar->SetRagdollState(false, true);
     }
-    
-    // 8. 몽타주 기상 애니메이션 실행 처리 (앞면 디폴트로 호출)
+
+    // 8. 카메라 원위치 복구 — 로컬 플레이어만 적용
+    if (OwnerCharacter->IsLocallyControlled())
+    {
+        if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+            HeroComp->ExitRagdollCameraMode();
+    }
+
+    // 9. 기상 애니메이션 실행 (앞면 디폴트)
     PlayGetUpAnimation(true);
     
     RAGDOLL_LOG(Log, TEXT("Ragdoll stopped successfully."));

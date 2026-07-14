@@ -79,9 +79,13 @@ private:
     // 앞/뒤 상태에 맞는 일어나기 몽타주를 반환합니다.
     UAnimMontage* GetSelectedGetUpMontage(bool bFront) const;
 
-    // 클라이언트가 래그돌 상태 변경을 서버에 요청할 때 사용하는 RPC입니다.
+    // 클라이언트가 래그돌 상태 변경을 서버에 요청할 때 사용하는 RPC
     UFUNCTION(Server, Reliable)
     void ServerSetRagdoll(bool bNewIsRagdoll);
+
+    // 서버가 모든 클라이언트에 래그돌 물리를 적용하는 RPC
+    UFUNCTION(NetMulticast, Reliable)
+    void Multicast_SetRagdoll(bool bNewIsRagdoll);
 
     // 실제 래그돌 내부 처리 로직
     void ApplyStartRagdoll();
