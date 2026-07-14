@@ -2,12 +2,12 @@
 #include "ParcelLog.h"
 #include "GameFramework/GameStateBase.h"
 #include "Core/ParcelGameState.h"
-#include "Core/ParcelPlayerState.h"
 #include "Core/TeamScoreComponent.h"
-#include "Core/PlayerStatComponent.h"
 #include "Character/ParcelInteractionComponent.h" 
 #include "Core/HealthComponent.h"
 #include "Character/CharacterCarryComponent.h"
+#include "Character/ParcelCharacter.h"
+#include "Character/ParcelPlayerStateComponent.h"
 #include "Delivery/DeliveryBox.h"
 #include "GameFramework/Pawn.h"
 
@@ -24,6 +24,8 @@ void UParcelHUDWidget::TryBindUIEvents()
 	bool bInteractionBound = false;
 	bool bHealthBound = false;
 	bool bCarryBound = false;
+	bool bComboBound = false;
+	bool bCharacterStateBound = false;
 	
 	// GameState와 TeamScore 바인딩
 	if (!CachedGameState.IsValid())
@@ -37,46 +39,43 @@ void UParcelHUDWidget::TryBindUIEvents()
 			if (TeamScoreComp)
 			{
 				// 이벤트 바인딩
+				TeamScoreComp->OnTeamScoreChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
 				TeamScoreComp->OnTeamScoreChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
 				HandleOnTeamScoreChanged(TeamScoreComp->GetTeamScore());
+				
+				// 콤보 시스템 바인딩
+				TeamScoreComp->OnComboChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
+				TeamScoreComp->OnComboChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
+				HandleOnComboChanged(TeamScoreComp->GetComboCount());
 
-				// 라운드 만료 시간 강제 수신
+				// 라운드 만료 시간 바인딩
+				TeamScoreComp->OnRemainingTimeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
 				TeamScoreComp->OnRemainingTimeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
 				HandleOnExpirationTimeChanged(TeamScoreComp->GetRemainingTime());
+				
+				bComboBound = true;
 			}
 		}
 	}
 
-	// 2. PlayerState 바인딩
-	if (!CachedPlayerState.IsValid())
-	{
-		CachedPlayerState = Cast<AParcelPlayerState>(GetOwningPlayerState());
-
-		if (CachedPlayerState.IsValid())
-		{
-			// Todo : 디커플링을 위해서 FindComponentByClass를 사용했습니다. 배포 버전을 만들 때 게터로 리팩토링이 필요합니다.
-			UPlayerStatComponent* PlayerStatComp = CachedPlayerState->FindComponentByClass<UPlayerStatComponent>();
-
-			// [이벤트 바인딩]
-			PlayerStatComp->OnPersonalScoreChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnPersonalScoreChanged);
-			
-			// 바인딩 성공시 현재 개인 점수로 UI 텍스트 초기화
-			HandleOnPersonalScoreChanged(PlayerStatComp->GetPersonalScore());
-
-			GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
-		}
-		else
-		{
-			if (!RetryBindTimerHandle.IsValid())
-			{
-				GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
-			}
-		}
-	}
+	// 2. PlayerState 바인딩(삭제)
 	
 	// 3. 컴포넌트 바인딩
 	if (APawn* OwningPawn = GetOwningPlayerPawn())
 	{
+		if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwningPawn))
+		{
+			if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+			{
+				StateComp->OnCharacterStateTagsChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
+				StateComp->OnCharacterStateTagsChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
+             
+				// 진입 시점의 최초 캐릭터 상태 태그 강제 초기화
+				HandleOnCharacterStateChanged(StateComp->GetCharacterStateTags());
+				bCharacterStateBound = true;
+			}
+		}
+		
 		// 상호작용
 		if (UParcelInteractionComponent* InteractComp = OwningPawn->FindComponentByClass<UParcelInteractionComponent>())
 		{
@@ -107,7 +106,7 @@ void UParcelHUDWidget::TryBindUIEvents()
 	}
 	
 	// 4. 멀티플레이 안전장치
-	if (CachedGameState.IsValid() && CachedPlayerState.IsValid() && bInteractionBound && bHealthBound && bCarryBound)
+	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && bComboBound && bCharacterStateBound)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
 		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
@@ -130,10 +129,39 @@ void UParcelHUDWidget::HandleOnTeamScoreChanged(int32 NewTeamScore)
 	K2_OnTeamScoreChanged(FormattedText);
 }
 
-void UParcelHUDWidget::HandleOnPersonalScoreChanged(int32 NewPersonalScore)
+void UParcelHUDWidget::HandleOnComboChanged(int32 NewComboCount)
 {
-	FText FormattedText = FText::Format(FText::FromString(TEXT("개인 점수 : {0}")), FText::AsNumber(NewPersonalScore));
-	K2_OnPersonalScoreChanged(FormattedText);
+	if (NewComboCount > 0 && CachedGameState.IsValid())
+	{
+		UTeamScoreComponent* TeamScoreComp = CachedGameState->FindComponentByClass<UTeamScoreComponent>();
+		if (TeamScoreComp)
+		{
+			float CurrentMultiplier = TeamScoreComp->GetComboMultiplier();
+			
+			int32 BonusPercent = FMath::RoundToInt((CurrentMultiplier - 1.0f) * 100.f);
+
+			FText FormattedText;
+			if (BonusPercent > 0)
+			{
+				FormattedText = FText::Format(
+					FText::FromString(TEXT("연속 배송 성공! {0} Combo! (+{1}% 점수 보너스!)")), 
+					FText::AsNumber(NewComboCount),
+					FText::AsNumber(BonusPercent)
+				);
+			}
+			else
+			{
+				FormattedText = FText::Format(
+					FText::FromString(TEXT("연속 배송 성공! {0} Combo!")), 
+					FText::AsNumber(NewComboCount)
+				);
+			}
+			K2_OnComboChanged(NewComboCount, FormattedText);
+			return;
+		}
+	}
+	
+	K2_OnComboChanged(0, FText::GetEmpty());
 }
 
 void UParcelHUDWidget::HandleOnExpirationTimeChanged(float NewExpirationTime)
@@ -224,4 +252,9 @@ void UParcelHUDWidget::UpdateLocalTimer()
 	);
 	
 	K2_OnRemainingTimeChanged(FormattedTime, RawRemainingTime);
+}
+
+void UParcelHUDWidget::HandleOnCharacterStateChanged(const FGameplayTagContainer& ActiveTags)
+{
+	K2_OnCharacterStateChanged(ActiveTags);
 }
