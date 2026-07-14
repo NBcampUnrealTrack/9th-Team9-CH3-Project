@@ -5,9 +5,12 @@
 #include "Components/DFStatusEffectComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/HealthComponent.h"
 #include "Data/DFTrapDataAsset.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Delivery/PhysicsJudgeManager.h"
@@ -213,6 +216,7 @@ void ADFTrapBase::ActivateTrap_ServerOnly(AActor* Activator)
 
 	PendingActivator = Activator;
 	bHasTriggeredOnce = true;
+	DamagedActorsThisActivation.Reset();
 
 	const float WarningTime = TrapDataAsset ? FMath::Max(0.0f, TrapDataAsset->WarningTime) : 0.0f;
 	if (WarningTime > 0.0f)
@@ -540,6 +544,8 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		return;
 	}
 
+	ApplyTrapDamage(TargetActor);
+
 	if (!TrapDataAsset)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect failed: TrapDataAsset is null (%s)"), *GetNameSafe(this));
@@ -677,6 +683,151 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		TEXT("[Trap] ApplyTrapEffect ignored: unknown EffectTypeTag (%s)"),
 		*TrapDataAsset->EffectTypeTag.ToString()
 	);
+}
+
+void ADFTrapBase::ApplyTrapDamage(AActor* TargetActor)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (!TrapDataAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TrapDamage: TrapDataAsset is null Trap=%s"), *GetNameSafe(this));
+		return;
+	}
+
+	if (!TrapDataAsset->bApplyDamageOnOverlap)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TrapDamage: Damage disabled by DataAsset"));
+		return;
+	}
+
+	const float DamageAmount = TrapDataAsset->DamageAmount;
+	if (DamageAmount <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TrapDamage: DamageAmount is zero or negative Trap=%s"), *GetNameSafe(this));
+		return;
+	}
+
+	ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor);
+	if (!TargetCharacter)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("TrapDamage: Target is not a Character Target=%s"),
+			*GetNameSafe(TargetActor)
+		);
+		return;
+	}
+
+	if (!CanApplyDamageToActor(TargetCharacter))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("TrapDamage: Skipped by cooldown Target=%s"),
+			*GetNameSafe(TargetCharacter)
+		);
+		return;
+	}
+
+	if (UHealthComponent* HealthComponent = TargetCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		HealthComponent->TakeDamage(DamageAmount);
+	}
+	else
+	{
+		TSubclassOf<UDamageType> DamageTypeClass = TrapDataAsset->DamageTypeClass;
+		if (!DamageTypeClass)
+		{
+			DamageTypeClass = UDamageType::StaticClass();
+		}
+
+		UGameplayStatics::ApplyDamage(
+			TargetCharacter,
+			DamageAmount,
+			GetInstigatorController(),
+			this,
+			DamageTypeClass
+		);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("TrapDamage: ApplyDamage Target=%s Damage=%.1f"),
+		*GetNameSafe(TargetCharacter),
+		DamageAmount
+	);
+
+	const TWeakObjectPtr<AActor> TargetKey(TargetCharacter);
+	if (TrapDataAsset->bDamageOnlyOncePerActivation)
+	{
+		DamagedActorsThisActivation.Add(TargetKey);
+		return;
+	}
+
+	const float DamageCooldown = FMath::Max(0.0f, TrapDataAsset->DamageCooldownPerActor);
+	if (DamageCooldown <= 0.0f)
+	{
+		return;
+	}
+
+	ActorsOnDamageCooldown.Add(TargetKey);
+
+	FTimerDelegate DamageCooldownDelegate;
+	DamageCooldownDelegate.BindWeakLambda(this, [this, TargetKey]()
+	{
+		ClearDamageCooldownForActor(TargetKey.Get());
+	});
+
+	FTimerHandle DamageCooldownTimerHandle;
+	GetWorldTimerManager().SetTimer(
+		DamageCooldownTimerHandle,
+		DamageCooldownDelegate,
+		DamageCooldown,
+		false
+	);
+}
+
+bool ADFTrapBase::CanApplyDamageToActor(AActor* TargetActor) const
+{
+	if (!HasAuthority() || !TrapDataAsset || !TargetActor)
+	{
+		return false;
+	}
+
+	const TWeakObjectPtr<AActor> TargetKey(TargetActor);
+	if (TrapDataAsset->bDamageOnlyOncePerActivation)
+	{
+		return !DamagedActorsThisActivation.Contains(TargetKey);
+	}
+
+	return !ActorsOnDamageCooldown.Contains(TargetKey);
+}
+
+void ADFTrapBase::ClearDamageCooldownForActor(AActor* TargetActor)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (TargetActor)
+	{
+		ActorsOnDamageCooldown.Remove(TWeakObjectPtr<AActor>(TargetActor));
+	}
+
+	for (auto CooldownIt = ActorsOnDamageCooldown.CreateIterator(); CooldownIt; ++CooldownIt)
+	{
+		if (!CooldownIt->IsValid())
+		{
+			CooldownIt.RemoveCurrent();
+		}
+	}
 }
 
 void ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
@@ -1058,6 +1209,7 @@ void ADFTrapBase::ApplyRepeatEffect_ServerOnly()
 			continue;
 		}
 
+		ApplyTrapDamage(TargetCharacter);
 		ApplyReversePushEffect_ServerOnly(TargetCharacter, true);
 	}
 
