@@ -10,7 +10,6 @@ UTeamScoreComponent::UTeamScoreComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
-	CurrentGrade = EGrade::F;
 	MinComboMultiplier = 1.0f;
 	MaxComboMultiplier = 2.0f;
 }
@@ -36,7 +35,7 @@ float UTeamScoreComponent::GetRemainingTime() const
 	return RemainingTime;
 }
 
-EGrade UTeamScoreComponent::GetGrade() const
+FGameplayTag UTeamScoreComponent::GetGrade() const
 {
 	return CurrentGrade;
 }
@@ -87,7 +86,7 @@ void UTeamScoreComponent::DecreaseRemainingTime(float Amount)
 
 // ========================= 등급 =========================
 
-void UTeamScoreComponent::SetGrade(EGrade InGrade)
+void UTeamScoreComponent::SetGrade(FGameplayTag InGrade)
 {
 	if (GetOwner()->HasAuthority())
 		CurrentGrade = InGrade;

@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/SessionSubsystem.h"
+#include "Core/ParcelGameInstance.h"
 #include "OnlineSubsystemUtils.h"
 #include "Online/OnlineSessionNames.h"
 
@@ -129,8 +130,9 @@ void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSucc
 	OnSessionCreateComplete.Broadcast(bWasSuccessful);
 	// 이미 다른 세션의 클라이언트로 연결된 상태에서는 ServerTravel이 유효하지 않으므로 제외
 	if (bWasSuccessful && GetWorld()->GetNetMode() != NM_Client)
-		// TODO: 로비맵 존재 시 로비맵으로 변경 필요. 현재는 Stage01로 이동, 혹은 메인메뉴에서 로비 생성
-		GetWorld()->ServerTravel("/Game/Maps/LV_DF_Stage01?listen"); // ?listen = 리슨 서버 모드, 호스트가 플레이어로도 참여
+		// GameInstance의 PendingMapPath 읽어서 이동 — UI에서 SetPendingMapPath로 사전 설정
+		if (UParcelGameInstance* GI = Cast<UParcelGameInstance>(GetGameInstance()))
+			GetWorld()->ServerTravel(GI->GetPendingMapPath() + "?listen");
 	
 }
 

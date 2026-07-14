@@ -5,8 +5,10 @@
 #include "Core/ParcelGameState.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/TeamScoreComponent.h"
+#include "Delivery/StageData.h"
 #include "ParcelLog.h"
 #include "GameFramework/GameMode.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 
 DEFINE_LOG_CATEGORY(LogGameRule);
@@ -20,15 +22,15 @@ UDeliveryRuleComponent::UDeliveryRuleComponent()
 
 // ========================= 라운드 관리 =========================
 
-void UDeliveryRuleComponent::StartRound(float InTimeLimit, int32 InTargetScore)
+void UDeliveryRuleComponent::StartRound(UStageData* InStageData)
 {
-	TimeLimit = InTimeLimit;
-	TargetScore = InTargetScore;
+	if (!InStageData) return;
+	CurrentStageData = InStageData;
 
 	GetWorld()->GetGameState<AParcelGameState>()
-		->GetTeamScoreComponent()->InitRemainingTime(TimeLimit);
+		->GetTeamScoreComponent()->InitRemainingTime(CurrentStageData->TimeLimit);
 
-	GAMERULE_LOG(Log, TEXT("라운드 시작 시간제한: %.0f / 목표 점수: %d"), InTimeLimit, InTargetScore);
+	GAMERULE_LOG(Log, TEXT("라운드 시작 시간제한: %.0f / 목표 점수: %d"), CurrentStageData->TimeLimit, CurrentStageData->TargetScore);
 
 	// 1초마다 반복 — 시간 경과 점수 감소
 	GetWorld()->GetTimerManager().SetTimer(
@@ -44,7 +46,7 @@ void UDeliveryRuleComponent::StartRound(float InTimeLimit, int32 InTargetScore)
 		TimeUpHandle,
 		this,
 		&UDeliveryRuleComponent::OnTimeUp,
-		TimeLimit,
+		CurrentStageData->TimeLimit,
 		false
 	);
 }
@@ -98,19 +100,33 @@ void UDeliveryRuleComponent::OnEverySecond()
 
 void UDeliveryRuleComponent::OnTimeUp()
 {
-	GAMERULE_LOG(Warning, TEXT("시간 만료"));
+	GAMERULE_LOG(Warning, TEXT("시간 만료 — 최종 등급 산정"));
 	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
 		->GetTeamScoreComponent();
 
-	TeamScoreComp->AddTeamScore(-TimeUpScore);
-
-	float Ratio = (float)TeamScoreComp->GetTeamScore() / (float)TargetScore;
-	EGrade Grade;
-	if      (Ratio >= 1.2f) Grade = EGrade::A;
-	else if (Ratio >= 0.9f) Grade = EGrade::B;
-	else if (Ratio >= 0.6f) Grade = EGrade::C;
-	else                    Grade = EGrade::F;
+	// 제한시간 내 획득 점수 / 기준 점수 비율로 등급 결정
+	float Ratio = (float)TeamScoreComp->GetTeamScore() / (float)CurrentStageData->TargetScore;
+	FGameplayTag Grade;
+	if      (Ratio >= CurrentStageData->GradeA_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.A");
+	else if (Ratio >= CurrentStageData->GradeB_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.B");
+	else if (Ratio >= CurrentStageData->GradeC_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.C");
+	else                                                   Grade = FGameplayTag::RequestGameplayTag("Grade.F");
 	TeamScoreComp->SetGrade(Grade);
+
+	// 등급별 보상 금액 결정 후 전원 지급
+	int32 Reward = 0;
+	if      (Grade == FGameplayTag::RequestGameplayTag("Grade.A")) Reward = CurrentStageData->RewardMoney_A;
+	else if (Grade == FGameplayTag::RequestGameplayTag("Grade.B")) Reward = CurrentStageData->RewardMoney_B;
+	else if (Grade == FGameplayTag::RequestGameplayTag("Grade.C")) Reward = CurrentStageData->RewardMoney_C;
+	else                                                            Reward = CurrentStageData->RewardMoney_F;
+
+	GAMERULE_LOG(Log, TEXT("보상 지급 — %s: %d"), *Grade.ToString(), Reward);
+
+	for (APlayerState* PS : GetWorld()->GetGameState()->PlayerArray)
+	{
+		if (AParcelPlayerState* PPS = Cast<AParcelPlayerState>(PS))
+			PPS->Client_GrantReward(Reward);
+	}
 
 	if (AGameMode* GM = GetOwner<AGameMode>())
 		GM->EndMatch();

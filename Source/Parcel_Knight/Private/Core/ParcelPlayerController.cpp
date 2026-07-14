@@ -1,4 +1,10 @@
 #include "Core/ParcelPlayerController.h"
+#include "Core/ParcelCheatManager.h"
+
+AParcelPlayerController::AParcelPlayerController()
+{
+	CheatClass = UParcelCheatManager::StaticClass();
+}
 
 void AParcelPlayerController::BeginPlay()
 {

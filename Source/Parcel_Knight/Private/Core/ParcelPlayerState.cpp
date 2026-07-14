@@ -3,14 +3,18 @@
 #include "Core/ParcelPlayerState.h"
 #include "Core/PlayerStatComponent.h"
 #include "Core/InventoryComponent.h"
+#include "Core/CustomizationComponent.h"
 #include "Core/ParcelGameInstance.h"
+#include "Core/ParcelGameMode.h"
+#include "Core/RespawnComponent.h"
 
 // ========================= 초기화 =========================
 
 AParcelPlayerState::AParcelPlayerState()
 {
-	PlayerStatComp = CreateDefaultSubobject<UPlayerStatComponent>("PlayerStatComponent");
-	InventoryComp  = CreateDefaultSubobject<UInventoryComponent>("InventoryComponent");
+	PlayerStatComp    = CreateDefaultSubobject<UPlayerStatComponent>("PlayerStatComponent");
+	InventoryComp     = CreateDefaultSubobject<UInventoryComponent>("InventoryComponent");
+	CustomizationComp = CreateDefaultSubobject<UCustomizationComponent>("CustomizationComponent");
 }
 
 void AParcelPlayerState::BeginPlay()
@@ -25,13 +29,9 @@ void AParcelPlayerState::BeginPlay()
 		if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
 		{
 			InventoryComp->InitFromGameInstance(GI);
+			CustomizationComp->InitFromGameInstance(GI);
 		}
 	}
-}
-
-UInventoryComponent* AParcelPlayerState::GetInventoryComponent() const
-{
-	return InventoryComp;
 }
 
 // ========================= 조회 =========================
@@ -51,6 +51,11 @@ int32 AParcelPlayerState::GetFailCount() const
 	return PlayerStatComp->GetFailCount();
 }
 
+int32 AParcelPlayerState::GetDeathCount() const
+{
+	return PlayerStatComp->GetDeathCount();
+}
+
 // ========================= 점수 =========================
 
 void AParcelPlayerState::AddScore(int32 Amount)
@@ -68,4 +73,59 @@ void AParcelPlayerState::OnDeliverySuccess()
 void AParcelPlayerState::OnDeliveryFail()
 {
 	PlayerStatComp->OnDeliveryFail();
+}
+
+// ========================= 사망 / 부활 =========================
+
+void AParcelPlayerState::HandleDeath()
+{
+	PlayerStatComp->OnDeath();
+
+	if (AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>())
+	{
+		URespawnComponent* RC = GM->GetRespawnComponent();
+		RC->RespawnPlayerAfterDelay(GetPlayerController(), RC->ReviveDelay);
+	}
+}
+
+void AParcelPlayerState::Client_GrantReward_Implementation(int32 RewardAmount)
+{
+	if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+		GI->AddMoney(RewardAmount);
+}
+
+// ========================= 커스터마이징 =========================
+
+UInventoryComponent* AParcelPlayerState::GetInventoryComponent() const
+{
+	return InventoryComp;
+}
+
+UCustomizationComponent* AParcelPlayerState::GetCustomizationComponent() const
+{
+	return CustomizationComp;
+}
+
+void AParcelPlayerState::EquipSkin(FGameplayTag SkinTag)
+{
+	if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+		GI->EquipSkin(SkinTag);
+
+	CustomizationComp->EquipSkin(SkinTag);
+}
+
+void AParcelPlayerState::EquipTitle(FGameplayTag TitleTag)
+{
+	if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+		GI->EquipTitle(TitleTag);
+
+	CustomizationComp->EquipTitle(TitleTag);
+}
+
+void AParcelPlayerState::EquipEffect(FGameplayTag EffectTag)
+{
+	if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+		GI->EquipEffect(EffectTag);
+
+	CustomizationComp->EquipEffect(EffectTag);
 }
