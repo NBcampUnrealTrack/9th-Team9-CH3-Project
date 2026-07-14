@@ -6,6 +6,9 @@
 #include "Components/ActorComponent.h"
 #include "PlayerStatComponent.generated.h"
 
+// [UI]
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPersonalScoreChangedSignature, int32, NewPersonalScore);
+
 /**
  * 개인 점수, 성공·실패 횟수를 관리하는 컴포넌트
  * PlayerState에 부착된다.
@@ -61,8 +64,16 @@ public:
 	// [Server Only] 사망 시 호출 — 사망 횟수 누적
 	void OnDeath();
 
+	// [UI] HUD 위젯 바인딩 브로드캐스트 변수
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnPersonalScoreChangedSignature OnPersonalScoreChanged;
+
+	// [UI] 개인 점수 복제 수신 콜백 함수
+	UFUNCTION()
+	void OnRep_PersonalScore();
+	
 private:
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing=OnRep_PersonalScore)
 	int32 PersonalScore;  // 개인 누적 점수
 
 	UPROPERTY(Replicated)

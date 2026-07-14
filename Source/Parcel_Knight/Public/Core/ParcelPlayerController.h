@@ -21,4 +21,12 @@ protected:
 	virtual void BeginPlay() override;
 	
 	virtual void SetupInputComponent() override;
+	
+	// [Editor] HUD 위젯 클래스 지정
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
+	TSubclassOf<UUserWidget> HUDWidgetClass;
+	
+	// HUD 위젯 인스턴스
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
+	TObjectPtr<UUserWidget> HUDWidgetInstance;
 };

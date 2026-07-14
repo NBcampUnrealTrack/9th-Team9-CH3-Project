@@ -64,27 +64,51 @@ void UDeliveryRuleComponent::OnDeliveryCompleted(APlayerController* Deliverer, i
 	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
 		->GetTeamScoreComponent();
 
-	TeamScoreComp->OnDeliverySuccess();
-	TeamScoreComp->AddTeamScore(ScoreAmount);
-
-	if (AParcelPlayerState* PS = Deliverer->GetPlayerState<AParcelPlayerState>())
+	if (TeamScoreComp)
 	{
-		PS->OnDeliverySuccess();
-		PS->AddScore(ScoreAmount);
+		TeamScoreComp->OnDeliverySuccess();
+		TeamScoreComp->AddTeamScore(ScoreAmount);
+	}
+
+	if (Deliverer)
+	{
+		if (AParcelPlayerState* PS = Deliverer->GetPlayerState<AParcelPlayerState>())
+		{
+			PS->OnDeliverySuccess();
+			PS->AddScore(ScoreAmount);
+		}
 	}
 
 	GAMERULE_LOG(Log, TEXT("[서버] 배달 성공 — Score: %d"), ScoreAmount);
 }
 
-void UDeliveryRuleComponent::OnDeliveryFailed(APlayerController* Deliverer)
+void UDeliveryRuleComponent::OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount)
 {
-	GetWorld()->GetGameState<AParcelGameState>()
-		->GetTeamScoreComponent()->OnDeliveryFail();
+	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
+		->GetTeamScoreComponent();
 
-	if (AParcelPlayerState* PS = Deliverer->GetPlayerState<AParcelPlayerState>())
-		PS->OnDeliveryFail();
+	if (TeamScoreComp)
+	{
+		TeamScoreComp->OnDeliveryFail();
+		if (ScoreAmount != 0)
+		{
+			TeamScoreComp->AddTeamScore(ScoreAmount); // 오배송 페널티 감점 적용
+		}
+	}
 
-	GAMERULE_LOG(Log, TEXT("[서버] 배달 실패 — 콤보 리셋"));
+	if (Deliverer)
+	{
+		if (AParcelPlayerState* PS = Deliverer->GetPlayerState<AParcelPlayerState>())
+		{
+			PS->OnDeliveryFail();
+			if (ScoreAmount != 0)
+			{
+				PS->AddScore(ScoreAmount);
+			}
+		}
+	}
+
+	GAMERULE_LOG(Log, TEXT("[서버] 배달 실패 — 콤보 리셋 및 페널티 점수: %d"), ScoreAmount);
 }
 
 // ========================= 내부 타이머 =========================

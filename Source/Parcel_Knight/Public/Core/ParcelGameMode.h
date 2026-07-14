@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -39,7 +37,7 @@ public:
 
 	// 배달 성공/실패 진입점 — 다른 팀원 코드에서 이 함수만 호출
 	void OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount);
-	void OnDeliveryFailed(APlayerController* Deliverer);
+	void OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount = 0);
 
 	// [All] 부활 컴포넌트 반환 — PlayerState::HandleDeath에서 사용
 	URespawnComponent* GetRespawnComponent() const;

@@ -1,5 +1,6 @@
 #include "Core/ParcelPlayerController.h"
 #include "Core/ParcelCheatManager.h"
+#include "Blueprint/UserWidget.h"
 
 AParcelPlayerController::AParcelPlayerController()
 {
@@ -15,6 +16,20 @@ void AParcelPlayerController::BeginPlay()
 		FInputModeGameOnly InputMode;
 		SetInputMode(InputMode);
 		bShowMouseCursor = false;
+		
+		// HUD
+		if (IsLocalController())
+		{
+			if (HUDWidgetClass)
+			{
+				HUDWidgetInstance = CreateWidget<UUserWidget>(this, HUDWidgetClass);
+				
+				if (HUDWidgetInstance)
+				{
+					HUDWidgetInstance->AddToViewport();
+				}
+			}
+		}
 	}
 }
 

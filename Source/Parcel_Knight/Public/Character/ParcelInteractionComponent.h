@@ -22,6 +22,7 @@ public:
 	// 현재 조준 중인 대상을 외부에서 가져갈 수 있는 게터
 	FORCEINLINE AActor* GetCurrentFocusedActor() const { return CurrentFocusedActor; }
 
+	// [UI] 델리게이트 변수
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
 	FOnInteractionFocusChanged OnFocusChanged;
 

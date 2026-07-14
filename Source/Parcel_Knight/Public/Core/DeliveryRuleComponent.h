@@ -34,7 +34,7 @@ public:
 	void OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount);
 
 	// [Server Only] 배달 실패 시 호출 — 콤보 리셋 및 실패 횟수 처리
-	void OnDeliveryFailed(APlayerController* Deliverer);
+	void OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount = 0);
 
 private:
 	// 현재 라운드 스테이지 데이터 — StartRound에서 설정, OnTimeUp에서 등급/보상 산정에 사용

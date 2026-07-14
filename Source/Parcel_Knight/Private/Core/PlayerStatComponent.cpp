@@ -49,6 +49,9 @@ void UPlayerStatComponent::AddScore(int32 Amount)
 {
 	if (!GetOwner()->HasAuthority()) return;
 	PersonalScore += Amount;
+	
+	// [UI] 호스트 UI 대시보드 즉시 동기화
+	OnRep_PersonalScore();
 }
 
 // ========================= 배달 판정 =========================
@@ -74,4 +77,13 @@ void UPlayerStatComponent::OnDeath()
 	if (!GetOwner()->HasAuthority()) return;
 	DeathCount++;
 	GAMERULE_LOG(Log, TEXT("[서버] 사망 — DeathCount: %d"), DeathCount);
+}
+
+// [UI] 개인 점수 복제 알림 및 위젯 전송 구현
+void UPlayerStatComponent::OnRep_PersonalScore()
+{
+	if (OnPersonalScoreChanged.IsBound())
+	{
+		OnPersonalScoreChanged.Broadcast(PersonalScore);
+	}
 }
