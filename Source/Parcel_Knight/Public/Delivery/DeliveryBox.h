@@ -52,6 +52,10 @@ public:
     FORCEINLINE FBoxData GetBoxData() const { return BoxData; }
     FORCEINLINE float GetDamageThreshold() const { return BoxData.DamageThreshold; }
 	
+	// 스폰 초기 무적 상태 여부 확인 (0.5초 무적)
+	UFUNCTION(BlueprintCallable, Category = "Delivery")
+	bool IsInvulnerable() const;
+	
 protected:
 	// [Client] 태그 변경 시 클라이언트 연출용 RepNotify
 	UFUNCTION()
@@ -107,4 +111,13 @@ protected:
 private:
 	// 상자 목적지 구역 태그에 맞춰 머티리얼을 동적으로 적용합니다.
 	void ApplyZoneMaterial();
+
+	UFUNCTION()
+	void HandleOnDeath();
+
+	// 상자 스폰 시점의 게임 시간 (초 단위)
+	float SpawnTime = 0.0f;
+
+	// 상자가 한 번이라도 플레이어에게 주워졌는지 여부 (주워지기 전까지 무적 처리용)
+	bool bHasBeenPickedUp = false;
 };
