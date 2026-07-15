@@ -5,6 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "DFTrapDataAsset.generated.h"
 
+class UDamageType;
 class UParticleSystem;
 class USoundBase;
 
@@ -42,6 +43,21 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
 	float TrapDamage = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage")
+	bool bApplyDamageOnOverlap = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap", ClampMin = "0.0"))
+	float DamageAmount = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap"))
+	TSubclassOf<UDamageType> DamageTypeClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap"))
+	bool bDamageOnlyOncePerActivation = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap && !bDamageOnlyOncePerActivation", ClampMin = "0.0"))
+	float DamageCooldownPerActor = 0.5f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
 	float PushStrength = 900.0f;

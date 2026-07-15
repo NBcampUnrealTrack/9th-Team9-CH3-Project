@@ -102,6 +102,9 @@ private:
 	void EnterCooldownState_ServerOnly();
 	void ApplyTrapEffectToOverlappingActors_ServerOnly();
 	void ApplyTrapEffect_ServerOnly(AActor* TargetActor);
+	void ApplyTrapDamage(AActor* TargetActor);
+	bool CanApplyDamageToActor(AActor* TargetActor) const;
+	void ClearDamageCooldownForActor(AActor* TargetActor);
 	void ApplyForcedDropEffect_ServerOnly(AActor* TargetActor);
 	void ApplyPushEffect_ServerOnly(AActor* TargetActor);
 	void ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated);
@@ -134,6 +137,8 @@ private:
 	TObjectPtr<AActor> PendingActivator;
 
 	TArray<TWeakObjectPtr<ACharacter>> RepeatingReversePushTargets;
+	TSet<TWeakObjectPtr<AActor>> DamagedActorsThisActivation;
+	TSet<TWeakObjectPtr<AActor>> ActorsOnDamageCooldown;
 
 	FTimerHandle WarningTimerHandle;
 	FTimerHandle ActiveTimerHandle;
