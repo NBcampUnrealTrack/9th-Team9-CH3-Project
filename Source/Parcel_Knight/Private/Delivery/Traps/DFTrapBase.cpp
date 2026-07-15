@@ -590,8 +590,8 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 	}
 
 	// 캐릭터가 상자를 들고 있는 상태(NoCollision)에서도 함정 효과가 상자에 영향을 준다면(bAffectsCarriedBox) 상자 체력을 깎습니다.
-	// 단, ForcedDrop 효과는 ApplyForcedDropEffect_ServerOnly에서 직접 강제 낙하 및 피해를 동시 처리하므로 여기선 제외
-	if (TrapDataAsset->bAffectsCarriedBox && !IsForcedDropEffect())
+	// 단, 슬로우 함정(Slow)은 피해 전개에서 제외하며, ForcedDrop 효과는 ApplyForcedDropEffect_ServerOnly에서 별도로 처리하므로 제외
+	if (TrapDataAsset->bAffectsCarriedBox && !IsSlowEffect() && !IsForcedDropEffect())
 	{
 		if (UCharacterCarryComponent* CarryComponent = TargetActor->FindComponentByClass<UCharacterCarryComponent>())
 		{

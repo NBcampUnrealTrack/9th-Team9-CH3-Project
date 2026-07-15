@@ -22,8 +22,13 @@ private:
 	void TriggerRandomSpawn();
 	
 	FTimerHandle SpawnTimerHandle;
-	
+
 protected:
+	virtual void BeginPlay() override;
+
+	// 상자 자동 스폰 주기 (초 단위, 기본 5초)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Delivery Spawner", meta = (ClampMin = "0.1"))
+	float SpawnInterval = 5.0f;
 	
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
