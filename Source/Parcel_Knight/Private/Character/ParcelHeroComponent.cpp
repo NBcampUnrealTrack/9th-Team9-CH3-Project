@@ -85,6 +85,14 @@ void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
             
             OnThrowChargeChanged.Broadcast(false, 0.0f);
             
+            if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+            {
+                if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+                {
+                    StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+                }
+            }
+            
             URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
             bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
             if (!bNeedsTick)
@@ -226,6 +234,10 @@ void UParcelHeroComponent::StartJump(const FInputActionValue& Value)
     {
         if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
         {
+            // 점프 시 렉 방어
+            FGameplayTag ThrowingAction = FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing"), false);
+            FGameplayTag ThrowingState = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing"), false);
+            
             // State와 Action 두 태그 명칭 모두 유연하게 검증하도록 방어 코드 작성
             if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing"))) ||
                 StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing")))) 
@@ -346,6 +358,15 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
                 bIsChargingThrow = false;
                 CurrentThrowChargeTime = 0.f;
                 OnThrowChargeChanged.Broadcast(false, 0.0f);
+                
+                if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+                {
+                    if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+                    {
+                        StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+                    }
+                }
+
                 if (!RagdollComp || !RagdollComp->IsRagdoll())
                 {
                     PrimaryComponentTick.SetTickFunctionEnable(false);
@@ -459,6 +480,14 @@ void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
         
         // [UI] 던지기 차징 게이지 브로드캐스트
         OnThrowChargeChanged.Broadcast(true, 0.0f);
+        
+        if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+        {
+            if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+            {
+                StateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+            }
+        }
     }
 }
 
@@ -491,6 +520,14 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
     bIsChargingThrow = false;
     CurrentThrowChargeTime = 0.f;
     
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+        }
+    }
+
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
     if (!bNeedsTick)
