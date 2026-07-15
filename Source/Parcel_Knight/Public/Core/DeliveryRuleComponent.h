@@ -8,6 +8,7 @@
 
 class APlayerController;
 class AParcelPlayerState;
+class UStageData;
 
 /**
  * 게임 룰 로직을 담당하는 컴포넌트
@@ -24,7 +25,7 @@ public:
 	UDeliveryRuleComponent();
 	
 	// [Server Only] GameMode::StartRound()에서 호출 — 타이머 시작
-	void StartRound(float InTimeLimit, int32 InTargetScore);
+	void StartRound(UStageData* InStageData);
 
 	// [Server Only] GameMode::EndRound()에서 호출 — 타이머 정지
 	void EndRound();
@@ -36,22 +37,14 @@ public:
 	void OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount = 0);
 
 private:
-	// 스테이지 제한시간 — DA_StageData에서 설정
+	// 현재 라운드 스테이지 데이터 — StartRound에서 설정, OnTimeUp에서 등급/보상 산정에 사용
 	UPROPERTY()
-	float TimeLimit;
-	
-	// 등급 계산 기준 점수 — DA_StageData에서 설정
-	UPROPERTY()
-	int32 TargetScore;
-	
-	// "초" 당 감소되는 점수
+	TObjectPtr<UStageData> CurrentStageData;
+
+	// 초당 감소 점수 — 빠른 배달을 유도하는 압박 장치
 	UPROPERTY(EditAnywhere, Category = "Stage")
 	int32 DecreaseScore;
 
-	//제한 시간 초과 시 감소되는 점수
-	UPROPERTY(EditAnywhere, Category = "Stage")
-	int32 TimeUpScore;
-	
 	// 1초 반복 타이머 핸들 — 시간 경과에 따른 점수 감소용
 	FTimerHandle RoundTimerHandle;
 

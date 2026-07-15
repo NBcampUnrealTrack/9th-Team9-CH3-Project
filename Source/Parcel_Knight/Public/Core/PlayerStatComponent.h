@@ -23,7 +23,6 @@ class PARCEL_KNIGHT_API UPlayerStatComponent : public UActorComponent
 public:
 	UPlayerStatComponent();
 
-	
 	/*
 	 * Replicated로 클라이언트에 보내지는 변수들을 복사하는 함수
 	 * 엔진이 호출하는 함수라 관례상 public에 둔다
@@ -43,6 +42,9 @@ public:
 	// [All] 배송 실패 횟수 반환
 	int32 GetFailCount() const;
 
+	// [All] 사망 횟수 반환
+	int32 GetDeathCount() const;
+
 	// ─────────────────────────────────────
 	// 점수 처리
 	// ─────────────────────────────────────
@@ -58,6 +60,9 @@ public:
 
 	// [Server Only] 배송 실패·파손 시 호출 — 실패 횟수 누적
 	void OnDeliveryFail();
+
+	// [Server Only] 사망 시 호출 — 사망 횟수 누적
+	void OnDeath();
 
 	// [UI] HUD 위젯 바인딩 브로드캐스트 변수
 	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
@@ -76,4 +81,7 @@ private:
 
 	UPROPERTY(Replicated)
 	int32 FailCount;      // 배달 실패 횟수
+
+	UPROPERTY(Replicated)
+	int32 DeathCount;     // 사망 횟수
 };

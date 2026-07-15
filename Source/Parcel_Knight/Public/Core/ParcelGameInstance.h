@@ -69,6 +69,32 @@ public:
 	// [Debug] 중복 허용 여부 반환
 	bool IsAllowDuplicateLoadout() const;
 
+	// ========================= 스테이지 맵 =========================
+
+	// [Blueprint] 세션 생성 전 이동할 스테이지 맵 경로 설정 — UI에서 스테이지 선택 시 호출
+	UFUNCTION(BlueprintCallable)
+	void SetPendingMapPath(const FString& MapPath);
+
+	// [SessionSubsystem] 세션 생성 완료 시 이동할 맵 경로 반환
+	UFUNCTION(BlueprintPure)
+	FString GetPendingMapPath() const;
+
+	// ========================= 커스터마이징 =========================
+
+	// [All] 스킨 장착 — 미보유 시 무시, 성공하면 저장
+	void EquipSkin   (FGameplayTag SkinTag);
+	// [All] 칭호 장착
+	void EquipTitle  (FGameplayTag TitleTag);
+	// [All] 이펙트 장착
+	void EquipEffect (FGameplayTag EffectTag);
+
+	// [All] 현재 장착된 스킨 태그 반환 — 미장착이면 Invalid 태그
+	FGameplayTag GetEquippedSkin()   const;
+	// [All] 현재 장착된 칭호 태그 반환
+	FGameplayTag GetEquippedTitle()  const;
+	// [All] 현재 장착된 이펙트 태그 반환
+	FGameplayTag GetEquippedEffect() const;
+
 private:
 	static const FString SaveSlotName;
 
@@ -83,4 +109,12 @@ private:
 
 	// 중복 장착 허용 플래그 — 저장하지 않고 디버그 전용으로 런타임에만 유지
 	bool bAllowDuplicateLoadout = false;
+
+	// 세션 생성 완료 후 이동할 스테이지 맵 경로 — 기본값은 Stage01
+	FString PendingMapPath = TEXT("/Game/Maps/LV_DF_Stage01");
+
+	// 장착 중인 코스메틱 캐시 — 태그가 유효하지 않으면 미장착
+	FGameplayTag EquippedSkin;
+	FGameplayTag EquippedTitle;
+	FGameplayTag EquippedEffect;
 };

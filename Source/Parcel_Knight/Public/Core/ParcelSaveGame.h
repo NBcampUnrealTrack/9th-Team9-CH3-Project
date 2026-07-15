@@ -33,8 +33,13 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<FGameplayTag> EquippedLoadout;
 
-	// TODO: 장착 중인 코스메틱 — 커스터마이징 시스템 구현 시 추가
-	// UPROPERTY(SaveGame) FGameplayTag EquippedSkin;
-	// UPROPERTY(SaveGame) FGameplayTag EquippedTitle;
-	// UPROPERTY(SaveGame) FGameplayTag EquippedEffect;
+	// 장착 중인 코스메틱 — 태그가 유효하지 않으면 미장착 상태
+	UPROPERTY(SaveGame)
+	FGameplayTag EquippedSkin;
+
+	UPROPERTY(SaveGame)
+	FGameplayTag EquippedTitle;
+
+	UPROPERTY(SaveGame)
+	FGameplayTag EquippedEffect;
 };

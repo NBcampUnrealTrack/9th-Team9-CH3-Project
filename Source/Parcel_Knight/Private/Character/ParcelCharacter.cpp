@@ -11,6 +11,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "Core/HealthComponent.h"
+#include "Core/ParcelPlayerState.h"
 
 
 DEFINE_LOG_CATEGORY(LogCharacter);
@@ -132,6 +134,15 @@ void AParcelCharacter::PossessedBy(AController* NewController)
     if (HeroComp)
     {
        HeroComp->AddInputMappingContext();
+    }
+
+	//HealthComponent를 찾아서 사망을 바인드하는 코드, TODO: HealthCompoent확인 필요
+    if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+    {
+        if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
+        {
+            HealthComp->OnDeathDelegate.AddUniqueDynamic(PS, &AParcelPlayerState::HandleDeath);
+        }
     }
 }
 

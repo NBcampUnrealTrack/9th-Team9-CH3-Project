@@ -13,7 +13,10 @@ UCLASS()
 class PARCEL_KNIGHT_API AParcelPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+
+public:
+	AParcelPlayerController();
+
 protected:
 	virtual void BeginPlay() override;
 	

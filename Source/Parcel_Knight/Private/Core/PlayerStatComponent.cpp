@@ -18,6 +18,7 @@ void UPlayerStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME(UPlayerStatComponent, PersonalScore);
 	DOREPLIFETIME(UPlayerStatComponent, SuccessCount);
 	DOREPLIFETIME(UPlayerStatComponent, FailCount);
+	DOREPLIFETIME(UPlayerStatComponent, DeathCount);
 }
 
 // ========================= 조회 =========================
@@ -35,6 +36,11 @@ int32 UPlayerStatComponent::GetSuccessCount() const
 int32 UPlayerStatComponent::GetFailCount() const
 {
 	return FailCount;
+}
+
+int32 UPlayerStatComponent::GetDeathCount() const
+{
+	return DeathCount;
 }
 
 // ========================= 점수 =========================
@@ -62,6 +68,15 @@ void UPlayerStatComponent::OnDeliveryFail()
 	if (!GetOwner()->HasAuthority()) return;
 	FailCount++;
 	GAMERULE_LOG(Log, TEXT("[서버] 배달 실패 — FailCount: %d"), FailCount);
+}
+
+// ========================= 사망 =========================
+
+void UPlayerStatComponent::OnDeath()
+{
+	if (!GetOwner()->HasAuthority()) return;
+	DeathCount++;
+	GAMERULE_LOG(Log, TEXT("[서버] 사망 — DeathCount: %d"), DeathCount);
 }
 
 // [UI] 개인 점수 복제 알림 및 위젯 전송 구현
