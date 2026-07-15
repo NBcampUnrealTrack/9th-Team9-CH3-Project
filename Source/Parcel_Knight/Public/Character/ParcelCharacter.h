@@ -58,11 +58,13 @@ public:
 	TObjectPtr<UAnimMontage> GetUpFrontMontage;
 
 protected:
+	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode) override;
+	
 	// Player State Component
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<UParcelPlayerStateComponent> PlayerStateComp;
     
-  // Ragdoll Component
+	// Ragdoll Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<URagdollComponent> RagdollComp;
 

@@ -221,22 +221,45 @@ void UParcelHeroComponent::StartJump(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    // Throwing 액션 중에는 물리적인 점프 발동을 차단
+    // 던지기(Throwing) 액션 중에는 물리적인 점프 발동을 차단
     if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
     {
         if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
         {
-            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing")))) return;
-        } //TODO: 게임플레이 태그 Action 추가 및 State.Throwing 변경 필요
+            // State와 Action 두 태그 명칭 모두 유연하게 검증하도록 방어 코드 작성
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing"))) ||
+                StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing")))) 
+            {
+                return;
+            }
+        }
     }
 
+    // 물리적인 점프 기능 수행
     Character->Jump();
+
+    // 점프 액션 태그 로컬 적용 및 서버 동기화 요청
+    ApplyJumpTag(true);
+    if (!Character->HasAuthority())
+    {
+        ServerSetJumping(true);
+    }
 }
 
 void UParcelHeroComponent::StopJump(const FInputActionValue& Value)
 {
     ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (CanProcessLocalInput() && Character) Character->StopJumping();
+    if (!CanProcessLocalInput() || !Character) return;
+
+    // 물리적인 점프 입력 중단
+    Character->StopJumping();
+
+    // 점프 액션 태그 로컬 해제 및 서버 동기화 요청
+    ApplyJumpTag(false);
+    if (!Character->HasAuthority())
+    {
+        ServerSetJumping(false);
+    }
 }
 
 void UParcelHeroComponent::StartSprint(const FInputActionValue& Value)
@@ -473,5 +496,36 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
     if (!bNeedsTick)
     {
         PrimaryComponentTick.SetTickFunctionEnable(false);
+    }
+}
+
+void UParcelHeroComponent::ServerSetJumping_Implementation(bool bNewIsJumping)
+{
+    ApplyJumpTag(bNewIsJumping);
+}
+
+void UParcelHeroComponent::ApplyJumpTag(bool bNewIsJumping)
+{
+    AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner());
+    if (!ParcelChar) return;
+
+    // 서버 전용 권한 확인 후 중앙 상태 창고 컴포넌트에 실시간 점프 태그 토글 제어
+    if (ParcelChar->HasAuthority())
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            FGameplayTag JumpTag = FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Jump"));
+            
+            if (bNewIsJumping)
+            {
+                StateComp->AddStateTag(JumpTag);
+                HEROCOMP_LOG(Log, TEXT("[Server] 캐릭터에 'Character.Action.Jump' 태그 추가."));
+            }
+            else
+            {
+                StateComp->RemoveStateTag(JumpTag);
+                HEROCOMP_LOG(Log, TEXT("[Server] 캐릭터의 'Character.Action.Jump' 태그 제거."));
+            }
+        }
     }
 }
