@@ -61,6 +61,27 @@ void AParcelCharacter::BeginPlay()
     Super::BeginPlay();
 }
 
+void AParcelCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
+{
+	Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
+
+	// 공중 상태(InAir) 감지는 오직 서버에서만 안전하게 실시간 태그를 제어합니다.
+	if (HasAuthority())
+	{
+		if (UParcelPlayerStateComponent* StateComp = GetParcelPlayerStateComponent())
+		{
+			FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
+
+			// 걷기 등 다른 모드에서 Falling(낙하/점프) 상태로 진입한 경우
+			if (GetCharacterMovement()->MovementMode == MOVE_Falling)
+			{
+				StateComp->AddStateTag(InAirTag);
+				UE_LOG(LogCharacter, Log, TEXT("[Server] %s 캐릭터가 공중 상태(MOVE_Falling)로 진입했습니다. (InAir 태그 추가)"), *GetName());
+			}
+		}
+	}
+}
+
 void AParcelCharacter::OnJumped_Implementation()
 {
     Super::OnJumped_Implementation();
@@ -73,16 +94,26 @@ void AParcelCharacter::OnJumped_Implementation()
 
 void AParcelCharacter::Landed(const FHitResult& Hit)
 {
-    Super::Landed(Hit);
-    // 바닥 지면에 닿는 물리적 타이밍에 InAir 태그를 제거하고 무브먼트 동기화 리프레시
-    if (HasAuthority() && PlayerStateComp)
-    {
-        PlayerStateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir")));
-    }
-    if (MovementStatComp)
-    {
-        MovementStatComp->RefreshMoveSpeed();
-    }
+	Super::Landed(Hit);
+	
+	if (HasAuthority())
+	{
+		if (UParcelPlayerStateComponent* StateComp = GetParcelPlayerStateComponent())
+		{
+			FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
+
+			if (StateComp->HasStateTag(InAirTag))
+			{
+				StateComp->RemoveStateTag(InAirTag);
+				UE_LOG(LogCharacter, Log, TEXT("[Server] %s 캐릭터가 지면에 착지했습니다. (InAir 태그 제거)"), *GetName());
+			}
+		}
+	}
+
+	if (MovementStatComp)
+	{
+		MovementStatComp->RefreshMoveSpeed();
+	}
 }
 
 void AParcelCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
