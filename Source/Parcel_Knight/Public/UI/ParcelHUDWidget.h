@@ -46,6 +46,9 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnCharacterStateChanged(const FGameplayTagContainer& ActiveTags);
 	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnThrowChargeChanged(bool bIsCharging, float ChargeRatio);
+	
 private:
 	
 	UFUNCTION()
@@ -66,6 +69,9 @@ private:
 	
 	UFUNCTION()
 	void HandleOnCharacterStateChanged(const FGameplayTagContainer& ActiveTags);
+	
+	UFUNCTION()
+	void HandleOnThrowChargeChanged(bool bIsCharging, float ChargeRatio);
 	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
