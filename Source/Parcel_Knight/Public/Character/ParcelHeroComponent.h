@@ -117,4 +117,9 @@ private:
 
 	void ApplySprintSpeed(bool bNewIsSprinting);
 	bool CanProcessLocalInput() const;
+	
+	UFUNCTION(Server, Reliable)
+	void ServerSetJumping(bool bNewIsJumping);
+
+	void ApplyJumpTag(bool bNewIsJumping);
 };
