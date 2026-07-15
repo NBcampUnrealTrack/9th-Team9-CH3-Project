@@ -11,12 +11,16 @@ UHealthComponent::UHealthComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+	MaxHP = 100.f;
+	HP = 100.f;
+	bIsDead = false;
 }
 
 void UHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UHealthComponent, HP);
+	DOREPLIFETIME(UHealthComponent, MaxHP);
 	DOREPLIFETIME(UHealthComponent, bIsDead);
 }
 
@@ -94,4 +98,15 @@ void UHealthComponent::Multicast_OnDeath_Implementation()
 bool UHealthComponent::IsDead() const
 {
 	return bIsDead;
+}
+
+void UHealthComponent::InitializeHP(float InMaxHP)
+{
+	if (GetOwner()->HasAuthority())
+	{
+		MaxHP = InMaxHP;
+		HP = InMaxHP;
+		bIsDead = false;
+		OnHPChanged.Broadcast(HP, MaxHP);
+	}
 }

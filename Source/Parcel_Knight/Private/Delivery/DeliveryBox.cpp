@@ -7,6 +7,7 @@
 #include "Core/ParcelPlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "Materials/MaterialInterface.h"
+#include "Core/HealthComponent.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -30,6 +31,8 @@ ADeliveryBox::ADeliveryBox()
 	BoxMesh->SetSimulatePhysics(false);
 	
 	BoxID = -1;
+
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ADeliveryBox::BeginPlay()
@@ -80,6 +83,12 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 	
 	// 목적지 구역에 맞는 색상 머티리얼 적용
 	ApplyZoneMaterial();
+
+	// 상자 체력 컴포넌트의 초기/최대 체력을 데이터 테이블 임계값 정보로 매핑하여 초기화
+	if (HealthComponent)
+	{
+		HealthComponent->InitializeHP(BoxData.DamageThreshold);
+	}
 
 	// Spawned 태그 부여
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));

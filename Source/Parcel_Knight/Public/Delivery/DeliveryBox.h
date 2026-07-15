@@ -11,6 +11,7 @@
 class UBoxComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
+class UHealthComponent;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -75,6 +76,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> BoxMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UHealthComponent> HealthComponent;
 	
 	/* ==========================================================================
 		   동기화 규칙 변수 (Replicated)

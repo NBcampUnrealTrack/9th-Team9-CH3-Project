@@ -42,6 +42,10 @@ public:
 	virtual void OnDeath() override;
 	virtual bool IsDead() const override;
 
+	// 최대 체력 및 현재 체력을 초기화
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void InitializeHP(float InMaxHP);
+
 	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_OnDeath();
@@ -56,7 +60,7 @@ private:
 	void OnRep_HP();
 
 	// 초기/최대 체력 — 추후 DataAsset 등에서 설정 가능
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(Replicated, EditDefaultsOnly)
 	float MaxHP;
 
 	/*
