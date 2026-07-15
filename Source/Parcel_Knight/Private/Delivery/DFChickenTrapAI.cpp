@@ -147,6 +147,18 @@ bool ADFChickenTrapAI::CanActivate_Implementation(AActor* Activator) const
 
 void ADFChickenTrapAI::Server_RequestActivate_Implementation(AActor* Activator)
 {
+	if (!TriggerSphere || !TriggerSphere->IsOverlappingActor(Activator))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[ChickenTrap] Server activation request rejected: Activator is not overlapping TriggerSphere. Trap=%s Activator=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(Activator)
+		);
+		return;
+	}
+
 	TryActivate(Activator);
 }
 
@@ -159,7 +171,21 @@ bool ADFChickenTrapAI::ActivateTrap(AActor* InstigatorActor)
 {
 	if (!HasAuthority())
 	{
-		Server_RequestActivate(InstigatorActor);
+		if (HasLocalNetOwner())
+		{
+			Server_RequestActivate(InstigatorActor);
+		}
+		else
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[ChickenTrap] Client activation ignored: AI trap has no local net owner; server overlap must activate it. Trap=%s Activator=%s"),
+				*GetNameSafe(this),
+				*GetNameSafe(InstigatorActor)
+			);
+		}
+
 		return false;
 	}
 

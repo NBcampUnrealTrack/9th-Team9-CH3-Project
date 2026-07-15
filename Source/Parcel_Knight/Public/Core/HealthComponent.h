@@ -42,6 +42,10 @@ public:
 	virtual void OnDeath() override;
 	virtual bool IsDead() const override;
 
+	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_OnDeath();
+
 private:
 	// 복제 — 클라이언트 체력바 갱신용
 	UPROPERTY(ReplicatedUsing = OnRep_HP)

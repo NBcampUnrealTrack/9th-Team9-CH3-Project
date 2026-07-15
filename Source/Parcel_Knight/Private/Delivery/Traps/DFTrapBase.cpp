@@ -5,9 +5,12 @@
 #include "Components/DFStatusEffectComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/HealthComponent.h"
 #include "Data/DFTrapDataAsset.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Delivery/PhysicsJudgeManager.h"
@@ -184,6 +187,18 @@ bool ADFTrapBase::CanActivate_Implementation(AActor* Activator) const
 
 void ADFTrapBase::Server_RequestActivate_Implementation(AActor* Activator)
 {
+	if (IsOverlapTrigger() && (!TriggerVolume || !TriggerVolume->IsOverlappingActor(Activator)))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Trap] Server activation request rejected: Activator is not overlapping TriggerVolume. Trap=%s Activator=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(Activator)
+		);
+		return;
+	}
+
 	TryActivate(Activator);
 }
 
@@ -191,7 +206,21 @@ bool ADFTrapBase::TryActivate(AActor* Activator)
 {
 	if (!HasAuthority())
 	{
-		Server_RequestActivate(Activator);
+		if (HasLocalNetOwner())
+		{
+			Server_RequestActivate(Activator);
+		}
+		else
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Trap] Client activation ignored: placed trap has no local net owner; server overlap must activate it. Trap=%s Activator=%s"),
+				*GetNameSafe(this),
+				*GetNameSafe(Activator)
+			);
+		}
+
 		return false;
 	}
 
@@ -213,6 +242,7 @@ void ADFTrapBase::ActivateTrap_ServerOnly(AActor* Activator)
 
 	PendingActivator = Activator;
 	bHasTriggeredOnce = true;
+	DamagedActorsThisActivation.Reset();
 
 	const float WarningTime = TrapDataAsset ? FMath::Max(0.0f, TrapDataAsset->WarningTime) : 0.0f;
 	if (WarningTime > 0.0f)
@@ -249,6 +279,9 @@ void ADFTrapBase::ResetTrap_ServerOnly()
 		World->GetTimerManager().ClearTimer(ActiveTimerHandle);
 		World->GetTimerManager().ClearTimer(CooldownTimerHandle);
 	}
+
+	RepeatingReversePushTargets.Empty();
+	StopRepeatEffectTimer_ServerOnly();
 
 	PendingActivator = nullptr;
 	SetTrapState_ServerOnly(DFTrapTags::Ready());
@@ -466,6 +499,8 @@ void ADFTrapBase::EnterCooldownState_ServerOnly()
 		return;
 	}
 
+	RepeatingReversePushTargets.Empty();
+	StopRepeatEffectTimer_ServerOnly();
 	PendingActivator = nullptr;
 
 	if (TrapDataAsset && TrapDataAsset->bTriggerOnce)
@@ -539,6 +574,8 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect ignored on non-authority instance: %s"), *GetNameSafe(this));
 		return;
 	}
+
+	ApplyTrapDamage(TargetActor);
 
 	if (!TrapDataAsset)
 	{
@@ -677,6 +714,151 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		TEXT("[Trap] ApplyTrapEffect ignored: unknown EffectTypeTag (%s)"),
 		*TrapDataAsset->EffectTypeTag.ToString()
 	);
+}
+
+void ADFTrapBase::ApplyTrapDamage(AActor* TargetActor)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (!TrapDataAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TrapDamage: TrapDataAsset is null Trap=%s"), *GetNameSafe(this));
+		return;
+	}
+
+	if (!TrapDataAsset->bApplyDamageOnOverlap)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TrapDamage: Damage disabled by DataAsset"));
+		return;
+	}
+
+	const float DamageAmount = TrapDataAsset->DamageAmount;
+	if (DamageAmount <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TrapDamage: DamageAmount is zero or negative Trap=%s"), *GetNameSafe(this));
+		return;
+	}
+
+	ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor);
+	if (!TargetCharacter)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("TrapDamage: Target is not a Character Target=%s"),
+			*GetNameSafe(TargetActor)
+		);
+		return;
+	}
+
+	if (!CanApplyDamageToActor(TargetCharacter))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("TrapDamage: Skipped by cooldown Target=%s"),
+			*GetNameSafe(TargetCharacter)
+		);
+		return;
+	}
+
+	if (UHealthComponent* HealthComponent = TargetCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		HealthComponent->TakeDamage(DamageAmount);
+	}
+	else
+	{
+		TSubclassOf<UDamageType> DamageTypeClass = TrapDataAsset->DamageTypeClass;
+		if (!DamageTypeClass)
+		{
+			DamageTypeClass = UDamageType::StaticClass();
+		}
+
+		UGameplayStatics::ApplyDamage(
+			TargetCharacter,
+			DamageAmount,
+			GetInstigatorController(),
+			this,
+			DamageTypeClass
+		);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("TrapDamage: ApplyDamage Target=%s Damage=%.1f"),
+		*GetNameSafe(TargetCharacter),
+		DamageAmount
+	);
+
+	const TWeakObjectPtr<AActor> TargetKey(TargetCharacter);
+	if (TrapDataAsset->bDamageOnlyOncePerActivation)
+	{
+		DamagedActorsThisActivation.Add(TargetKey);
+		return;
+	}
+
+	const float DamageCooldown = FMath::Max(0.0f, TrapDataAsset->DamageCooldownPerActor);
+	if (DamageCooldown <= 0.0f)
+	{
+		return;
+	}
+
+	ActorsOnDamageCooldown.Add(TargetKey);
+
+	FTimerDelegate DamageCooldownDelegate;
+	DamageCooldownDelegate.BindWeakLambda(this, [this, TargetKey]()
+	{
+		ClearDamageCooldownForActor(TargetKey.Get());
+	});
+
+	FTimerHandle DamageCooldownTimerHandle;
+	GetWorldTimerManager().SetTimer(
+		DamageCooldownTimerHandle,
+		DamageCooldownDelegate,
+		DamageCooldown,
+		false
+	);
+}
+
+bool ADFTrapBase::CanApplyDamageToActor(AActor* TargetActor) const
+{
+	if (!HasAuthority() || !TrapDataAsset || !TargetActor)
+	{
+		return false;
+	}
+
+	const TWeakObjectPtr<AActor> TargetKey(TargetActor);
+	if (TrapDataAsset->bDamageOnlyOncePerActivation)
+	{
+		return !DamagedActorsThisActivation.Contains(TargetKey);
+	}
+
+	return !ActorsOnDamageCooldown.Contains(TargetKey);
+}
+
+void ADFTrapBase::ClearDamageCooldownForActor(AActor* TargetActor)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (TargetActor)
+	{
+		ActorsOnDamageCooldown.Remove(TWeakObjectPtr<AActor>(TargetActor));
+	}
+
+	for (auto CooldownIt = ActorsOnDamageCooldown.CreateIterator(); CooldownIt; ++CooldownIt)
+	{
+		if (!CooldownIt->IsValid())
+		{
+			CooldownIt.RemoveCurrent();
+		}
+	}
 }
 
 void ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
@@ -930,7 +1112,10 @@ void ADFTrapBase::AddRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
 	{
 		if (ExistingTarget.Get() == TargetCharacter)
 		{
-			StartRepeatEffectTimer_ServerOnly();
+			if (CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
+			{
+				StartRepeatEffectTimer_ServerOnly();
+			}
 			return;
 		}
 	}
@@ -945,7 +1130,10 @@ void ADFTrapBase::AddRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
 		RepeatingReversePushTargets.Num()
 	);
 
-	StartRepeatEffectTimer_ServerOnly();
+	if (CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
+	{
+		StartRepeatEffectTimer_ServerOnly();
+	}
 }
 
 void ADFTrapBase::RemoveRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
@@ -988,7 +1176,10 @@ void ADFTrapBase::RemoveRepeatingReversePushTarget_ServerOnly(AActor* TargetActo
 
 void ADFTrapBase::StartRepeatEffectTimer_ServerOnly()
 {
-	if (!HasAuthority() || !ShouldRepeatReversePush() || RepeatingReversePushTargets.Num() == 0)
+	if (!HasAuthority()
+		|| !CurrentStateTag.MatchesTagExact(DFTrapTags::Active())
+		|| !ShouldRepeatReversePush()
+		|| RepeatingReversePushTargets.Num() == 0)
 	{
 		return;
 	}
@@ -1042,6 +1233,12 @@ void ADFTrapBase::ApplyRepeatEffect_ServerOnly()
 		return;
 	}
 
+	if (!CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
+	{
+		StopRepeatEffectTimer_ServerOnly();
+		return;
+	}
+
 	if (!ShouldRepeatReversePush())
 	{
 		RepeatingReversePushTargets.Empty();
@@ -1058,6 +1255,7 @@ void ADFTrapBase::ApplyRepeatEffect_ServerOnly()
 			continue;
 		}
 
+		ApplyTrapDamage(TargetCharacter);
 		ApplyReversePushEffect_ServerOnly(TargetCharacter, true);
 	}
 

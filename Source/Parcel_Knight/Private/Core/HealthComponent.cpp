@@ -80,9 +80,15 @@ void UHealthComponent::OnRep_HP()
 
 void UHealthComponent::OnDeath()
 {
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	bIsDead = true;
 	OnDeathDelegate.Broadcast();
-	// TODO: 사망 연출 전파는 추후 Multicast RPC로 확장(2단계)
+	Multicast_OnDeath();
+}
+
+void UHealthComponent::Multicast_OnDeath_Implementation()
+{
+	// 사망 연출 전파 — 이펙트·사운드는 추후 구현
 }
 
 bool UHealthComponent::IsDead() const

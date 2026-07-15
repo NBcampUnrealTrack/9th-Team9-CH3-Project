@@ -203,7 +203,11 @@ void UDFStatusEffectComponent::Client_ApplyInputInvertEffectState_Implementation
 
 void UDFStatusEffectComponent::OnRep_MoveSpeedEffectState()
 {
-	ApplyMoveSpeedState();
+	// 소유 클라이언트는 Client RPC로 이미 처리됨 — 관찰자 클라이언트만 여기서 처리
+	if (OwnerCharacter && !OwnerCharacter->IsLocallyControlled())
+	{
+		ApplyMoveSpeedState();
+	}
 }
 
 void UDFStatusEffectComponent::OnRep_InputInvertEffectState()

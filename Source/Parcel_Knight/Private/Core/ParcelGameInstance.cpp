@@ -23,6 +23,9 @@ void UParcelGameInstance::SaveData()
 	SaveGame->OwnedConsumables = OwnedConsumables;
 	SaveGame->OwnedCosmetics   = OwnedCosmetics;
 	SaveGame->EquippedLoadout  = EquippedLoadout;
+	SaveGame->EquippedSkin     = EquippedSkin;
+	SaveGame->EquippedTitle    = EquippedTitle;
+	SaveGame->EquippedEffect   = EquippedEffect;
 
 	UGameplayStatics::SaveGameToSlot(SaveGame, SaveSlotName, 0);
 }
@@ -39,6 +42,9 @@ void UParcelGameInstance::LoadData()
 	OwnedConsumables = SaveGame->OwnedConsumables;
 	OwnedCosmetics   = SaveGame->OwnedCosmetics;
 	EquippedLoadout  = SaveGame->EquippedLoadout;
+	EquippedSkin     = SaveGame->EquippedSkin;
+	EquippedTitle    = SaveGame->EquippedTitle;
+	EquippedEffect   = SaveGame->EquippedEffect;
 }
 
 // ========================= 재화 =========================
@@ -149,3 +155,44 @@ bool UParcelGameInstance::IsAllowDuplicateLoadout() const
 {
 	return bAllowDuplicateLoadout;
 }
+
+// ========================= 스테이지 맵 =========================
+
+void UParcelGameInstance::SetPendingMapPath(const FString& MapPath)
+{
+	PendingMapPath = MapPath;
+}
+
+FString UParcelGameInstance::GetPendingMapPath() const
+{
+	return PendingMapPath;
+}
+
+// ========================= 커스터마이징 =========================
+
+void UParcelGameInstance::EquipSkin(FGameplayTag SkinTag)
+{
+	// 보유하지 않은 코스메틱은 장착 불가
+	if (!HasOwnedCosmetic(SkinTag)) return;
+	EquippedSkin = SkinTag;
+	SaveData();
+}
+
+void UParcelGameInstance::EquipTitle(FGameplayTag TitleTag)
+{
+	if (!HasOwnedCosmetic(TitleTag)) return;
+	EquippedTitle = TitleTag;
+	SaveData();
+}
+
+void UParcelGameInstance::EquipEffect(FGameplayTag EffectTag)
+{
+	if (!HasOwnedCosmetic(EffectTag)) return;
+	EquippedEffect = EffectTag;
+	SaveData();
+}
+
+// 미장착이면 Invalid 태그 반환 — 호출자에서 IsValid()로 체크
+FGameplayTag UParcelGameInstance::GetEquippedSkin()   const { return EquippedSkin; }
+FGameplayTag UParcelGameInstance::GetEquippedTitle()  const { return EquippedTitle; }
+FGameplayTag UParcelGameInstance::GetEquippedEffect() const { return EquippedEffect; }
