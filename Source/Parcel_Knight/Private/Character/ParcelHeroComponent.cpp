@@ -75,17 +75,38 @@ void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
     if (Character->IsLocallyControlled() && bIsChargingThrow)
     {
+        // [UI] 방어 코드 : 던지는 도중 맞거나 래그돌 등 상자 놓친 경우 예외 처리
+        UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+        if (!CarryComp || !CarryComp->IsCarrying())
+        {
+            HEROCOMP_LOG(Warning, TEXT("차징 연출을 강제 취소합니다."));
+            bIsChargingThrow = false;
+            CurrentThrowChargeTime = 0.f;
+            
+            OnThrowChargeChanged.Broadcast(false, 0.0f);
+            
+            URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+            bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
+            if (!bNeedsTick)
+            {
+                PrimaryComponentTick.SetTickFunctionEnable(false);
+            }
+            return;
+        }
+        
         CurrentThrowChargeTime += DeltaTime;
         if (CurrentThrowChargeTime > MaxThrowChargeTime)
         {
             CurrentThrowChargeTime = MaxThrowChargeTime;
         }
-
+        
+        // [UI] 프레임마다 변경되는 ChargeRatio 전달
+        float ChargeRatio = MaxThrowChargeTime > 0.f ? FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f) : 0.f;
+        OnThrowChargeChanged.Broadcast(true, ChargeRatio);
+        
         if (GEngine)
         {
-            float ChargeRatio = FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f);
             int32 Percentage = FMath::RoundToInt(ChargeRatio * 100.f);
-            
             FString ProgressBar = TEXT("[");
             int32 BarCount = Percentage / 10;
             for (int32 i = 0; i < 10; ++i)
@@ -295,6 +316,19 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
         if (CarryComp->IsCarrying())
         {
             HEROCOMP_LOG(Log, TEXT("이미 상자를 운반 중: 내려놓기(Drop) 실행"));
+            
+            // [방어코드] : 던지기 충전 중이었다면 충전 상태 해제
+            if (bIsChargingThrow)
+            {
+                bIsChargingThrow = false;
+                CurrentThrowChargeTime = 0.f;
+                OnThrowChargeChanged.Broadcast(false, 0.0f);
+                if (!RagdollComp || !RagdollComp->IsRagdoll())
+                {
+                    PrimaryComponentTick.SetTickFunctionEnable(false);
+                }
+            }
+            
             CarryComp->Drop();
             return;
         }
@@ -399,6 +433,9 @@ void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
         // 게이지 모으는 중 틱 활성화
         PrimaryComponentTick.SetTickFunctionEnable(true);
         HEROCOMP_LOG(Log, TEXT("던지기 충전 시작: 틱 활성화"));
+        
+        // [UI] 던지기 차징 게이지 브로드캐스트
+        OnThrowChargeChanged.Broadcast(true, 0.0f);
     }
 }
 
@@ -425,10 +462,12 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
         HEROCOMP_LOG(Log, TEXT("던지기 실행! 충전 비율: %f, 최종 힘: %f"), ChargeRatio, ForceMag);
     }
 
+    // [UI] 던지기 차징 종료 브로드캐스트
+    OnThrowChargeChanged.Broadcast(false, 0.0f);
+    
     bIsChargingThrow = false;
     CurrentThrowChargeTime = 0.f;
-
-    // 만약 래그돌 상태가 아니라면 틱을 다시 꺼줍니다.
+    
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
     if (!bNeedsTick)

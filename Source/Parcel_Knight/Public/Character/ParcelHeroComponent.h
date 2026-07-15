@@ -10,6 +10,9 @@ class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
 
+// [UI] 던지기 충전 상태 델리게이트
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnThrowChargeChangedSignature, bool, bIsCharging, float, ChargeRatio);
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PARCEL_KNIGHT_API UParcelHeroComponent : public UActorComponent
 {
@@ -29,6 +32,17 @@ public:
 	
 	void EnterRagdollCameraMode();
 	void ExitRagdollCameraMode();
+	
+	// [UI] HUD 위젯 바인딩
+	UPROPERTY(BlueprintAssignable, Category = "Carry|Throw")
+	FOnThrowChargeChangedSignature OnThrowChargeChanged;
+
+	// [UI] 현재 로컬 차징 상태 게터 함수들
+	UFUNCTION(BlueprintPure, Category = "Carry|Throw")
+	FORCEINLINE bool IsChargingThrow() const { return bIsChargingThrow; }
+	
+	UFUNCTION(BlueprintPure, Category = "Carry|Throw")
+	FORCEINLINE float GetThrowChargeRatio() const { return MaxThrowChargeTime > 0.f ? FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f) : 0.f; }
 	
 protected:
 	// 카메라 컴포넌트 (인게임에 시점 변경이 필요하다면 이것도 분리 가능)
