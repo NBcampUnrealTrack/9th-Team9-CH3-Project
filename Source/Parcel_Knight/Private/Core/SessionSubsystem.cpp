@@ -2,6 +2,9 @@
 
 #include "Core/SessionSubsystem.h"
 #include "Core/ParcelGameInstance.h"
+#include "AdvancedFriendsLibrary.h"
+#include "GameFramework/PlayerController.h"
+#include "Interfaces/OnlineIdentityInterface.h"
 #include "OnlineSubsystemUtils.h"
 #include "Online/OnlineSessionNames.h"
 
