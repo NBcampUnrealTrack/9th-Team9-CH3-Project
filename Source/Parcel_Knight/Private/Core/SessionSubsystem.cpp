@@ -90,7 +90,6 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 	SessionSettings.bUseLobbiesIfAvailable = OSS->GetSubsystemName() == FName(TEXT("STEAM"));
 	SessionSettings.bAllowJoinInProgress = true;
 	// AppId 480(SpaceWar) 공용 테스트 환경에서 다른 팀 세션과 구분하기 위한 식별 키
-	SessionSettings.Set(FName("GAME_ID"), 20250716, EOnlineDataAdvertisementType::ViaOnlineService);
 
 	CreateSessionHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(
 		FOnCreateSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnCreateSessionComplete)
@@ -115,10 +114,11 @@ void USessionSubsystem::FindSessions()
 	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
 
 	SessionSearch = MakeShared<FOnlineSessionSearch>();
-	SessionSearch->MaxSearchResults = 10;
+	SessionSearch->MaxSearchResults = 5000;
 	SessionSearch->bIsLanQuery = OSS->GetSubsystemName() == "NULL";
 	SessionSearch->TimeoutInSeconds = 10.0f;
-	SessionSearch->QuerySettings.Set(FName("GAME_ID"), 20250716, EOnlineComparisonOp::Equals);
+	SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
+	
 
 	FindSessionsHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(
 		FOnFindSessionsCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnFindSessionsComplete)
@@ -288,11 +288,12 @@ void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSucc
 	Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle);
 	ClearOperationState();
 	OnSessionCreateComplete.Broadcast(bWasSuccessful);
-	// 이미 다른 세션의 클라이언트로 연결된 상태에서는 ServerTravel이 유효하지 않으므로 제외
 	if (bWasSuccessful && GetWorld()->GetNetMode() != NM_Client)
-		// GameInstance의 PendingMapPath 읽어서 이동 — UI에서 SetPendingMapPath로 사전 설정
+	{
+		Sessions->StartSession(NAME_GameSession);
 		if (UParcelGameInstance* GI = Cast<UParcelGameInstance>(GetGameInstance()))
 			GetWorld()->ServerTravel(GI->GetPendingMapPath() + "?listen");
+	}
 }
 
 void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
