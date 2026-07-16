@@ -10,8 +10,8 @@ DECLARE_LOG_CATEGORY_EXTERN(AdvancedGetFriendsLog, Log, All);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBlueprintGetFriendsListDelegate, const TArray<FBPFriendInfo>&, Results);
 
-UCLASS(MinimalAPI)
-class UGetFriendsCallbackProxy : public UOnlineBlueprintCallProxyBase
+UCLASS()
+class ADVANCEDSESSIONS_API UGetFriendsCallbackProxy : public UOnlineBlueprintCallProxyBase
 {
 	GENERATED_UCLASS_BODY()
 
