@@ -59,6 +59,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Status Effect")
 	bool IsInputInverted() const { return InputInvertEffectState.bIsActive; }
 
+	UFUNCTION(BlueprintPure, Category = "Status Effect")
+	bool HasActiveStatusEffect() const { return MoveSpeedEffectState.bIsActive || InputInvertEffectState.bIsActive; }
+
 protected:
 	virtual void BeginPlay() override;
 

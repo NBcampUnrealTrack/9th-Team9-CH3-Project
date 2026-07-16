@@ -75,6 +75,10 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
     float RagdollStopGroundTraceDistance = 120.f;
 
+    // 상태이상 없을 때 강제 기상까지 대기 시간 (초)
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
+    float AutoRecoveryDelay = 5.0f;
+
 private:
     // 앞/뒤 상태에 맞는 일어나기 몽타주를 반환합니다.
     UAnimMontage* GetSelectedGetUpMontage(bool bFront) const;
@@ -90,6 +94,11 @@ private:
     // 실제 래그돌 내부 처리 로직
     void ApplyStartRagdoll();
     void ApplyStopRagdoll();
+
+    // 상태이상이 없을 때 강제 기상을 시도하는 함수 (서버 전용)
+    void AttemptAutoRecovery();
+
+    FTimerHandle AutoRecoveryTimerHandle;
 
     // 이 컴포넌트를 소유한 캐릭터 캐싱 변수
     UPROPERTY()
