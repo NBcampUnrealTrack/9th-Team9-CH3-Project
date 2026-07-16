@@ -79,23 +79,37 @@ public:
 	bool SendSessionInviteToFriend(APlayerController* PlayerController, const FBPUniqueNetId& FriendUniqueNetId) const;
 	
 private:
+	enum class ESessionOperation : uint8 { None, Creating, Finding, Joining };
 	bool StartJoinSession(const FOnlineSessionSearchResult& SessionResult);
 
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnFindSessionsComplete(bool bWasSuccessful);
 	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
-	
-	
+
+	// 진행 중인 작업을 취소하고 실패 브로드캐스트
+	void CancelCurrentOperation();
+
+	// 타임아웃 발동 시 호출
+	void OnOperationTimeout();
+
+	// 타임아웃 타이머를 취소하고 진행 상태를 초기화
+	void ClearOperationState();
+
 	// 세션 파괴 완료 후 자동 재생성을 위한 플래그
 	bool bPendingCreate = false;
 	int32 PendingNumConnections = 0;
+
+	bool bIsOperationInProgress = false;
+	ESessionOperation CurrentOperation = ESessionOperation::None;
+
+	// 응답 없을 때 강제 리셋까지 대기 시간 (초)
+	static constexpr float OperationTimeoutSeconds = 30.f;
+	FTimerHandle OperationTimeoutHandle;
 
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 	FDelegateHandle CreateSessionHandle;
 	FDelegateHandle FindSessionsHandle;
 	FDelegateHandle JoinSessionHandle;
 	FDelegateHandle DestroySessionHandle;
-	
-
 };
