@@ -90,7 +90,7 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 	SessionSettings.bUseLobbiesIfAvailable = OSS->GetSubsystemName() == FName(TEXT("STEAM"));
 	SessionSettings.bAllowJoinInProgress = true;
 	// AppId 480(SpaceWar) 공용 테스트 환경에서 다른 팀 세션과 구분하기 위한 식별 키
-	SessionSettings.Set(FName("GAME_ID"), FString("ParcelKnight"), EOnlineDataAdvertisementType::ViaOnlineService);
+	SessionSettings.Set(FName("GAME_ID"), 20250716, EOnlineDataAdvertisementType::ViaOnlineService);
 
 	CreateSessionHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(
 		FOnCreateSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnCreateSessionComplete)
@@ -118,7 +118,7 @@ void USessionSubsystem::FindSessions()
 	SessionSearch->MaxSearchResults = 10;
 	SessionSearch->bIsLanQuery = OSS->GetSubsystemName() == "NULL";
 	SessionSearch->TimeoutInSeconds = 10.0f;
-	SessionSearch->QuerySettings.Set(FName("GAME_ID"), FString("ParcelKnight"), EOnlineComparisonOp::Equals);
+	SessionSearch->QuerySettings.Set(FName("GAME_ID"), 20250716, EOnlineComparisonOp::Equals);
 
 	FindSessionsHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(
 		FOnFindSessionsCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnFindSessionsComplete)
