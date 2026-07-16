@@ -7,6 +7,8 @@
 
 class AParcelGameState;
 class ADeliveryBox;
+class UButton;
+class UParcelFriendListWidget;
 /**
  *  UParcelWidget
  *  인게임 HUD 요소의 이벤트 바인딩하고 관리하는 베이스 위젯
@@ -20,6 +22,24 @@ class PARCEL_KNIGHT_API UParcelHUDWidget : public UUserWidget
 protected:
 	// 위젯의 BeginPlay 함수
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "ParcelUI|Friend")
+	void OpenFriendList();
+
+	UFUNCTION(BlueprintCallable, Category = "ParcelUI|Friend")
+	void ToggleFriendList();
+
+protected:
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> FriendButton;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI|Friend")
+	TSubclassOf<UParcelFriendListWidget> FriendListWidgetClass;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI|Friend")
+	TObjectPtr<UParcelFriendListWidget> FriendListWidgetInstance;
 	
 	// 로컬 플레이어와 데이터를 바인딩
 	void TryBindUIEvents();

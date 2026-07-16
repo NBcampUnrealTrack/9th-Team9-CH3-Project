@@ -2,6 +2,9 @@
 
 #include "Core/SessionSubsystem.h"
 #include "Core/ParcelGameInstance.h"
+#include "AdvancedFriendsLibrary.h"
+#include "GameFramework/PlayerController.h"
+#include "Interfaces/OnlineIdentityInterface.h"
 #include "OnlineSubsystemUtils.h"
 #include "Online/OnlineSessionNames.h"
 
@@ -24,7 +27,9 @@ void USessionSubsystem::CancelCurrentOperation()
 			{
 			case ESessionOperation::Creating: Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle); break;
 			case ESessionOperation::Finding:  Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsHandle);  break;
-			case ESessionOperation::Joining:  Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);    break;
+			case ESessionOperation::Joining:  Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);  
+           JoinSessionHandle.Reset();
+          break;
 			default: break;
 			}
 		}
@@ -80,8 +85,9 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 	SessionSettings.bIsLANMatch = OSS->GetSubsystemName() == "NULL";
 	SessionSettings.NumPublicConnections = NumPublicConnections;
 	SessionSettings.bShouldAdvertise = true;
+	SessionSettings.bAllowInvites = true;
 	SessionSettings.bUsesPresence = true;
-	SessionSettings.bUseLobbiesIfAvailable = true;
+	SessionSettings.bUseLobbiesIfAvailable = OSS->GetSubsystemName() == FName(TEXT("STEAM"));
 	SessionSettings.bAllowJoinInProgress = true;
 	// AppId 480(SpaceWar) 공용 테스트 환경에서 다른 팀 세션과 구분하기 위한 식별 키
 	SessionSettings.Set(FName("GAME_ID"), FString("ParcelKnight"), EOnlineDataAdvertisementType::ViaOnlineService);
@@ -122,26 +128,54 @@ void USessionSubsystem::FindSessions()
 
 void USessionSubsystem::JoinSession(int32 SessionIndex)
 {
-	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex)) return;
+    if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex)) 
+      return;
+    StartJoinSession(SessionSearch->SearchResults[SessionIndex]);
+}
 
-	if (bIsOperationInProgress)
-		CancelCurrentOperation();
 
-	if (UWorld* World = GetWorld())
-		World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
-	bIsOperationInProgress = true;
-	CurrentOperation = ESessionOperation::Joining;
+bool USessionSubsystem::JoinSessionResult(const FOnlineSessionSearchResult& SessionResult)
+{
+    return StartJoinSession(SessionResult);
+}
 
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) { CancelCurrentOperation(); return; }
+bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& SessionResult)
+{
+    if (!SessionResult.IsValid()) { OnSessionJoinComplete.Broadcast(false); return false; }
 
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
+    if (bIsOperationInProgress)
+        CancelCurrentOperation();
 
-	JoinSessionHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
-		FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnJoinSessionComplete)
-	);
-	Sessions->JoinSession(0, NAME_GameSession, SessionSearch->SearchResults[SessionIndex]);
+    if (UWorld* World = GetWorld())
+        World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
+    bIsOperationInProgress = true;
+    CurrentOperation = ESessionOperation::Joining;
+
+    IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+    if (!OSS) { CancelCurrentOperation(); return false; }
+
+    IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
+    if (!Sessions.IsValid()) { CancelCurrentOperation(); return false; }
+
+    if (JoinSessionHandle.IsValid())
+    {
+        Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
+        JoinSessionHandle.Reset();
+    }
+
+    JoinSessionHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
+        FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnJoinSessionComplete)
+    );
+
+    if (!Sessions->JoinSession(0, NAME_GameSession, SessionResult))
+    {
+        Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
+        JoinSessionHandle.Reset();
+        CancelCurrentOperation();
+        return false;
+    }
+
+    return true;
 }
 
 void USessionSubsystem::DestroySession()
@@ -189,6 +223,58 @@ int32 USessionSubsystem::GetSessionPlayerCount(int32 Index) const
 	return Session.SessionSettings.NumPublicConnections - Session.NumOpenPublicConnections;
 }
 
+bool USessionSubsystem::CanInviteToCurrentSession() const
+{
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	if (!OSS || !GetWorld() || GetWorld()->GetNetMode() == NM_Client)
+	{
+		return false;
+	}
+
+	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
+	if (!Sessions.IsValid())
+	{
+		return false;
+	}
+
+	FNamedOnlineSession* NamedSession = Sessions->GetNamedSession(NAME_GameSession);
+	if (!NamedSession || !NamedSession->SessionSettings.bAllowInvites)
+	{
+		return false;
+	}
+
+	const EOnlineSessionState::Type SessionState = Sessions->GetSessionState(NAME_GameSession);
+	if (SessionState == EOnlineSessionState::NoSession || SessionState == EOnlineSessionState::Destroying)
+	{
+		return false;
+	}
+
+	IOnlineIdentityPtr Identity = OSS->GetIdentityInterface();
+	const TSharedPtr<const FUniqueNetId> LocalUserId = Identity.IsValid() ? Identity->GetUniquePlayerId(0) : nullptr;
+	if (LocalUserId.IsValid() && NamedSession->OwningUserId.IsValid())
+	{
+		return *LocalUserId == *NamedSession->OwningUserId;
+	}
+
+	// 일부 로컬/개발 OSS는 소유자 ID를 채우지 않으므로 listen host 여부를 안전한 fallback으로 사용합니다.
+	return GetWorld()->GetNetMode() == NM_ListenServer;
+}
+
+bool USessionSubsystem::SendSessionInviteToFriend(
+	APlayerController* PlayerController,
+	const FBPUniqueNetId& FriendUniqueNetId) const
+{
+	if (!PlayerController || !PlayerController->IsLocalController() ||
+		!CanInviteToCurrentSession() || !FriendUniqueNetId.IsValid())
+	{
+		return false;
+	}
+
+	EBlueprintResultSwitch Result = EBlueprintResultSwitch::OnFailure;
+	UAdvancedFriendsLibrary::SendSessionInviteToFriend(PlayerController, FriendUniqueNetId, Result);
+	return Result == EBlueprintResultSwitch::OnSuccess;
+}
+
 //---------------세션 컴플리트----------------------------------------------------------
 
 void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
@@ -231,7 +317,9 @@ void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionC
 	if (!Sessions.IsValid()) return;
 
 	Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
+	JoinSessionHandle.Reset();
 	ClearOperationState();
+  
 	OnSessionJoinComplete.Broadcast(Result == EOnJoinSessionCompleteResult::Success);
 	if (Result == EOnJoinSessionCompleteResult::Success)
 	{

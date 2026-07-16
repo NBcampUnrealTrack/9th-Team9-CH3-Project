@@ -2,6 +2,7 @@
 #include "ParcelLog.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Delivery/DeliveryBox.h"
 #include "Delivery/DeliverySubsystem.h"
 #include "Core/ParcelGameState.h"
@@ -19,12 +20,23 @@ ADeliveryZone::ADeliveryZone()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 
+	TruckMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TruckMesh"));
+	RootComponent = TruckMesh;
+
 	ZoneMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ZoneMesh"));
-	RootComponent = ZoneMesh;
+	ZoneMesh->SetupAttachment(RootComponent);
 
 	OverlapVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("OverlapVolume"));
 	OverlapVolume->SetupAttachment(RootComponent);
 	OverlapVolume->SetCollisionProfileName(TEXT("Trigger"));
+
+	// 구역 확인용 텍스트 비주얼라이저 생성 및 기본 속성 배치
+	ZoneTextVisualizer = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ZoneTextVisualizer"));
+	ZoneTextVisualizer->SetupAttachment(RootComponent);
+	ZoneTextVisualizer->SetRelativeLocation(FVector(0.f, 0.f, 400.f)); // 트럭의 상단 머리 위에 위치
+	ZoneTextVisualizer->SetHorizontalAlignment(EHTA_Center);
+	ZoneTextVisualizer->SetWorldSize(150.f); // 텍스트 크기
+	ZoneTextVisualizer->TextRenderColor = FColor::White;
 }
 
 void ADeliveryZone::BeginPlay()
@@ -165,5 +177,52 @@ void ADeliveryZone::ProcessDelivery(ADeliveryBox* Box)
 	if (UDeliverySubsystem* DeliverySubsystem = GetWorld()->GetSubsystem<UDeliverySubsystem>())
 	{
 		DeliverySubsystem->DespawnBox(Box);
+	}
+}
+
+void ADeliveryZone::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	if (ZoneTextVisualizer)
+	{
+		if (ZoneTag.IsValid())
+		{
+			FString TagName = ZoneTag.ToString();
+			FString DisplayName;
+			
+			// "Zone.Type.A" 형태의 태그 문자열에서 점(".") 뒷부분의 단어 추출 ("A", "B", "C", "Emergency" 등)
+			if (TagName.Split(TEXT("."), nullptr, &DisplayName, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+			{
+				ZoneTextVisualizer->SetText(FText::FromString(DisplayName));
+			}
+			else
+			{
+				ZoneTextVisualizer->SetText(FText::FromString(TagName));
+			}
+
+			// 구역 종류별 맞춤 색상 자동 매핑 (상자 색상과 1:1 매칭 지원)
+			if (TagName.Contains(TEXT("A")))
+			{
+				ZoneTextVisualizer->SetTextRenderColor(FColor::Red);
+			}
+			else if (TagName.Contains(TEXT("B")))
+			{
+				ZoneTextVisualizer->SetTextRenderColor(FColor::Green);
+			}
+			else if (TagName.Contains(TEXT("C")))
+			{
+				ZoneTextVisualizer->SetTextRenderColor(FColor::Cyan);
+			}
+			else
+			{
+				ZoneTextVisualizer->SetTextRenderColor(FColor::Orange); // 긴급(Emergency) 등
+			}
+		}
+		else
+		{
+			ZoneTextVisualizer->SetText(FText::FromString(TEXT("No Zone Tag Specified")));
+			ZoneTextVisualizer->SetTextRenderColor(FColor::White);
+		}
 	}
 }

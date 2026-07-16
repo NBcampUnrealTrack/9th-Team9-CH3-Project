@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
 #include "GameplayTagContainer.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "ParcelGameInstance.generated.h"
 
 class UParcelSaveGame;
@@ -20,6 +21,7 @@ class PARCEL_KNIGHT_API UParcelGameInstance : public UGameInstance
 
 public:
 	virtual void Init() override;
+	virtual void Shutdown() override;
 
 	// ========================= 저장 / 불러오기 =========================
 
@@ -96,7 +98,15 @@ public:
 	FGameplayTag GetEquippedEffect() const;
 
 private:
+	void HandleSessionInviteAccepted(
+		bool bWasSuccessful,
+		int32 ControllerId,
+		FUniqueNetIdPtr UserId,
+		const FOnlineSessionSearchResult& InviteResult);
+
 	static const FString SaveSlotName;
+
+	FDelegateHandle SessionInviteAcceptedHandle;
 
 	// 런타임 캐시 — SaveGame 데이터를 메모리에 올려둔 복사본
 	int32 Money = 0;

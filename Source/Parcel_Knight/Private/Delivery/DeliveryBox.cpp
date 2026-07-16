@@ -8,6 +8,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Materials/MaterialInterface.h"
 #include "Core/HealthComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -24,6 +25,10 @@ ADeliveryBox::ADeliveryBox()
 	CollisionComponent->SetSimulatePhysics(true);
 	CollisionComponent->SetCollisionProfileName(TEXT("PhysicsBody"));
 	CollisionComponent->SetNotifyRigidBodyCollision(true);
+	
+	// 상자가 가볍게 붕 뜨거나 무한히 굴러다니는 현상을 제어하기 위해 선형/회전 감쇄 적용
+	CollisionComponent->SetLinearDamping(0.8f);
+	CollisionComponent->SetAngularDamping(1.0f);
 	
 	BoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoxMesh"));
 	BoxMesh->SetupAttachment(RootComponent);
@@ -50,6 +55,12 @@ void ADeliveryBox::BeginPlay()
 		if (BoxStateTags.IsEmpty())
 		{
 			BoxStateTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
+		}
+
+		// 에디터 직접 배치 상자도 에디터 및 뷰포트 물리 시뮬레이션 시 무게 적용되도록 처리
+		if (CollisionComponent)
+		{
+			CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 3.0f, true);
 		}
 
 		// 에디터 배치용 테스트 상자도 생성 시점에 체력 컴포넌트 값을 안전하게 초기화해 줍니다.
@@ -92,8 +103,8 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 	if (BoxData.BoxMeshAsset && BoxMesh && CollisionComponent)
 	{
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
-		// 무게 적용 (밸런싱 수치 조절 (현재 1.0f))
-		CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 1.0f, true);
+		// 무게 적용 (밸런싱 무게 3.0배 가중치 세팅으로 묵직하게 조절)
+		CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 3.0f, true);
 	}
 	
 	// 목적지 구역에 맞는 색상 머티리얼 적용
@@ -305,6 +316,9 @@ void ADeliveryBox::HandleOnDeath()
 {
 	if (!HasAuthority()) return;
 
+	// 모든 클라이언트들에게 파손 소멸 이펙트 재생 요청
+	Multicast_PlayDestroyEffect();
+
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
 
 	if (UWorld* World = GetWorld())
@@ -331,4 +345,18 @@ bool ADeliveryBox::IsInvulnerable() const
 		return (World->GetTimeSeconds() - SpawnTime) < 0.5f;
 	}
 	return false;
+}
+
+void ADeliveryBox::Multicast_PlayDestroyEffect_Implementation()
+{
+	if (DestroyEffect)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			this,
+			DestroyEffect,
+			GetActorLocation(),
+			GetActorRotation(),
+			FVector(1.0f) // 이펙트 크기 스케일 (필요 시 조절 가능)
+		);
+	}
 }
