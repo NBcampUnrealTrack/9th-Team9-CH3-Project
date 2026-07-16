@@ -7,6 +7,8 @@
 #include "Character/ParcelCharacter.h"
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Character/CharacterCarryComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Engine/World.h"
 
@@ -136,6 +138,29 @@ void URagdollComponent::Multicast_SetRagdoll_Implementation(bool bNewIsRagdoll)
     else               ApplyStopRagdoll();
 }
 
+void URagdollComponent::AttemptAutoRecovery()
+{
+    if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter) return;
+
+    // 상태이상이 활성화 중이면 2초 후 재시도
+    if (UDFStatusEffectComponent* StatusComp = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
+    {
+        if (StatusComp->HasActiveStatusEffect())
+        {
+            GetWorld()->GetTimerManager().SetTimer(
+                AutoRecoveryTimerHandle,
+                this,
+                &URagdollComponent::AttemptAutoRecovery,
+                2.0f,
+                false
+            );
+            return;
+        }
+    }
+
+    StopRagdoll();
+}
+
 void URagdollComponent::ApplyStartRagdoll()
 {
     if (!OwnerCharacter)
@@ -180,6 +205,22 @@ void URagdollComponent::ApplyStartRagdoll()
                 StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting")));
             }
         }
+
+        // 래그돌 진입 시 들고 있던 상자 강제 드롭
+        if (UCharacterCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCharacterCarryComponent>())
+        {
+            if (CarryComp->IsCarrying())
+                CarryComp->Drop();
+        }
+
+        // 상태이상이 없으면 AutoRecoveryDelay 초 후 강제 기상 시도
+        GetWorld()->GetTimerManager().SetTimer(
+            AutoRecoveryTimerHandle,
+            this,
+            &URagdollComponent::AttemptAutoRecovery,
+            AutoRecoveryDelay,
+            false
+        );
     }
 
     // 4. AnimBP 상태 갱신 — Multicast로 모든 클라이언트에서 호출되므로 직접 설정
@@ -251,7 +292,7 @@ void URagdollComponent::ApplyStopRagdoll()
        Movement->SetMovementMode(MOVE_Walking);
     }
     
-    // 6. [서버 권한] 기절 상태 완료 태그 제거
+    // 6. [서버 권한] 기절 상태 완료 태그 제거 및 자동 기상 타이머 정리
     if (GetOwner()->HasAuthority())
     {
        if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
@@ -259,8 +300,11 @@ void URagdollComponent::ApplyStopRagdoll()
           if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
           {
              StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
+             // 래그돌 중 Landed()가 호출되지 않아 InAir 태그가 잔류하는 경우 강제 제거
+             StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir")));
           }
        }
+       GetWorld()->GetTimerManager().ClearTimer(AutoRecoveryTimerHandle);
     }
 
     // 7. AnimBP 상태 갱신
