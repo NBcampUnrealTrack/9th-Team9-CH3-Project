@@ -9,6 +9,7 @@
 #include "Character/ParcelCharacter.h"
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Character/ParcelStaminaComponent.h"
 #include "Delivery/DeliveryBox.h"
 #include "GameFramework/Pawn.h"
 
@@ -28,6 +29,7 @@ void UParcelHUDWidget::TryBindUIEvents()
 	bool bComboBound = false;
 	bool bCharacterStateBound = false;
 	bool bHeroBound = false;
+	bool bStaminaBound = false;
 	
 	// GameState와 TeamScore 바인딩
 	if (!CachedGameState.IsValid())
@@ -114,10 +116,19 @@ void UParcelHUDWidget::TryBindUIEvents()
 			HandleOnThrowChargeChanged(HeroComp->IsChargingThrow(), HeroComp->GetThrowChargeRatio());
 			bHeroBound = true;
 		}
+		
+		// 스태미나 바인딩
+		if (UParcelStaminaComponent* StaminaComp = OwningPawn->FindComponentByClass<UParcelStaminaComponent>())
+		{
+			StaminaComp->OnStaminaChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnStaminaChanged);
+			StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnStaminaChanged);
+			HandleOnStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
+			bStaminaBound = true;
+		}
 	}
 	
 	// 4. 멀티플레이 안전장치
-	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && bComboBound && bCharacterStateBound && bHeroBound)
+	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
 		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
@@ -273,4 +284,9 @@ void UParcelHUDWidget::HandleOnCharacterStateChanged(const FGameplayTagContainer
 void UParcelHUDWidget::HandleOnThrowChargeChanged(bool bIsCharging, float ChargeRatio)
 {
 	K2_OnThrowChargeChanged(bIsCharging, ChargeRatio);
+}
+
+void UParcelHUDWidget::HandleOnStaminaChanged(float CurrentStamina, float MaxStamina)
+{
+	K2_OnStaminaChanged(CurrentStamina, MaxStamina);
 }
