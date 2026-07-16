@@ -8,6 +8,7 @@
 class UBoxComponent;
 class UStaticMeshComponent;
 class ADeliveryBox;
+class UTextRenderComponent;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryZone : public AActor
@@ -17,6 +18,9 @@ class PARCEL_KNIGHT_API ADeliveryZone : public AActor
 public: 
 	ADeliveryZone();
 
+public:
+	virtual void OnConstruction(const FTransform& Transform) override;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -25,6 +29,12 @@ public:
 	FGameplayTag ZoneTag;
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Delivery | Components")
+	TObjectPtr<UStaticMeshComponent> TruckMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Delivery | Components")
+	TObjectPtr<UTextRenderComponent> ZoneTextVisualizer;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Delivery | Components")
 	TObjectPtr<UBoxComponent> OverlapVolume;
 
