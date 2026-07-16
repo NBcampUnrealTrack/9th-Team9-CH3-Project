@@ -12,6 +12,7 @@ class UBoxComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UHealthComponent;
+class UNiagaraSystem;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -107,6 +108,14 @@ protected:
 	// 각 구역 태그별로 머티리얼을 매핑할 수 있는 맵 (A, B, C 구역별 색상 지정용)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Material")
 	TMap<FGameplayTag, TObjectPtr<UMaterialInterface>> ZoneMaterials;
+
+	// 상자 파손 소멸 시 재생할 나이아가라 이펙트
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
+	TObjectPtr<UNiagaraSystem> DestroyEffect;
+
+	// 모든 클라이언트에서 나이아가라 이펙트 재생을 위한 멀티캐스트 RPC
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayDestroyEffect();
 
 private:
 	// 상자 목적지 구역 태그에 맞춰 머티리얼을 동적으로 적용합니다.
