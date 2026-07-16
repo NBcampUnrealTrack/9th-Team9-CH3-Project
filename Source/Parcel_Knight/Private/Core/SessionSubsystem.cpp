@@ -5,13 +5,66 @@
 #include "OnlineSubsystemUtils.h"
 #include "Online/OnlineSessionNames.h"
 
+void USessionSubsystem::ClearOperationState()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(OperationTimeoutHandle);
+	bIsOperationInProgress = false;
+	CurrentOperation = ESessionOperation::None;
+}
+
+void USessionSubsystem::CancelCurrentOperation()
+{
+	// 등록된 OSS 델리게이트 먼저 해제 — 취소 후 구 콜백이 재발동되지 않도록
+	if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
+	{
+		if (IOnlineSessionPtr Sessions = OSS->GetSessionInterface())
+		{
+			switch (CurrentOperation)
+			{
+			case ESessionOperation::Creating: Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle); break;
+			case ESessionOperation::Finding:  Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsHandle);  break;
+			case ESessionOperation::Joining:  Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);    break;
+			default: break;
+			}
+		}
+	}
+
+	const ESessionOperation Op = CurrentOperation;
+	ClearOperationState();
+
+	switch (Op)
+	{
+	case ESessionOperation::Creating: OnSessionCreateComplete.Broadcast(false); break;
+	case ESessionOperation::Finding:  OnSessionFindComplete.Broadcast(false);   break;
+	case ESessionOperation::Joining:  OnSessionJoinComplete.Broadcast(false);   break;
+	default: break;
+	}
+}
+
+void USessionSubsystem::OnOperationTimeout()
+{
+	if (!bIsOperationInProgress) return;
+	CancelCurrentOperation();
+}
+
 void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 {
+	// 다른 작업 중이면 취소; 이미 Creating 중인 경우(Destroy→Create 내부 재진입)는 그대로 유지
+	if (bIsOperationInProgress && CurrentOperation != ESessionOperation::Creating)
+		CancelCurrentOperation();
+
+	// Creating 상태로 진입 (재진입 시 타이머 재시작)
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
+	bIsOperationInProgress = true;
+	CurrentOperation = ESessionOperation::Creating;
+
 	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	if (!OSS) { CancelCurrentOperation(); return; }
 
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
+	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
 
 	// 동일 이름 세션이 이미 있으면 파괴 후 자동 재생성 (OnDestroySessionComplete에서 이어받음)
 	if (Sessions->GetNamedSession(NAME_GameSession))
@@ -28,6 +81,7 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 	SessionSettings.NumPublicConnections = NumPublicConnections;
 	SessionSettings.bShouldAdvertise = true;
 	SessionSettings.bUsesPresence = true;
+	SessionSettings.bUseLobbiesIfAvailable = true;
 	SessionSettings.bAllowJoinInProgress = true;
 	// AppId 480(SpaceWar) 공용 테스트 환경에서 다른 팀 세션과 구분하기 위한 식별 키
 	SessionSettings.Set(FName("GAME_ID"), FString("ParcelKnight"), EOnlineDataAdvertisementType::ViaOnlineService);
@@ -40,11 +94,19 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 
 void USessionSubsystem::FindSessions()
 {
+	if (bIsOperationInProgress)
+		CancelCurrentOperation();
+
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
+	bIsOperationInProgress = true;
+	CurrentOperation = ESessionOperation::Finding;
+
 	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	if (!OSS) { CancelCurrentOperation(); return; }
 
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
+	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
 
 	SessionSearch = MakeShared<FOnlineSessionSearch>();
 	SessionSearch->MaxSearchResults = 10;
@@ -62,11 +124,19 @@ void USessionSubsystem::JoinSession(int32 SessionIndex)
 {
 	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex)) return;
 
+	if (bIsOperationInProgress)
+		CancelCurrentOperation();
+
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
+	bIsOperationInProgress = true;
+	CurrentOperation = ESessionOperation::Joining;
+
 	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	if (!OSS) { CancelCurrentOperation(); return; }
 
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
+	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
 
 	JoinSessionHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
 		FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnJoinSessionComplete)
@@ -128,15 +198,15 @@ void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSucc
 
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
 	if (!Sessions.IsValid()) return;
-	
+
 	Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle);
+	ClearOperationState();
 	OnSessionCreateComplete.Broadcast(bWasSuccessful);
 	// 이미 다른 세션의 클라이언트로 연결된 상태에서는 ServerTravel이 유효하지 않으므로 제외
 	if (bWasSuccessful && GetWorld()->GetNetMode() != NM_Client)
 		// GameInstance의 PendingMapPath 읽어서 이동 — UI에서 SetPendingMapPath로 사전 설정
 		if (UParcelGameInstance* GI = Cast<UParcelGameInstance>(GetGameInstance()))
 			GetWorld()->ServerTravel(GI->GetPendingMapPath() + "?listen");
-	
 }
 
 void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
@@ -146,11 +216,10 @@ void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
 	if (!Sessions.IsValid()) return;
-	
+
 	Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsHandle);
+	ClearOperationState();
 	OnSessionFindComplete.Broadcast(bWasSuccessful);
-	
-	
 }
 
 void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
@@ -160,9 +229,9 @@ void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionC
 
 	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
 	if (!Sessions.IsValid()) return;
-	
+
 	Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
-	
+	ClearOperationState();
 	OnSessionJoinComplete.Broadcast(Result == EOnJoinSessionCompleteResult::Success);
 	if (Result == EOnJoinSessionCompleteResult::Success)
 	{
@@ -174,8 +243,6 @@ void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionC
 			if (PC) PC->ClientTravel(TravelURL, ETravelType::TRAVEL_Absolute);
 		}
 	}
-	
-	
 }
 
 void USessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
