@@ -16,6 +16,7 @@ class UDFStatusEffectComponent;
 class UDFKnockbackComponent;
 class UAnimMontage;
 class UWidgetComponent;
+class UParcelStaminaComponent;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
 // 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원
@@ -106,6 +107,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UWidgetComponent> NameplateWidgetComp;
 	
+	// Stamina Component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+	TObjectPtr<UParcelStaminaComponent> StaminaComp;
+	
 	void UpdateOverheadNameplate();
 	
 	FTimerHandle NameplateRetryTimerHandle;
@@ -138,4 +143,6 @@ public:
 	FORCEINLINE UDFStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 	UFUNCTION(BlueprintPure, Category = "Components")
 	FORCEINLINE UDFKnockbackComponent* GetKnockbackComponent() const { return KnockbackComponent; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelStaminaComponent* GetParcelStaminaComponent() const { return StaminaComp; }
 };

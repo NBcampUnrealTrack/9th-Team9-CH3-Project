@@ -281,6 +281,18 @@ void UParcelHeroComponent::StartSprint(const FInputActionValue& Value)
 
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     if (!CanProcessLocalInput() || (RagdollComp && RagdollComp->IsRagdoll())) return;
+    
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Exhausted"))))
+            {
+                HEROCOMP_LOG(Warning, TEXT("탈진 상태(Exhausted). 스프린트 불가."));
+                return;
+            }
+        }
+    }
 
     ApplySprintSpeed(true);
     if (!Character->HasAuthority()) ServerSetSprinting(true);
@@ -400,6 +412,21 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
 
 void UParcelHeroComponent::ServerSetSprinting_Implementation(bool bNewIsSprinting)
 {
+    if (bNewIsSprinting)
+    {
+        if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner()))
+        {
+            if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+            {
+                if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Exhausted"))))
+                {
+                    HEROCOMP_LOG(Warning, TEXT("[Server] %s 가 탈진 중 스프린트 패킷을 발송."), *ParcelChar->GetName());
+                    return;
+                }
+            }
+        }
+    }
+    
     HEROCOMP_LOG(Log, TEXT("[Server] 클라이언트의 요청으로 달리기 상태 변경 적용: %s"), bNewIsSprinting ? TEXT("True") : TEXT("False"));
     ApplySprintSpeed(bNewIsSprinting);
 }

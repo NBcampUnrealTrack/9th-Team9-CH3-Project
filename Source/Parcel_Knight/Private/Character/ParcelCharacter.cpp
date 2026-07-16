@@ -6,6 +6,7 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Character/ParcelStaminaComponent.h"
 #include "Components/DFKnockbackComponent.h"
 #include "Components/DFStatusEffectComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -53,6 +54,7 @@ AParcelCharacter::AParcelCharacter()
 	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
 	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
 	CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
+	StaminaComp = CreateDefaultSubobject<UParcelStaminaComponent>(TEXT("StaminaComp"));
 	NameplateWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("NameplateWidgetComp"));
 	if (NameplateWidgetComp)
 	{

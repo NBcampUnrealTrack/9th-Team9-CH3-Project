@@ -49,6 +49,9 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnThrowChargeChanged(bool bIsCharging, float ChargeRatio);
 	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnStaminaChanged(float CurrentStamina, float MaxStamina);
+	
 private:
 	
 	UFUNCTION()
@@ -72,6 +75,9 @@ private:
 	
 	UFUNCTION()
 	void HandleOnThrowChargeChanged(bool bIsCharging, float ChargeRatio);
+	
+	UFUNCTION()
+	void HandleOnStaminaChanged(float CurrentStamina, float MaxStamina);
 	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
