@@ -38,6 +38,8 @@ ADeliveryBox::ADeliveryBox()
 void ADeliveryBox::BeginPlay()
 {
 	Super::BeginPlay();
+
+	SpawnTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	
 	// 원래 서브시스템에서 스폰되어야 하는데, 에디터에서 직접 드래그해서 배치하는 경우 사용할 값
 	if (BoxID == -1)
@@ -49,11 +51,22 @@ void ADeliveryBox::BeginPlay()
 		{
 			BoxStateTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 		}
+
+		// 에디터 배치용 테스트 상자도 생성 시점에 체력 컴포넌트 값을 안전하게 초기화해 줍니다.
+		if (HealthComponent)
+		{
+			HealthComponent->InitializeHP(BoxData.DamageThreshold);
+		}
 	}
 	
 	if (HasAuthority() && CollisionComponent)
 	{
 		CollisionComponent->OnComponentHit.AddDynamic(this, &ADeliveryBox::OnPhysicsHit);
+	}
+
+	if (HasAuthority() && HealthComponent)
+	{
+		HealthComponent->OnDeathDelegate.AddDynamic(this, &ADeliveryBox::HandleOnDeath);
 	}
 }
 
@@ -70,6 +83,8 @@ void ADeliveryBox::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 {
 	if (!HasAuthority()) return;
+
+	SpawnTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 
 	BoxID = InBoxID;
 	BoxData = InBoxData;
@@ -205,6 +220,9 @@ void ADeliveryBox::OnPickedUp_Implementation(AActor* Carrier)
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
+
+	// 플레이어가 최초로 주워 들었으므로 이제 무적 처리를 해제할 수 있습니다.
+	bHasBeenPickedUp = true;
 }
 
 void ADeliveryBox::OnDropped_Implementation()
@@ -225,6 +243,7 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	if (!HasAuthority()) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")))) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")))) return;
+	if (IsInvulnerable()) return;
 
 	// 언리얼의 NormalImpulse를 그대로 사용하면 상자가 너무 쉽게 부서짐. 따라서 순간 속도 변화량을 역계산하여 사용.
 	float ImpactImpulse = NormalImpulse.Size();
@@ -280,4 +299,36 @@ void ADeliveryBox::ApplyZoneMaterial()
 				BoxID, *BoxData.TargetZoneTag.ToString());
 		}
 	}
+}
+
+void ADeliveryBox::HandleOnDeath()
+{
+	if (!HasAuthority()) return;
+
+	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
+		{
+			JudgeManager->OnBoxDamaged.Broadcast(this);
+		}
+	}
+
+	DELIVERYBOX_LOG(Warning, TEXT("[Server] 상자 ID %d번 체력(HP)이 0이 되어 맵에서 소멸 처리되었습니다."), BoxID);
+
+	// 상자를 파손 즉시 맵에서 소멸시킴
+	Destroy();
+}
+
+bool ADeliveryBox::IsInvulnerable() const
+{
+	// 플레이어가 상자를 최소 한 번 집어 올리기 전까지는 월드 물리/함정 충격 대미지에 대해 100% 무적 처리
+	if (!bHasBeenPickedUp) return true;
+
+	if (UWorld* World = GetWorld())
+	{
+		return (World->GetTimeSeconds() - SpawnTime) < 0.5f;
+	}
+	return false;
 }
