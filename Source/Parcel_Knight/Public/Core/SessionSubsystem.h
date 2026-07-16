@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Interfaces/OnlineSessionInterface.h"
 #include "OnlineSessionSettings.h"
+#include "BlueprintDataDefinitions.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "SessionSubsystem.generated.h"
 
@@ -53,6 +54,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void JoinSession(int32 SessionIndex);
 
+	// Steam 초대 수락으로 전달된 검색 결과를 기존 JoinSession 완료/이동 흐름에 연결합니다.
+	bool JoinSessionResult(const FOnlineSessionSearchResult& SessionResult);
+
 	UFUNCTION(BlueprintCallable)
 	void DestroySession();
 
@@ -68,8 +72,15 @@ public:
 	
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	int32 GetSessionPlayerCount(int32 Index) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	bool CanInviteToCurrentSession() const;
+
+	bool SendSessionInviteToFriend(APlayerController* PlayerController, const FBPUniqueNetId& FriendUniqueNetId) const;
 	
 private:
+	bool StartJoinSession(const FOnlineSessionSearchResult& SessionResult);
+
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnFindSessionsComplete(bool bWasSuccessful);
 	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
