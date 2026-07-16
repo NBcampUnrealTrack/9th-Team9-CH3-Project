@@ -12,6 +12,7 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
@@ -23,6 +24,8 @@ UParcelHeroComponent::UParcelHeroComponent()
     
     // [Server] : 컴포넌트에서 Server RPC 가동
     SetIsReplicatedByDefault(true);
+    
+    MouseSensitivity = 1.0f;
 
     // 카메라
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -168,6 +171,11 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
        EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::ReleaseThrow);
     }
     
+    if (InGameMenuAction)
+    {
+        EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+    }
+    
     HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
@@ -205,7 +213,8 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    const FVector2D LookValue = Value.Get<FVector2D>();
+    const FVector2D LookValue = Value.Get<FVector2D>() * MouseSensitivity;
+    
     Character->AddControllerYawInput(LookValue.X);
     Character->AddControllerPitchInput(LookValue.Y);
 }
@@ -576,6 +585,36 @@ void UParcelHeroComponent::ApplyJumpTag(bool bNewIsJumping)
                 StateComp->RemoveStateTag(JumpTag);
                 HEROCOMP_LOG(Log, TEXT("[Server] 캐릭터의 'Character.Action.Jump' 태그 제거."));
             }
+        }
+    }
+}
+
+void UParcelHeroComponent::ToggleInGameMenu()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[ESC Test] ToggleInGameMenu 함수가 정상적으로 호출되었습니다!"));
+
+    if (!CanProcessLocalInput()) return;
+
+    ACharacter* OwnerChar = Cast<ACharacter>(GetOwner());
+    if (!OwnerChar) return;
+
+    APlayerController* PC = Cast<APlayerController>(OwnerChar->GetController());
+    if (!PC) return;
+    
+    if (ESCMenuRef && ESCMenuRef->IsValidLowLevel() && ESCMenuRef->IsInViewport())
+    {
+        ESCMenuRef->K2_OnMenuCloseStarted(); 
+        ESCMenuRef = nullptr;
+        return;
+    }
+    
+    if (ESCMenuClass)
+    {
+        ESCMenuRef = CreateWidget<UParcelInGameESCMenuWidget>(PC, ESCMenuClass);
+        if (ESCMenuRef)
+        {
+            ESCMenuRef->AddToViewport();
+            ESCMenuRef->SetupMenu();
         }
     }
 }
