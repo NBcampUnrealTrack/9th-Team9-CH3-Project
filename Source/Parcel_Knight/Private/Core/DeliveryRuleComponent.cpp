@@ -53,51 +53,12 @@ void UDeliveryRuleComponent::StartRound(UStageData* InStageData)
 		false
 	);
 
-	// 서브시스템 초기화 + 레벨 배치 스폰 포인트 기반 상자 스폰
+	// 서브시스템 초기화
 	UDeliverySubsystem* DeliverySubsystem = GetWorld()->GetSubsystem<UDeliverySubsystem>();
-	if (!DeliverySubsystem) return;
-
-	DeliverySubsystem->InitializeStage(CurrentStageData);
-
-	TArray<ADeliveryBoxSpawner*> SpawnPoints;
-	for (ADeliveryBoxSpawner* Spawner : TActorRange<ADeliveryBoxSpawner>(GetWorld()))
+	if (DeliverySubsystem)
 	{
-		if (Spawner) SpawnPoints.Add(Spawner);
+		DeliverySubsystem->InitializeStage(CurrentStageData);
 	}
-
-	if (SpawnPoints.IsEmpty())
-	{
-		GAMERULE_LOG(Error, TEXT("[DeliveryRule] 레벨에 ADeliveryBoxSpawner가 없습니다. 임시 좌표에 스폰합니다."));
-	}
-
-	int32 SpawnPointIndex = 0;
-	int32 TotalSpawnedCount = 0;
-
-	for (const FStageBoxSpawnInfo& SpawnInfo : CurrentStageData->BoxDataList)
-	{
-		if (!SpawnInfo.BoxTypeTag.IsValid()) continue;
-
-		for (int32 i = 0; i < SpawnInfo.SpawnCount; ++i)
-		{
-			FVector SpawnLocation;
-			FRotator SpawnRotation = FRotator::ZeroRotator;
-
-			if (SpawnPoints.IsValidIndex(SpawnPointIndex))
-			{
-				SpawnLocation = SpawnPoints[SpawnPointIndex]->GetActorLocation();
-				SpawnRotation = SpawnPoints[SpawnPointIndex]->GetActorRotation();
-				SpawnPointIndex++;
-			}
-			else
-			{
-				SpawnLocation = FVector(0.f, 0.f, 400.f) + FVector(i * 100.f, 0.f, 0.f);
-			}
-
-			if (DeliverySubsystem->SpawnBox(SpawnInfo.BoxTypeTag, SpawnLocation, SpawnRotation))
-				TotalSpawnedCount++;
-		}
-	}
-	GAMERULE_LOG(Log, TEXT("[DeliveryRule] 총 %d개 상자 스폰 완료"), TotalSpawnedCount);
 }
 
 void UDeliveryRuleComponent::EndRound()

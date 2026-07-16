@@ -10,15 +10,78 @@
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Character/ParcelStaminaComponent.h"
+#include "Components/Button.h"
 #include "Delivery/DeliveryBox.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
+#include "UI/ParcelFriendListWidget.h"
 
 DEFINE_LOG_CATEGORY(LogInGameHUD);
 
 void UParcelHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+
+	if (FriendButton)
+	{
+		FriendButton->OnClicked.RemoveDynamic(this, &UParcelHUDWidget::ToggleFriendList);
+		FriendButton->OnClicked.AddDynamic(this, &UParcelHUDWidget::ToggleFriendList);
+	}
+
 	TryBindUIEvents();
+}
+
+void UParcelHUDWidget::NativeDestruct()
+{
+	if (FriendButton)
+	{
+		FriendButton->OnClicked.RemoveDynamic(this, &UParcelHUDWidget::ToggleFriendList);
+	}
+
+	Super::NativeDestruct();
+}
+
+void UParcelHUDWidget::OpenFriendList()
+{
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!PlayerController || !PlayerController->IsLocalController() || !FriendListWidgetClass)
+	{
+		return;
+	}
+
+	if (!FriendListWidgetInstance)
+	{
+		FriendListWidgetInstance = CreateWidget<UParcelFriendListWidget>(
+			PlayerController,
+			FriendListWidgetClass);
+	}
+
+	if (!FriendListWidgetInstance)
+	{
+		return;
+	}
+
+	if (!FriendListWidgetInstance->IsInViewport())
+	{
+		FriendListWidgetInstance->AddToViewport(100);
+	}
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(FriendListWidgetInstance->TakeWidget());
+	InputMode.SetHideCursorDuringCapture(false);
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->bShowMouseCursor = true;
+}
+
+void UParcelHUDWidget::ToggleFriendList()
+{
+	if (FriendListWidgetInstance && FriendListWidgetInstance->IsInViewport())
+	{
+		FriendListWidgetInstance->CloseFriendList();
+		return;
+	}
+
+	OpenFriendList();
 }
 
 void UParcelHUDWidget::TryBindUIEvents()

@@ -112,20 +112,6 @@ void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
         float ChargeRatio = MaxThrowChargeTime > 0.f ? FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f) : 0.f;
         OnThrowChargeChanged.Broadcast(true, ChargeRatio);
         
-        if (GEngine)
-        {
-            int32 Percentage = FMath::RoundToInt(ChargeRatio * 100.f);
-            FString ProgressBar = TEXT("[");
-            int32 BarCount = Percentage / 10;
-            for (int32 i = 0; i < 10; ++i)
-            {
-                ProgressBar += (i < BarCount) ? TEXT("■") : TEXT("□");
-            }
-            ProgressBar += TEXT("]");
-
-            FString ChargeMsg = FString::Printf(TEXT("던지기 충전 중... %s %d%%"), *ProgressBar, Percentage);
-            GEngine->AddOnScreenDebugMessage(8888, 0.1f, FColor::Yellow, ChargeMsg);
-        }
     }
 
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();

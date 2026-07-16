@@ -1,6 +1,8 @@
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelSaveGame.h"
+#include "Core/SessionSubsystem.h"
 #include "Kismet/GameplayStatics.h"
+#include "OnlineSubsystem.h"
 
 const FString UParcelGameInstance::SaveSlotName = TEXT("PlayerSaveSlot");
 
@@ -10,6 +12,60 @@ void UParcelGameInstance::Init()
 {
 	Super::Init();
 	LoadData();
+
+	if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
+	{
+		const IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
+		if (Sessions.IsValid())
+		{
+			SessionInviteAcceptedHandle = Sessions->AddOnSessionUserInviteAcceptedDelegate_Handle(
+				FOnSessionUserInviteAcceptedDelegate::CreateUObject(
+					this,
+					&UParcelGameInstance::HandleSessionInviteAccepted));
+		}
+	}
+}
+
+void UParcelGameInstance::Shutdown()
+{
+	if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
+	{
+		const IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
+		if (Sessions.IsValid() && SessionInviteAcceptedHandle.IsValid())
+		{
+			Sessions->ClearOnSessionUserInviteAcceptedDelegate_Handle(SessionInviteAcceptedHandle);
+			SessionInviteAcceptedHandle.Reset();
+		}
+	}
+
+	Super::Shutdown();
+}
+
+void UParcelGameInstance::HandleSessionInviteAccepted(
+	bool bWasSuccessful,
+	int32 ControllerId,
+	FUniqueNetIdPtr UserId,
+	const FOnlineSessionSearchResult& InviteResult)
+{
+	if (!bWasSuccessful || !UserId.IsValid() || !InviteResult.IsValid())
+	{
+		return;
+	}
+
+	FOnlineSessionSearchResult SessionToJoin = InviteResult;
+
+	// AdvancedSessions 5.5의 UAdvancedFriendsGameInstance와 동일한 UE 5.5 Steam 보정입니다.
+	// listen session 초대 결과에 presence/lobby 플래그가 누락되는 엔진 케이스를 보완합니다.
+	if (!SessionToJoin.Session.SessionSettings.bIsDedicated)
+	{
+		SessionToJoin.Session.SessionSettings.bUsesPresence = true;
+		SessionToJoin.Session.SessionSettings.bUseLobbiesIfAvailable = true;
+	}
+
+	if (USessionSubsystem* SessionSubsystem = GetSubsystem<USessionSubsystem>())
+	{
+		SessionSubsystem->JoinSessionResult(SessionToJoin);
+	}
 }
 
 // ========================= 저장 / 불러오기 =========================
