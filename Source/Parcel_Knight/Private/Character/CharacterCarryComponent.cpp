@@ -17,7 +17,7 @@ UCharacterCarryComponent::UCharacterCarryComponent()
     CarriedBox = nullptr;
     bIsCarrying = false;
     MoveSpeedMultiplier = 1.0f;
-    HandSocketName = TEXT("HandSocket");
+    HandSocketName = TEXT("HandSocketName");
 }
 
 void UCharacterCarryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
