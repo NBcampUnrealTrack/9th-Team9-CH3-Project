@@ -234,7 +234,20 @@ void AParcelCharacter::OnRep_PlayerState()
 void AParcelCharacter::UpdateOverheadNameplate()
 {
 	APlayerState* PS = GetPlayerState();
-	if (!PS) return;
+	if (!PS)
+	{
+		if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
+		{
+			GetWorldTimerManager().SetTimer(
+				NameplateRetryTimerHandle, 
+				this, 
+				&AParcelCharacter::UpdateOverheadNameplate, 
+				0.1f, // 0.1초 뒤 다시 들어와서 PlayerState 검사
+				false
+			);
+		}
+		return;
+	}
 
 	if (NameplateWidgetComp)
 	{

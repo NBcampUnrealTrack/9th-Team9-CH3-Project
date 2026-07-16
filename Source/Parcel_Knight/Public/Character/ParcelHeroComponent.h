@@ -9,6 +9,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
+class UParcelInGameESCMenuWidget;
 
 // [UI] 던지기 충전 상태 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnThrowChargeChangedSignature, bool, bIsCharging, float, ChargeRatio);
@@ -43,6 +44,14 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category = "Carry|Throw")
 	FORCEINLINE float GetThrowChargeRatio() const { return MaxThrowChargeTime > 0.f ? FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f) : 0.f; }
+	
+	// [UI] 마우스 감도
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void SetMouseSensitivity(float NewSensitivity) { MouseSensitivity = NewSensitivity; }
+
+	UFUNCTION(BlueprintPure, Category = "Input")
+	float GetMouseSensitivity() const { return MouseSensitivity; }
+	
 	
 protected:
 	// 카메라 컴포넌트 (인게임에 시점 변경이 필요하다면 이것도 분리 가능)
@@ -109,6 +118,21 @@ protected:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera|Collision")
 	float CameraCollisionProbeSize = 18.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	float MouseSensitivity = 1.0f;
+	
+	// [UI] InGame ESC 버튼
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> InGameMenuAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
+	
+	void ToggleInGameMenu();
 	
 private:
 	// 달리기 기능을 위한 Server RPC
