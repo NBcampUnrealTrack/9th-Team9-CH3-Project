@@ -36,8 +36,8 @@ public:
 	void EndRound();
 
 	// 배달 성공/실패 진입점 — 다른 팀원 코드에서 이 함수만 호출
-	void OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount);
-	void OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount = 0);
+	void OnDeliveryCompleted(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount);
+	void OnDeliveryFailed(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount = 0);
 
 	// [All] 부활 컴포넌트 반환 — PlayerState::HandleDeath에서 사용
 	URespawnComponent* GetRespawnComponent() const;

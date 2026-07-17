@@ -13,6 +13,7 @@
 #include "GameFramework/GameMode.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogGameRule);
 
@@ -69,7 +70,7 @@ void UDeliveryRuleComponent::EndRound()
 
 // ========================= 배달 판정 =========================
 
-void UDeliveryRuleComponent::OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount)
+void UDeliveryRuleComponent::OnDeliveryCompleted(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount)
 {
 	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
 		->GetTeamScoreComponent();
@@ -88,11 +89,20 @@ void UDeliveryRuleComponent::OnDeliveryCompleted(APlayerController* Deliverer, i
 			PS->AddScore(ScoreAmount);
 		}
 	}
+	
+	if (Deliverer)
+	{
+		FString PlayerName = Deliverer->PlayerState ? Deliverer->PlayerState->GetPlayerName() : TEXT("알 수 없는 배달원");
+		if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
+		{
+			ParcelGS->Multicast_NotifyDeliveryLog(PlayerName, BoxName, true);
+		}
+	}
 
 	GAMERULE_LOG(Log, TEXT("[서버] 배달 성공 — Score: %d"), ScoreAmount);
 }
 
-void UDeliveryRuleComponent::OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount)
+void UDeliveryRuleComponent::OnDeliveryFailed(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount)
 {
 	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
 		->GetTeamScoreComponent();
@@ -115,6 +125,15 @@ void UDeliveryRuleComponent::OnDeliveryFailed(APlayerController* Deliverer, int3
 			{
 				PS->AddScore(ScoreAmount);
 			}
+		}
+	}
+	
+	if (Deliverer)
+	{
+		FString PlayerName = Deliverer->PlayerState ? Deliverer->PlayerState->GetPlayerName() : TEXT("알 수 없는 배달원");
+		if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
+		{
+			ParcelGS->Multicast_NotifyDeliveryLog(PlayerName, BoxName, false);
 		}
 	}
 

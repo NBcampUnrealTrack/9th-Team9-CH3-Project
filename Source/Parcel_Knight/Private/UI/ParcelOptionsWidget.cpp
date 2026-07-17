@@ -1,9 +1,9 @@
 #include "UI/ParcelOptionsWidget.h"
-
 #include "Character/ParcelHeroComponent.h"
 #include "Components/Slider.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Button.h"
+#include "Components/EditableTextBox.h"
 #include "GameFramework/GameUserSettings.h"
 
 void UParcelOptionsWidget::NativeConstruct()
@@ -16,6 +16,12 @@ void UParcelOptionsWidget::NativeConstruct()
     if (Slider_Sensitivity)
         Slider_Sensitivity->OnValueChanged.AddDynamic(this, &UParcelOptionsWidget::HandleSensitivityChanged);
     
+    if (Edit_Volume)
+        Edit_Volume->OnTextCommitted.AddDynamic(this, &UParcelOptionsWidget::HandleVolumeTextCommitted);
+
+    if (Edit_Sensitivity)
+        Edit_Sensitivity->OnTextCommitted.AddDynamic(this, &UParcelOptionsWidget::HandleSensitivityTextCommitted);
+    
     if (Btn_Apply)
         Btn_Apply->OnClicked.AddDynamic(this, &UParcelOptionsWidget::HandleApplyClicked);
     
@@ -27,24 +33,35 @@ void UParcelOptionsWidget::NativeConstruct()
 
 void UParcelOptionsWidget::InitializeSettings()
 {
+    float DefaultVolume = 0.8f;
     if (Slider_Volume)
-        Slider_Volume->SetValue(0.8f);
+    {
+        Slider_Volume->SetValue(DefaultVolume);
+    }
+    if (Edit_Volume)
+    {
+        Edit_Volume->SetText(FText::AsNumber(DefaultVolume));
+    }
     
+    float InitialSensitivity = 1.0f;
+    
+    if (APawn* OwningPawn = GetOwningPlayerPawn())
+    {
+        if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
+        {
+            InitialSensitivity = HeroComp->GetMouseSensitivity();
+        }
+    }
+
     if (Slider_Sensitivity)
     {
-        APawn* OwningPawn = GetOwningPlayerPawn();
-        if (OwningPawn)
-        {
-            UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>();
-            if (HeroComp)
-            {
-                Slider_Sensitivity->SetValue(HeroComp->GetMouseSensitivity());
-            }
-        }
-        else
-        {
-            Slider_Sensitivity->SetValue(1.0f);
-        }
+        Slider_Sensitivity->SetValue(InitialSensitivity);
+    }
+    if (Edit_Sensitivity)
+    {
+        FNumberFormattingOptions FormatOptions;
+        FormatOptions.MaximumFractionalDigits = 2;
+        Edit_Sensitivity->SetText(FText::AsNumber(InitialSensitivity, &FormatOptions));
     }
 
     PopulateScreenModeOptions();
@@ -60,11 +77,9 @@ void UParcelOptionsWidget::PopulateScreenModeOptions()
     Combo_ScreenMode->AddOption(TEXT("전체 창 모드"));
     Combo_ScreenMode->AddOption(TEXT("창 모드"));
     
-    UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings();
-    if (Settings)
+    if (UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings())
     {
-        EWindowMode::Type CurrentMode = Settings->GetFullscreenMode();
-        switch (CurrentMode)
+        switch (Settings->GetFullscreenMode())
         {
         case EWindowMode::Fullscreen:
             Combo_ScreenMode->SetSelectedOption(TEXT("전체 화면"));
@@ -74,6 +89,8 @@ void UParcelOptionsWidget::PopulateScreenModeOptions()
             break;
         case EWindowMode::Windowed:
             Combo_ScreenMode->SetSelectedOption(TEXT("창 모드"));
+            break;
+        default:
             break;
         }
     }
@@ -97,8 +114,7 @@ void UParcelOptionsWidget::PopulateResolutionOptions()
         Combo_Resolution->AddOption(Res);
     }
 
-    UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings();
-    if (Settings)
+    if (UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings())
     {
         FIntPoint CurrentRes = Settings->GetScreenResolution();
         FString ResString = FString::Printf(TEXT("%dx%d"), CurrentRes.X, CurrentRes.Y);
@@ -109,60 +125,108 @@ void UParcelOptionsWidget::PopulateResolutionOptions()
         }
         else
         {
-            Combo_Resolution->SetSelectedOption(TEXT("1920x1080")); // Fallback 기본값
+            Combo_Resolution->SetSelectedOption(TEXT("1920x1080"));
         }
     }
 }
 
 void UParcelOptionsWidget::HandleVolumeChanged(float Value)
 {
-    // TODO: SoundMix 및 SoundClass에 연동하여 마스터 볼륨을 조절하는 로직 추가
+    if (Edit_Volume)
+    {
+        FNumberFormattingOptions FormatOptions;
+        FormatOptions.MaximumFractionalDigits = 2;
+        Edit_Volume->SetText(FText::AsNumber(Value, &FormatOptions));
+    }
+
+    // TODO: SoundMix 연동 로직
 }
 
 void UParcelOptionsWidget::HandleSensitivityChanged(float Value)
 {
-    APawn* OwningPawn = GetOwningPlayerPawn();
-    if (OwningPawn)
+    if (Edit_Sensitivity)
     {
-        UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>();
-        if (HeroComp)
+        FNumberFormattingOptions FormatOptions;
+        FormatOptions.MaximumFractionalDigits = 2;
+        Edit_Sensitivity->SetText(FText::AsNumber(Value, &FormatOptions));
+    }
+
+    if (APawn* OwningPawn = GetOwningPlayerPawn())
+    {
+        if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
         {
             HeroComp->SetMouseSensitivity(Value);
         }
     }
 }
 
+void UParcelOptionsWidget::HandleVolumeTextCommitted(const FText& Text, ETextCommit::Type CommitMethod)
+{
+    // 유저가 엔터를 누르거나, 다른 곳을 눌러 포커스가 빠져나갔을 때만 반영
+    if (CommitMethod == ETextCommit::OnEnter || CommitMethod == ETextCommit::OnUserMovedFocus)
+    {
+        float NewValue = FCString::Atof(*Text.ToString());
+        
+        // 볼륨은 보통 0.0 ~ 1.0 사이로 작동하므로 안전하게 가두기
+        NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
+
+        if (Slider_Volume)
+        {
+            Slider_Volume->SetValue(NewValue);
+        }
+
+        // 최종 확정된 수치로 텍스트 칸을 깨끗이 정리 (예: 999 입력 시 1.00으로 정정됨)
+        HandleVolumeChanged(NewValue);
+    }
+}
+
+void UParcelOptionsWidget::HandleSensitivityTextCommitted(const FText& Text, ETextCommit::Type CommitMethod)
+{
+    if (CommitMethod == ETextCommit::OnEnter || CommitMethod == ETextCommit::OnUserMovedFocus)
+    {
+        float NewValue = FCString::Atof(*Text.ToString());
+        
+        // 마우스 감도는 0이 될 수 없고 적정 최소/최대값 제한 (예: 0.05 ~ 10.0)
+        NewValue = FMath::Clamp(NewValue, 0.05f, 10.f);
+
+        if (Slider_Sensitivity)
+        {
+            Slider_Sensitivity->SetValue(NewValue);
+        }
+
+        HandleSensitivityChanged(NewValue);
+    }
+}
+
 void UParcelOptionsWidget::HandleApplyClicked()
 {
-    UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings();
-    if (!Settings) return;
-
-    // 1. 화면 모드 적용
-    if (Combo_ScreenMode)
+    if (UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings())
     {
-        FString SelectedMode = Combo_ScreenMode->GetSelectedOption();
-        if (SelectedMode == TEXT("전체 화면"))
-            Settings->SetFullscreenMode(EWindowMode::Fullscreen);
-        else if (SelectedMode == TEXT("전체 창 모드"))
-            Settings->SetFullscreenMode(EWindowMode::WindowedFullscreen);
-        else if (SelectedMode == TEXT("창 모드"))
-            Settings->SetFullscreenMode(EWindowMode::Windowed);
-    }
-
-    // 2. 해상도 적용
-    if (Combo_Resolution)
-    {
-        FString SelectedRes = Combo_Resolution->GetSelectedOption();
-        FString LeftStr, RightStr;
-        if (SelectedRes.Split(TEXT("x"), &LeftStr, &RightStr))
+        if (Combo_ScreenMode)
         {
-            int32 Width = FCString::Atoi(*LeftStr);
-            int32 Height = FCString::Atoi(*RightStr);
-            Settings->SetScreenResolution(FIntPoint(Width, Height));
+            FString SelectedMode = Combo_ScreenMode->GetSelectedOption();
+            if (SelectedMode == TEXT("전체 화면"))
+                Settings->SetFullscreenMode(EWindowMode::Fullscreen);
+            else if (SelectedMode == TEXT("전체 창 모드"))
+                Settings->SetFullscreenMode(EWindowMode::WindowedFullscreen);
+            else if (SelectedMode == TEXT("창 모드"))
+                Settings->SetFullscreenMode(EWindowMode::Windowed);
         }
-    }
+
+        if (Combo_Resolution)
+        {
+            FString SelectedRes = Combo_Resolution->GetSelectedOption();
+            FString LeftStr, RightStr;
+            if (SelectedRes.Split(TEXT("x"), &LeftStr, &RightStr))
+            {
+                int32 Width = FCString::Atoi(*LeftStr);
+                int32 Height = FCString::Atoi(*RightStr);
+                Settings->SetScreenResolution(FIntPoint(Width, Height));
+            }
+        }
     
-    Settings->ApplySettings(false);
+        Settings->ApplySettings(false);
+    }
 }
 
 void UParcelOptionsWidget::HandleBackClicked()

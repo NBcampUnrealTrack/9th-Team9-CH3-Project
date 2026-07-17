@@ -17,7 +17,7 @@ void UParcelCheatManager::DebugDeliverySuccess()
 {
 	AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>();
 	if (!GM) return;
-	GM->OnDeliveryCompleted(GetOuterAPlayerController(), 100);
+	GM->OnDeliveryCompleted(GetOuterAPlayerController(), TEXT("디버그용 상자"), 100);
 	GAMERULE_LOG(Log, TEXT("[콘솔] 배달 성공 시뮬레이션"));
 }
 
@@ -25,7 +25,7 @@ void UParcelCheatManager::DebugDeliveryFail()
 {
 	AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>();
 	if (!GM) return;
-	GM->OnDeliveryFailed(GetOuterAPlayerController());
+	GM->OnDeliveryFailed(GetOuterAPlayerController(), TEXT("디버그용 파손 상자"));
 	GAMERULE_LOG(Log, TEXT("[콘솔] 배달 실패 시뮬레이션"));
 }
 

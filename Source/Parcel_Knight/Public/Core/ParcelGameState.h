@@ -9,6 +9,8 @@
 class UTeamScoreComponent;
 class UShopComponent;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnDeliveryLogReceivedSignature, const FString&, PlayerName, const FString&, BoxName, bool, bSuccess);
+
 /**
  * 팀 점수 및 남은 시간을 관리하는 GameState
  * 실제 로직은 UTeamScoreComponent가 담당한다.
@@ -24,6 +26,13 @@ public:
 	AParcelGameState();
 	UTeamScoreComponent* GetTeamScoreComponent() const;
 	UShopComponent* GetShopComponent() const;
+	
+	// [UI]
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnDeliveryLogReceivedSignature OnDeliveryLogReceived;
+	
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_NotifyDeliveryLog(const FString& PlayerName, const FString& BoxName, bool bSuccess);
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")

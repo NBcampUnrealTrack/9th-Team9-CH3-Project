@@ -68,14 +68,14 @@ void AParcelGameMode::EndRound()
 
 // ========================= 배달 =========================
 
-void AParcelGameMode::OnDeliveryCompleted(APlayerController* Deliverer, int32 ScoreAmount)
+void AParcelGameMode::OnDeliveryCompleted(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount)
 {
-	DeliveryRuleComp->OnDeliveryCompleted(Deliverer, ScoreAmount);
+	DeliveryRuleComp->OnDeliveryCompleted(Deliverer, BoxName, ScoreAmount);
 }
 
-void AParcelGameMode::OnDeliveryFailed(APlayerController* Deliverer, int32 ScoreAmount)
+void AParcelGameMode::OnDeliveryFailed(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount)
 {
-	DeliveryRuleComp->OnDeliveryFailed(Deliverer,ScoreAmount);
+	DeliveryRuleComp->OnDeliveryFailed(Deliverer, BoxName, ScoreAmount);
 }
 
 // ========================= 컴포넌트 접근 =========================

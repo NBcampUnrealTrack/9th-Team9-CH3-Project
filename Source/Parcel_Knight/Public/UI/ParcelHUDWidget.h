@@ -72,6 +72,9 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnStaminaChanged(float CurrentStamina, float MaxStamina);
 	
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI|Events")
+	void K2_OnDeliveryLogAdded(const FString& PlayerName, const FString& BoxName, bool bSuccess);
+	
 private:
 	
 	UFUNCTION()
@@ -98,6 +101,9 @@ private:
 	
 	UFUNCTION()
 	void HandleOnStaminaChanged(float CurrentStamina, float MaxStamina);
+	
+	UFUNCTION()
+	void HandleOnDeliveryLogReceived(const FString& PlayerName, const FString& BoxName, bool bSuccess);
 	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
