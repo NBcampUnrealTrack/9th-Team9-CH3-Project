@@ -89,7 +89,6 @@ void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 	SessionSettings.bUsesPresence = true;
 	SessionSettings.bUseLobbiesIfAvailable = OSS->GetSubsystemName() == FName(TEXT("STEAM"));
 	SessionSettings.bAllowJoinInProgress = true;
-	// AppId 480(SpaceWar) 공용 테스트 환경에서 다른 팀 세션과 구분하기 위한 식별 키
 
 	CreateSessionHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(
 		FOnCreateSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnCreateSessionComplete)
@@ -290,10 +289,26 @@ void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSucc
 	OnSessionCreateComplete.Broadcast(bWasSuccessful);
 	if (bWasSuccessful && GetWorld()->GetNetMode() != NM_Client)
 	{
+		StartSessionHandle = Sessions->AddOnStartSessionCompleteDelegate_Handle(
+			FOnStartSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnStartSessionComplete)
+		);
 		Sessions->StartSession(NAME_GameSession);
+	}
+}
+
+void USessionSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
+{
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	if (!OSS) return;
+
+	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
+	if (!Sessions.IsValid()) return;
+
+	Sessions->ClearOnStartSessionCompleteDelegate_Handle(StartSessionHandle);
+
+	if (bWasSuccessful)
 		if (UParcelGameInstance* GI = Cast<UParcelGameInstance>(GetGameInstance()))
 			GetWorld()->ServerTravel(GI->GetPendingMapPath() + "?listen");
-	}
 }
 
 void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)

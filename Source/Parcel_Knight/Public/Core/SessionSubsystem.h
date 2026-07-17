@@ -83,6 +83,7 @@ private:
 	bool StartJoinSession(const FOnlineSessionSearchResult& SessionResult);
 
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+	void OnStartSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnFindSessionsComplete(bool bWasSuccessful);
 	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
@@ -109,6 +110,7 @@ private:
 
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 	FDelegateHandle CreateSessionHandle;
+	FDelegateHandle StartSessionHandle;
 	FDelegateHandle FindSessionsHandle;
 	FDelegateHandle JoinSessionHandle;
 	FDelegateHandle DestroySessionHandle;
