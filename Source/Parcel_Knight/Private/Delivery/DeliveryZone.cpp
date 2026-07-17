@@ -138,11 +138,11 @@ void ADeliveryZone::ProcessDelivery(ADeliveryBox* Box)
 
 		if (bIsCorrectZone)
 		{
-			GM->OnDeliveryCompleted(DelivererPC, ScoreChange);
+			GM->OnDeliveryCompleted(DelivererPC, Data.DisplayName, ScoreChange);
 		}
 		else
 		{
-			GM->OnDeliveryFailed(DelivererPC, ScoreChange);
+			GM->OnDeliveryFailed(DelivererPC, Data.DisplayName, ScoreChange);
 		}
 	}
 

@@ -117,7 +117,7 @@ void USessionSubsystem::FindSessions()
 	SessionSearch->MaxSearchResults = 5000;
 	SessionSearch->bIsLanQuery = OSS->GetSubsystemName() == "NULL";
 	SessionSearch->TimeoutInSeconds = 10.0f;
-	SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
+	SessionSearch->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
 	
 
 	FindSessionsHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(

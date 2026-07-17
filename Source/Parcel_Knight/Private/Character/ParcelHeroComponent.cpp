@@ -223,26 +223,7 @@ void UParcelHeroComponent::StartJump(const FInputActionValue& Value)
 {
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
-
-    // 던지기(Throwing) 액션 중에는 물리적인 점프 발동을 차단
-    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
-    {
-        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-        {
-            // 점프 시 렉 방어
-            FGameplayTag ThrowingAction = FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing"), false);
-            FGameplayTag ThrowingState = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing"), false);
-            
-            // State와 Action 두 태그 명칭 모두 유연하게 검증하도록 방어 코드 작성
-            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing"))) ||
-                StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Throwing")))) 
-            {
-                return;
-            }
-        }
-    }
-
-    // 물리적인 점프 기능 수행
+    
     Character->Jump();
 
     // 점프 액션 태그 로컬 적용 및 서버 동기화 요청

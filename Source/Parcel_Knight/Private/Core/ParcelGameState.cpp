@@ -23,3 +23,12 @@ UShopComponent* AParcelGameState::GetShopComponent() const
 {
 	return ShopComp;
 }
+
+// [UI]
+void AParcelGameState::Multicast_NotifyDeliveryLog_Implementation(const FString& PlayerName, const FString& BoxName, bool bSuccess)
+{
+	if (OnDeliveryLogReceived.IsBound())
+	{
+		OnDeliveryLogReceived.Broadcast(PlayerName, BoxName, bSuccess);
+	}
+}

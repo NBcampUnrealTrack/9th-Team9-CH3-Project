@@ -21,7 +21,9 @@ public class Parcel_Knight : ModuleRules
 			"Niagara",
 			"UMG",
 			"AdvancedSessions",
-			"AdvancedSteamSessions"
+			"AdvancedSteamSessions",
+			"Slate",
+			"SlateCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "OnlineSubsystem", "OnlineSubsystemUtils" });

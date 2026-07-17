@@ -57,34 +57,46 @@ void UParcelStaminaComponent::TickComponent(float DeltaTime, ELevelTick TickType
 
     const FGameplayTag SprintTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting"));
     const FGameplayTag ExhaustedTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Exhausted"));
+    const FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
 
     const bool bIsSprinting = StateComp->HasStateTag(SprintTag);
     const bool bIsExhausted = StateComp->HasStateTag(ExhaustedTag);
-    
-    // 캐릭터가 전력질주 입력을 켰지만 실제로는 멈춰있을 땐 스태미나를 깎지 않음
+    const bool bIsInAir = StateComp->HasStateTag(InAirTag);
     const bool bIsMoving = OwnerChar->GetVelocity().SizeSquared2D() > 10.f;
 
+    bool bIsTimerActive = GetWorld()->GetTimerManager().IsTimerActive(ExhaustionTimerHandle);
     float PreviousStamina = CurrentStamina;
 
-    if (bIsSprinting && bIsMoving)
+    if (bIsSprinting && bIsMoving && !bIsExhausted)
     {
-        // 달리는 중 소모
+        // [소모]
         float DrainRate = GetDrainRate();
         CurrentStamina = FMath::Max(0.f, CurrentStamina - (DrainRate * DeltaTime));
 
-        if (CurrentStamina <= 0.f && !bIsExhausted)
+        if (CurrentStamina <= 0.f)
         {
             StartExhaustion();
         }
     }
-    else if (!bIsExhausted && CurrentStamina < MaxStamina)
+    else if (!bIsTimerActive && !bIsInAir && CurrentStamina < MaxStamina)
     {
-        // 평상시 회복 (탈진 상태가 아니고 전력질주하지 않는 경우)
+        // [회복]
         float RegenRate = GetRegenRate();
         CurrentStamina = FMath::Min(MaxStamina, CurrentStamina + (RegenRate * DeltaTime));
+        
+        // [탈진 해제]
+        if (CurrentStamina >= MaxStamina && bIsExhausted)
+        {
+            StateComp->RemoveStateTag(ExhaustedTag);
+            
+            if (UParcelMovementStatComponent* MovementStat = OwnerChar->GetParcelMovementStatComponent())
+            {
+                MovementStat->RefreshMoveSpeed();
+            }
+            STAMINA_LOG(All, TEXT("[Server] %s의 스태미나가 100%% 충전되어 탈진 상태가 정상 해제되었습니다."), *OwnerChar->GetName());
+        }
     }
 
-    // 값에 실질적인 변화가 생겼을 때만 RepNotify 브로드캐스트 (서버 로컬용)
     if (!FMath::IsNearlyEqual(PreviousStamina, CurrentStamina))
     {
         OnRep_CurrentStamina();
@@ -120,15 +132,7 @@ void UParcelStaminaComponent::StartExhaustion()
 
 void UParcelStaminaComponent::StopExhaustion()
 {
-    AParcelCharacter* OwnerChar = Cast<AParcelCharacter>(GetOwner());
-    if (!OwnerChar) return;
-
-    UParcelPlayerStateComponent* StateComp = OwnerChar->GetParcelPlayerStateComponent();
-    if (!StateComp) return;
-    
-    StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Exhausted")));
-
-    STAMINA_LOG(All, TEXT("[Server] %s의 탈진 상태가 해제되어 스태미나 회복을 개시합니다."), *OwnerChar->GetName());
+    STAMINA_LOG(All, TEXT("[Server] 탈진 3초 강제 대기가 완료되었습니다. 스태미나 자연 회복을 개시합니다. (태그는 100%% 충전 시 해제)"));
 }
 
 void UParcelStaminaComponent::OnRep_CurrentStamina()

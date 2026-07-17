@@ -93,6 +93,7 @@ void UParcelHUDWidget::TryBindUIEvents()
 	bool bCharacterStateBound = false;
 	bool bHeroBound = false;
 	bool bStaminaBound = false;
+	bool bLogBound = false;
 	
 	// GameState와 TeamScore 바인딩
 	if (!CachedGameState.IsValid())
@@ -122,6 +123,10 @@ void UParcelHUDWidget::TryBindUIEvents()
 				
 				bComboBound = true;
 			}
+			
+			CachedGameState->OnDeliveryLogReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+			CachedGameState->OnDeliveryLogReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+			bLogBound = true;
 		}
 	}
 
@@ -191,7 +196,7 @@ void UParcelHUDWidget::TryBindUIEvents()
 	}
 	
 	// 4. 멀티플레이 안전장치
-	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound)
+	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound && bLogBound)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
 		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
@@ -352,4 +357,9 @@ void UParcelHUDWidget::HandleOnThrowChargeChanged(bool bIsCharging, float Charge
 void UParcelHUDWidget::HandleOnStaminaChanged(float CurrentStamina, float MaxStamina)
 {
 	K2_OnStaminaChanged(CurrentStamina, MaxStamina);
+}
+
+void UParcelHUDWidget::HandleOnDeliveryLogReceived(const FString& PlayerName, const FString& BoxName, bool bSuccess)
+{
+	K2_OnDeliveryLogAdded(PlayerName, BoxName, bSuccess);
 }

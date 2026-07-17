@@ -7,6 +7,7 @@
 class USlider;
 class UComboBoxString;
 class UButton;
+class UEditableTextBox;
 
 /**
  * UParcelOptionsWidget
@@ -21,22 +22,28 @@ protected:
 	virtual void NativeConstruct() override;
 
 	// UI Bindings
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
 	TObjectPtr<USlider> Slider_Volume;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
 	TObjectPtr<USlider> Slider_Sensitivity;
+    
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
+	TObjectPtr<UEditableTextBox> Edit_Volume;
+    
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
+	TObjectPtr<UEditableTextBox> Edit_Sensitivity;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
 	TObjectPtr<UComboBoxString> Combo_ScreenMode;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
 	TObjectPtr<UComboBoxString> Combo_Resolution;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
 	TObjectPtr<UButton> Btn_Apply;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
 	TObjectPtr<UButton> Btn_Back;
 
 	// Handlers
@@ -45,6 +52,12 @@ protected:
 
 	UFUNCTION()
 	void HandleSensitivityChanged(float Value);
+	
+	UFUNCTION()
+	void HandleVolumeTextCommitted(const FText& Text, ETextCommit::Type CommitMethod);
+
+	UFUNCTION()
+	void HandleSensitivityTextCommitted(const FText& Text, ETextCommit::Type CommitMethod);
 
 	UFUNCTION()
 	void HandleApplyClicked();
