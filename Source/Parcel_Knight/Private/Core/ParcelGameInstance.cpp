@@ -4,6 +4,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "OnlineSubsystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogParcelGameInstance, Log, All);
+
 const FString UParcelGameInstance::SaveSlotName = TEXT("PlayerSaveSlot");
 
 // ========================= 초기화 =========================
@@ -41,6 +43,17 @@ void UParcelGameInstance::Shutdown()
 	Super::Shutdown();
 }
 
+void UParcelGameInstance::ReturnToMainMenu()
+{
+	if (USessionSubsystem* SessionSubsystem = GetSubsystem<USessionSubsystem>())
+	{
+		SessionSubsystem->LeaveSession();
+		return;
+	}
+
+	Super::ReturnToMainMenu();
+}
+
 void UParcelGameInstance::HandleSessionInviteAccepted(
 	bool bWasSuccessful,
 	int32 ControllerId,
@@ -49,6 +62,7 @@ void UParcelGameInstance::HandleSessionInviteAccepted(
 {
 	if (!bWasSuccessful || !UserId.IsValid() || !InviteResult.IsValid())
 	{
+		UE_LOG(LogParcelGameInstance, Error, TEXT("Steam session invite acceptance contained an invalid result."));
 		return;
 	}
 
@@ -64,7 +78,10 @@ void UParcelGameInstance::HandleSessionInviteAccepted(
 
 	if (USessionSubsystem* SessionSubsystem = GetSubsystem<USessionSubsystem>())
 	{
-		SessionSubsystem->JoinSessionResult(SessionToJoin);
+		if (!SessionSubsystem->JoinSessionResult(SessionToJoin))
+		{
+			UE_LOG(LogParcelGameInstance, Error, TEXT("Steam invite was accepted, but JoinSession could not be started."));
+		}
 	}
 }
 

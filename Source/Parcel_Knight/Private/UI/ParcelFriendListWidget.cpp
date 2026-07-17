@@ -85,12 +85,27 @@ void UParcelFriendListWidget::CloseFriendList()
 {
 	if (APlayerController* PlayerController = GetOwningPlayer())
 	{
-		FInputModeGameOnly InputMode;
-		PlayerController->SetInputMode(InputMode);
-		PlayerController->bShowMouseCursor = false;
+		if (bRestoreUIInputMode)
+		{
+			FInputModeGameAndUI InputMode;
+			InputMode.SetHideCursorDuringCapture(false);
+			PlayerController->SetInputMode(InputMode);
+			PlayerController->bShowMouseCursor = true;
+		}
+		else
+		{
+			FInputModeGameOnly InputMode;
+			PlayerController->SetInputMode(InputMode);
+			PlayerController->bShowMouseCursor = false;
+		}
 	}
 
 	RemoveFromParent();
+}
+
+void UParcelFriendListWidget::SetRestoreUIInputMode(bool bShouldRestoreUIInputMode)
+{
+	bRestoreUIInputMode = bShouldRestoreUIInputMode;
 }
 
 void UParcelFriendListWidget::InviteFriend(
