@@ -20,6 +20,12 @@ void URespawnComponent::DoRespawnPlayer(AController* Controller)
 {
 	if (Controller)
 	{
+		// 죽은 캐릭터를 제거
+		if (APawn* OldPawn = Controller->GetPawn())
+		{
+			OldPawn->Destroy();
+		}
+		
 		if (AGameMode* GM = GetOwner<AGameMode>())
 			GM->RestartPlayer(Controller);
 	}

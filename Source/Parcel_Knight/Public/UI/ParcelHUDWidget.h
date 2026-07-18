@@ -25,6 +25,12 @@ protected:
 	virtual void NativeDestruct() override;
 
 public:
+	// 로컬 플레이어와 데이터를 바인딩
+	void TryBindUIEvents();
+	
+	// 리스폰 완료 시 재결합
+	void RequestRebindPlayerEvents();
+	
 	UFUNCTION(BlueprintCallable, Category = "ParcelUI|Friend")
 	void OpenFriendList();
 
@@ -40,9 +46,6 @@ protected:
 
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI|Friend")
 	TObjectPtr<UParcelFriendListWidget> FriendListWidgetInstance;
-	
-	// 로컬 플레이어와 데이터를 바인딩
-	void TryBindUIEvents();
 	
 	// WBP에서 사용할 수 있도록 열어두는 이벤트 (델리게이트 -> 브로드캐스트. K2는 Kismet2 약자입니다)
 	UFUNCTION(BlueprintImplementableEvent, Category = "UI")

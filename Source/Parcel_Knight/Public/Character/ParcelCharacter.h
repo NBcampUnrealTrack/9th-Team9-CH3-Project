@@ -145,4 +145,9 @@ public:
 	FORCEINLINE UDFKnockbackComponent* GetKnockbackComponent() const { return KnockbackComponent; }
 	UFUNCTION(BlueprintPure, Category = "Character|Components")
 	FORCEINLINE UParcelStaminaComponent* GetParcelStaminaComponent() const { return StaminaComp; }
+
+protected:
+	// 사망 로직 보완
+	UFUNCTION()
+	void HandleCharacterDeath();
 };
