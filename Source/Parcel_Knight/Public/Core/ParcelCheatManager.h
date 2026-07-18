@@ -19,6 +19,12 @@ class PARCEL_KNIGHT_API UParcelCheatManager : public UCheatManager
 	GENERATED_BODY()
 
 public:
+	// ─── 사망 / 부활 ───
+	// 즉시 사망 — 관전 모드 진입 테스트용
+	UFUNCTION(Exec) void DebugKillSelf();
+	// 즉시 부활 — 타이머 없이 바로 리스폰
+	UFUNCTION(Exec) void DebugForceRespawn();
+
 	// ─── 배달 ───
 	// 배달 성공 시뮬레이션 — 콤보+1, 팀/개인 점수 +100
 	UFUNCTION(Exec) void DebugDeliverySuccess();

@@ -8,8 +8,34 @@
 #include "Core/ShopComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "Core/HealthComponent.h"
 #include "GameplayTagContainer.h"
 #include "ParcelLog.h"
+
+// ========================= 사망 / 부활 =========================
+
+void UParcelCheatManager::DebugKillSelf()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) { GAMERULE_LOG(Warning, TEXT("[치트] PC null")); return; }
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn) { GAMERULE_LOG(Warning, TEXT("[치트] Pawn null")); return; }
+	UHealthComponent* HC = Pawn->FindComponentByClass<UHealthComponent>();
+	if (!HC) { GAMERULE_LOG(Warning, TEXT("[치트] HealthComponent 없음")); return; }
+	GAMERULE_LOG(Log, TEXT("[치트] HP=%.0f → TakeDamage(99999)"), HC->GetHP());
+	HC->TakeDamage(99999.f);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 강제 사망"));
+}
+
+void UParcelCheatManager::DebugForceRespawn()
+{
+	AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>();
+	if (!GM) return;
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	GM->RestartPlayer(PC);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 강제 부활"));
+}
 
 // ========================= 배달 =========================
 

@@ -24,6 +24,7 @@ class PARCEL_KNIGHT_API UHealthComponent : public UActorComponent, public IHealt
 public:
 	UHealthComponent();
 
+	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// 사망 시 발동 — 플레이어/박스 등 소유자가 각자의 사망 처리를 바인딩
@@ -42,9 +43,13 @@ public:
 	virtual void OnDeath() override;
 	virtual bool IsDead() const override;
 
-	// 최대 체력 및 현재 체력을 초기화
+	// 최대 체력 및 현재 체력을 초기화 — 리스폰 시 (기준MaxHP + 로드아웃 보너스)로 호출
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void InitializeHP(float InMaxHP);
+
+	// 에디터에서 설정한 기준 MaxHP 반환 — 아이템 보너스 계산 시 기준값으로 사용
+	UFUNCTION(BlueprintPure, Category = "Health")
+	float GetBaseMaxHP() const;
 
 	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
 	UFUNCTION(NetMulticast, Unreliable)
@@ -60,8 +65,12 @@ private:
 	void OnRep_HP();
 
 	// 초기/최대 체력 — 추후 DataAsset 등에서 설정 가능
-	UPROPERTY(Replicated, EditDefaultsOnly)
+	UPROPERTY(Replicated, EditDefaultsOnly, Category = "Health")
 	float MaxHP;
+
+	// 에디터 설정값 고정 보관 — 아이템 보너스 재계산 기준
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	float BaseMaxHP;
 
 	/*
 	 *사망 여부 — 중복 사망 처리 방지용

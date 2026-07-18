@@ -212,13 +212,13 @@ void AParcelCharacter::PossessedBy(AController* NewController)
        HeroComp->AddInputMappingContext();
     }
 
-	//HealthComponent를 찾아서 사망을 바인드하는 코드, TODO: HealthCompoent확인 필요
-    if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
     {
         if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
         {
             HealthComp->OnDeathDelegate.AddUniqueDynamic(PS, &AParcelPlayerState::HandleDeath);
         }
+        HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterDeath);
     }
 	
 	UpdateOverheadNameplate();
@@ -302,6 +302,12 @@ void AParcelCharacter::OnRep_Controller()
 	{
 		HeroComp->AddInputMappingContext();
 	}
+}
+
+void AParcelCharacter::OnCharacterDeath()
+{
+	if (RagdollComp)
+		RagdollComp->StartRagdoll();
 }
 
 void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

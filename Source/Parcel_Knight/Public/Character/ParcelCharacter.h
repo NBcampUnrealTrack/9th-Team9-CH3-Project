@@ -118,6 +118,9 @@ protected:
 	UFUNCTION()
 	void OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags);
 
+	UFUNCTION()
+	void OnCharacterDeath();
+
 public: 
     // 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출, 원격 접속 클라이언트가 possession 이후 입력 매핑을 놓치지 않게 합니다.
     virtual void OnRep_Controller() override;

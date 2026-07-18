@@ -2,10 +2,12 @@
 
 #include "Core/ParcelPlayerState.h"
 #include "Core/PlayerStatComponent.h"
+#include "ParcelLog.h"
 #include "Core/InventoryComponent.h"
 #include "Core/CustomizationComponent.h"
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelGameMode.h"
+#include "Core/ParcelPlayerController.h"
 #include "Core/RespawnComponent.h"
 
 // ========================= 초기화 =========================
@@ -80,12 +82,26 @@ void AParcelPlayerState::OnDeliveryFail()
 void AParcelPlayerState::HandleDeath()
 {
 	PlayerStatComp->OnDeath();
+	Client_StartSpectating();
 
 	if (AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>())
 	{
 		URespawnComponent* RC = GM->GetRespawnComponent();
-		RC->RespawnPlayerAfterDelay(GetPlayerController(), RC->ReviveDelay);
+		AController* PC = GetPlayerController();
+		if (!PC)
+		{
+			GAMERULE_LOG(Warning, TEXT("[부활] GetPlayerController() null — 타이머 미설정"));
+			return;
+		}
+		RC->RespawnPlayerAfterDelay(PC, RC->ReviveDelay);
+		GAMERULE_LOG(Log, TEXT("[부활] 타이머 설정 (%.1f초 후)"), RC->ReviveDelay);
 	}
+}
+
+void AParcelPlayerState::Client_StartSpectating_Implementation()
+{
+	if (AParcelPlayerController* PC = Cast<AParcelPlayerController>(GetPlayerController()))
+		PC->StartSpectating();
 }
 
 void AParcelPlayerState::Client_GrantReward_Implementation(int32 RewardAmount)

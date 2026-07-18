@@ -11,9 +11,24 @@ UHealthComponent::UHealthComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
-	MaxHP = 100.f;
-	HP = 100.f;
+	BaseMaxHP = 100.f;
+	MaxHP = BaseMaxHP;
+	HP = 0.f;
 	bIsDead = false;
+}
+
+void UHealthComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		InitializeHP(MaxHP);
+	}
+}
+
+float UHealthComponent::GetBaseMaxHP() const
+{
+	return BaseMaxHP;
 }
 
 void UHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -110,3 +125,4 @@ void UHealthComponent::InitializeHP(float InMaxHP)
 		OnHPChanged.Broadcast(HP, MaxHP);
 	}
 }
+
