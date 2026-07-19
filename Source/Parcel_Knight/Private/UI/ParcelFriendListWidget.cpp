@@ -18,6 +18,36 @@ void UParcelFriendListWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	if (USessionSubsystem* SessionSubsystem = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<USessionSubsystem>()
+		: nullptr)
+	{
+		SessionSubsystem->OnSessionStatusMessage.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionStatusMessage);
+		SessionSubsystem->OnSessionCreateComplete.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionJoinComplete.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionStatusMessage.AddDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionStatusMessage);
+		SessionSubsystem->OnSessionCreateComplete.AddDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionJoinComplete.AddDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionDestroyComplete.AddDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+	}
+
 	if (RefreshButton)
 	{
 		RefreshButton->OnClicked.RemoveDynamic(this, &UParcelFriendListWidget::RefreshFriends);
@@ -35,6 +65,24 @@ void UParcelFriendListWidget::NativeConstruct()
 
 void UParcelFriendListWidget::NativeDestruct()
 {
+	if (USessionSubsystem* SessionSubsystem = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<USessionSubsystem>()
+		: nullptr)
+	{
+		SessionSubsystem->OnSessionStatusMessage.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionStatusMessage);
+		SessionSubsystem->OnSessionCreateComplete.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionJoinComplete.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+		SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(
+			this,
+			&UParcelFriendListWidget::HandleSessionAvailabilityChanged);
+	}
+
 	if (RefreshButton)
 	{
 		RefreshButton->OnClicked.RemoveDynamic(this, &UParcelFriendListWidget::RefreshFriends);
@@ -85,12 +133,27 @@ void UParcelFriendListWidget::CloseFriendList()
 {
 	if (APlayerController* PlayerController = GetOwningPlayer())
 	{
-		FInputModeGameOnly InputMode;
-		PlayerController->SetInputMode(InputMode);
-		PlayerController->bShowMouseCursor = false;
+		if (bRestoreUIInputMode)
+		{
+			FInputModeGameAndUI InputMode;
+			InputMode.SetHideCursorDuringCapture(false);
+			PlayerController->SetInputMode(InputMode);
+			PlayerController->bShowMouseCursor = true;
+		}
+		else
+		{
+			FInputModeGameOnly InputMode;
+			PlayerController->SetInputMode(InputMode);
+			PlayerController->bShowMouseCursor = false;
+		}
 	}
 
 	RemoveFromParent();
+}
+
+void UParcelFriendListWidget::SetRestoreUIInputMode(bool bShouldRestoreUIInputMode)
+{
+	bRestoreUIInputMode = bShouldRestoreUIInputMode;
 }
 
 void UParcelFriendListWidget::InviteFriend(
@@ -104,6 +167,7 @@ void UParcelFriendListWidget::InviteFriend(
 
 	if (!PlayerController || !SessionSubsystem || !SessionSubsystem->CanInviteToCurrentSession())
 	{
+		RefreshInviteAvailability();
 		SetStatusMessage(ParcelFriendListMessages::NoInvitableSession);
 		return;
 	}
@@ -174,6 +238,16 @@ void UParcelFriendListWidget::HandleFriendsLoadFailed(const TArray<FBPFriendInfo
 		TEXT("Steam 친구 목록을 불러오지 못했습니다. Steam 로그인과 실행 모드를 확인해 주세요.")));
 }
 
+void UParcelFriendListWidget::HandleSessionStatusMessage(const FText& Message, bool bIsError)
+{
+	SetStatusMessage(Message);
+}
+
+void UParcelFriendListWidget::HandleSessionAvailabilityChanged(bool bWasSuccessful)
+{
+	RefreshInviteAvailability();
+}
+
 void UParcelFriendListWidget::SetStatusMessage(const FText& Message)
 {
 	if (StatusText)
@@ -191,5 +265,27 @@ void UParcelFriendListWidget::FinishFriendsRequest()
 		ActiveFriendsRequest->OnSuccess.RemoveDynamic(this, &UParcelFriendListWidget::HandleFriendsLoaded);
 		ActiveFriendsRequest->OnFailure.RemoveDynamic(this, &UParcelFriendListWidget::HandleFriendsLoadFailed);
 		ActiveFriendsRequest = nullptr;
+	}
+}
+
+void UParcelFriendListWidget::RefreshInviteAvailability()
+{
+	USessionSubsystem* SessionSubsystem = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<USessionSubsystem>()
+		: nullptr;
+	const bool bCanInvite = SessionSubsystem && SessionSubsystem->CanInviteToCurrentSession();
+
+	if (!FriendEntriesContainer)
+	{
+		return;
+	}
+
+	for (int32 ChildIndex = 0; ChildIndex < FriendEntriesContainer->GetChildrenCount(); ++ChildIndex)
+	{
+		if (UParcelFriendListEntryWidget* Entry = Cast<UParcelFriendListEntryWidget>(
+			FriendEntriesContainer->GetChildAt(ChildIndex)))
+		{
+			Entry->SetInviteEnabled(bCanInvite);
+		}
 	}
 }

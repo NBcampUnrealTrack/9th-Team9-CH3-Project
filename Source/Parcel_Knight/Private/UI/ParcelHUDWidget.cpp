@@ -61,6 +61,8 @@ void UParcelHUDWidget::OpenFriendList()
 		return;
 	}
 
+	FriendListWidgetInstance->SetRestoreUIInputMode(PlayerController->bShowMouseCursor);
+
 	if (!FriendListWidgetInstance->IsInViewport())
 	{
 		FriendListWidgetInstance->AddToViewport(100);
