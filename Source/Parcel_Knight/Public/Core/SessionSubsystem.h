@@ -16,6 +16,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionCreateComplete, bool, bWas
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionFindComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionJoinComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionDestroyComplete, bool, bWasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnSessionStatusMessage,
+	const FText&,
+	Message,
+	bool,
+	bIsError);
 
 /**
  * Owns the asynchronous online-session flow for the lifetime of the GameInstance.
@@ -42,6 +48,10 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnSessionDestroyComplete OnSessionDestroyComplete;
 
+	/** Human-readable invite/join state for Blueprint UI. */
+	UPROPERTY(BlueprintAssignable)
+	FOnSessionStatusMessage OnSessionStatusMessage;
+
 	UFUNCTION(BlueprintCallable)
 	void CreateSession(int32 NumPublicConnections);
 
@@ -53,6 +63,9 @@ public:
 
 	// Used by the native Steam invite-accepted callback.
 	bool JoinSessionResult(const FOnlineSessionSearchResult& SessionResult);
+
+	// Reports Steam invite acceptance through the same UI/log path as JoinSession.
+	void NotifySessionInviteAccepted(bool bWasSuccessful);
 
 	UFUNCTION(BlueprintCallable)
 	void DestroySession();
@@ -109,6 +122,8 @@ private:
 	void ClearDelegateHandleForOperation(const IOnlineSessionPtr& Sessions, ESessionOperation Operation);
 	void ClearAllDelegateHandles(const IOnlineSessionPtr& Sessions);
 	void ReportOperationFailure(ESessionOperation Operation);
+	void ReportSessionStatus(const FString& Message, bool bIsError);
+	void ReportJoinFailure(const FString& Reason);
 	void OnOperationTimeout();
 
 	bool BeginCreateSession(int32 NumPublicConnections);

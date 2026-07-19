@@ -227,6 +227,25 @@ void USessionSubsystem::ClearAllDelegateHandles(const IOnlineSessionPtr& Session
 	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Destroying);
 }
 
+void USessionSubsystem::ReportSessionStatus(const FString& Message, bool bIsError)
+{
+	if (bIsError)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("%s"), *Message);
+	}
+	else
+	{
+		UE_LOG(LogParcelSession, Log, TEXT("%s"), *Message);
+	}
+
+	OnSessionStatusMessage.Broadcast(FText::FromString(Message), bIsError);
+}
+
+void USessionSubsystem::ReportJoinFailure(const FString& Reason)
+{
+	ReportSessionStatus(FString::Printf(TEXT("JoinSession failed: %s"), *Reason), true);
+}
+
 void USessionSubsystem::ReportOperationFailure(ESessionOperation Operation)
 {
 	if (bOperationFailureReported)
@@ -246,6 +265,7 @@ void USessionSubsystem::ReportOperationFailure(ESessionOperation Operation)
 		OnSessionFindComplete.Broadcast(false);
 		break;
 	case ESessionOperation::Joining:
+		ReportJoinFailure(TEXT("the online request timed out"));
 		OnSessionJoinComplete.Broadcast(false);
 		break;
 	case ESessionOperation::Destroying:
@@ -255,6 +275,7 @@ void USessionSubsystem::ReportOperationFailure(ESessionOperation Operation)
 			OnSessionCreateComplete.Broadcast(false);
 			break;
 		case EDestroyIntent::JoinPending:
+			ReportJoinFailure(TEXT("the previous GameSession could not be destroyed before joining"));
 			OnSessionJoinComplete.Broadcast(false);
 			break;
 		case EDestroyIntent::UserRequested:
@@ -378,6 +399,7 @@ bool USessionSubsystem::BeginCreateSession(int32 NumPublicConnections)
 	SessionSettings.bAllowInvites = true;
 	SessionSettings.bUsesPresence = true;
 	SessionSettings.bUseLobbiesIfAvailable = true;
+	SessionSettings.bAllowJoinViaPresence = true;
 	SessionSettings.bAllowJoinInProgress = true;
 
 	BeginOperation(ESessionOperation::Creating);
@@ -466,11 +488,26 @@ bool USessionSubsystem::JoinSessionResult(const FOnlineSessionSearchResult& Sess
 	return StartJoinSession(SessionResult);
 }
 
+void USessionSubsystem::NotifySessionInviteAccepted(bool bWasSuccessful)
+{
+	if (bWasSuccessful)
+	{
+		ReportSessionStatus(TEXT("Steam session invite accepted. Joining the invited GameSession."), false);
+	}
+	else
+	{
+		ReportSessionStatus(
+			TEXT("Steam session invite acceptance failed because the invite result was invalid."),
+			true);
+	}
+}
+
 bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& SessionResult)
 {
 	if (IsSessionTransitionLocked())
 	{
 		UE_LOG(LogParcelSession, Warning, TEXT("JoinSession rejected during map or leave transition."));
+		ReportJoinFailure(TEXT("a map or leave transition is already in progress"));
 		OnSessionJoinComplete.Broadcast(false);
 		return false;
 	}
@@ -478,6 +515,7 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 	if (!SessionResult.IsValid())
 	{
 		UE_LOG(LogParcelSession, Error, TEXT("JoinSession received an invalid session result."));
+		ReportJoinFailure(TEXT("the session search result is invalid"));
 		OnSessionJoinComplete.Broadcast(false);
 		return false;
 	}
@@ -485,6 +523,7 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 	IOnlineSessionPtr Sessions;
 	if (!GetSteamSessionInterface(Sessions, TEXT("JoinSession")))
 	{
+		ReportJoinFailure(TEXT("Steam is unavailable or the local Steam user is not logged in"));
 		OnSessionJoinComplete.Broadcast(false);
 		return false;
 	}
@@ -503,6 +542,7 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 		if (bOperationFailureReported || DestroyIntent == EDestroyIntent::Leave)
 		{
 			UE_LOG(LogParcelSession, Warning, TEXT("Invite join rejected while a timed-out or leave destroy is active."));
+			ReportJoinFailure(TEXT("the current GameSession is still leaving or timed out while being destroyed"));
 			OnSessionJoinComplete.Broadcast(false);
 			return false;
 		}
@@ -522,6 +562,7 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 	if (CurrentOperation != ESessionOperation::None)
 	{
 		UE_LOG(LogParcelSession, Warning, TEXT("JoinSession rejected because another session operation is active."));
+		ReportJoinFailure(TEXT("another session operation is already active"));
 		OnSessionJoinComplete.Broadcast(false);
 		return false;
 	}
@@ -555,6 +596,7 @@ bool USessionSubsystem::BeginJoinSession(const FOnlineSessionSearchResult& Sessi
 	IOnlineSessionPtr Sessions;
 	if (!GetSteamSessionInterface(Sessions, TEXT("BeginJoinSession")))
 	{
+		ReportJoinFailure(TEXT("Steam is unavailable or the local Steam user is not logged in"));
 		OnSessionJoinComplete.Broadcast(false);
 		return false;
 	}
@@ -573,6 +615,7 @@ bool USessionSubsystem::BeginJoinSession(const FOnlineSessionSearchResult& Sessi
 		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
 		ClearOperationState();
 		UE_LOG(LogParcelSession, Error, TEXT("JoinSession returned false immediately."));
+		ReportJoinFailure(TEXT("the online subsystem rejected the join request immediately"));
 		OnSessionJoinComplete.Broadcast(false);
 		CleanupNamedSession();
 		return false;
@@ -680,6 +723,7 @@ void USessionSubsystem::CompleteDestroyIntent(EDestroyIntent Intent, bool bWasSu
 		else
 		{
 			UE_LOG(LogParcelSession, Error, TEXT("Invite join aborted because the previous session could not be destroyed."));
+			ReportJoinFailure(TEXT("the previous GameSession could not be destroyed"));
 			OnSessionJoinComplete.Broadcast(false);
 		}
 		break;
@@ -1118,6 +1162,28 @@ void USessionSubsystem::OnJoinSessionComplete(
 	if (Result != EOnJoinSessionCompleteResult::Success || !Sessions.IsValid())
 	{
 		UE_LOG(LogParcelSession, Error, TEXT("JoinSession completion failed with result %d."), static_cast<int32>(Result));
+		FString FailureReason;
+		switch (Result)
+		{
+		case EOnJoinSessionCompleteResult::SessionIsFull:
+			FailureReason = TEXT("the session is full");
+			break;
+		case EOnJoinSessionCompleteResult::SessionDoesNotExist:
+			FailureReason = TEXT("the invited session no longer exists");
+			break;
+		case EOnJoinSessionCompleteResult::CouldNotRetrieveAddress:
+			FailureReason = TEXT("Steam could not retrieve the host address");
+			break;
+		case EOnJoinSessionCompleteResult::AlreadyInSession:
+			FailureReason = TEXT("the local user is already in GameSession");
+			break;
+		default:
+			FailureReason = Sessions.IsValid()
+				? TEXT("the online subsystem returned an unknown error")
+				: TEXT("the Steam session interface became unavailable");
+			break;
+		}
+		ReportJoinFailure(FailureReason);
 		OnSessionJoinComplete.Broadcast(false);
 		CleanupNamedSession();
 		return;
@@ -1130,6 +1196,7 @@ void USessionSubsystem::OnJoinSessionComplete(
 		TravelURL.IsEmpty() || !PlayerController || !PlayerController->IsLocalController())
 	{
 		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded but the client travel URL or local controller is unavailable."));
+		ReportJoinFailure(TEXT("the resolved connect string or local player controller is unavailable"));
 		OnSessionJoinComplete.Broadcast(false);
 		CleanupNamedSession();
 		return;
@@ -1138,6 +1205,7 @@ void USessionSubsystem::OnJoinSessionComplete(
 	bClientTravelInProgress = true;
 	PlayerController->ClientTravel(TravelURL, ETravelType::TRAVEL_Absolute);
 	UE_LOG(LogParcelSession, Log, TEXT("JoinSession succeeded; ClientTravel issued."));
+	ReportSessionStatus(TEXT("JoinSession succeeded. Traveling to the host."), false);
 	OnSessionJoinComplete.Broadcast(true);
 }
 

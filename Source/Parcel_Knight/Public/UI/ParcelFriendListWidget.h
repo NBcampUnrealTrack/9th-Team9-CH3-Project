@@ -64,8 +64,15 @@ private:
 	UFUNCTION()
 	void HandleFriendsLoadFailed(const TArray<FBPFriendInfo>& Friends);
 
+	UFUNCTION()
+	void HandleSessionStatusMessage(const FText& Message, bool bIsError);
+
+	UFUNCTION()
+	void HandleSessionAvailabilityChanged(bool bWasSuccessful);
+
 	void SetStatusMessage(const FText& Message);
 	void FinishFriendsRequest();
+	void RefreshInviteAvailability();
 
 	UPROPERTY()
 	TObjectPtr<UGetFriendsCallbackProxy> ActiveFriendsRequest;

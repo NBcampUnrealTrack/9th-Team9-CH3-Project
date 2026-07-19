@@ -108,6 +108,7 @@ private:
 	static const FString SaveSlotName;
 
 	FDelegateHandle SessionInviteAcceptedHandle;
+	IOnlineSessionPtr SessionInviteSessionInterface;
 
 	// 런타임 캐시 — SaveGame 데이터를 메모리에 올려둔 복사본
 	int32 Money = 0;
