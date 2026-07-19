@@ -21,6 +21,19 @@ namespace ParcelSessionMaps
 	const FString Lobby = TEXT("/Game/Maps/LV_DF_Lobby_Stage00");
 	const FString Frontend = TEXT("/Game/Maps/TestMaps/Testing_DF_Stage01");
 	const FName SteamSubsystem = FName(TEXT("STEAM"));
+
+	const TCHAR* JoinResultToString(EOnJoinSessionCompleteResult::Type Result)
+	{
+		switch (Result)
+		{
+		case EOnJoinSessionCompleteResult::Success: return TEXT("Success");
+		case EOnJoinSessionCompleteResult::SessionIsFull: return TEXT("SessionIsFull");
+		case EOnJoinSessionCompleteResult::SessionDoesNotExist: return TEXT("SessionDoesNotExist");
+		case EOnJoinSessionCompleteResult::CouldNotRetrieveAddress: return TEXT("CouldNotRetrieveAddress");
+		case EOnJoinSessionCompleteResult::AlreadyInSession: return TEXT("AlreadyInSession");
+		default: return TEXT("UnknownError");
+		}
+	}
 }
 
 void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -1136,32 +1149,58 @@ void USessionSubsystem::OnJoinSessionComplete(
 	FName SessionName,
 	EOnJoinSessionCompleteResult::Type Result)
 {
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	const FName OnlineSubsystemName = OSS ? OSS->GetSubsystemName() : NAME_None;
+	const IOnlineSessionPtr Sessions = OSS ? OSS->GetSessionInterface() : nullptr;
+
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("JoinSession complete: Session=%s Result=%s(%d) OnlineSubsystem=%s SessionInterfaceValid=%d CurrentOperation=%d."),
+		*SessionName.ToString(),
+		ParcelSessionMaps::JoinResultToString(Result),
+		static_cast<int32>(Result),
+		*OnlineSubsystemName.ToString(),
+		Sessions.IsValid(),
+		static_cast<uint8>(CurrentOperation));
+
 	if (SessionName != NAME_GameSession || CurrentOperation != ESessionOperation::Joining)
 	{
+		UE_LOG(
+			LogParcelSession,
+			Warning,
+			TEXT("JoinSession completion ignored: ExpectedSession=%s IsJoining=%d ClientTravelCalled=0."),
+			*FName(NAME_GameSession).ToString(),
+			CurrentOperation == ESessionOperation::Joining);
 		return;
 	}
 
-	const IOnlineSessionPtr Sessions = GetSessionInterface();
 	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
 	const bool bTimedOut = bOperationFailureReported;
 	ClearOperationState();
 	if (bLeaveInProgress)
 	{
-		UE_LOG(LogParcelSession, Log, TEXT("JoinSession completion converted to pending Leave."));
+		UE_LOG(LogParcelSession, Log, TEXT("JoinSession completion converted to pending Leave. ClientTravelCalled=0."));
 		BeginDestroySession(EDestroyIntent::Leave);
 		return;
 	}
 
 	if (bTimedOut)
 	{
-		UE_LOG(LogParcelSession, Warning, TEXT("Ignoring late JoinSession completion after timeout."));
+		UE_LOG(LogParcelSession, Warning, TEXT("Ignoring late JoinSession completion after timeout. ClientTravelCalled=0."));
 		CleanupNamedSession();
 		return;
 	}
 
-	if (Result != EOnJoinSessionCompleteResult::Success || !Sessions.IsValid())
+	if (Result != EOnJoinSessionCompleteResult::Success)
 	{
-		UE_LOG(LogParcelSession, Error, TEXT("JoinSession completion failed with result %d."), static_cast<int32>(Result));
+		UE_LOG(
+			LogParcelSession,
+			Error,
+			TEXT("JoinSession completion failed: Result=%s(%d) OnlineSubsystem=%s ClientTravelCalled=0."),
+			ParcelSessionMaps::JoinResultToString(Result),
+			static_cast<int32>(Result),
+			*OnlineSubsystemName.ToString());
 		FString FailureReason;
 		switch (Result)
 		{
@@ -1189,23 +1228,113 @@ void USessionSubsystem::OnJoinSessionComplete(
 		return;
 	}
 
-	FString TravelURL;
-	UWorld* World = GetWorld();
-	APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
-	if (!Sessions->GetResolvedConnectString(NAME_GameSession, TravelURL) ||
-		TravelURL.IsEmpty() || !PlayerController || !PlayerController->IsLocalController())
+	if (!Sessions.IsValid())
 	{
-		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded but the client travel URL or local controller is unavailable."));
-		ReportJoinFailure(TEXT("the resolved connect string or local player controller is unavailable"));
+		UE_LOG(
+			LogParcelSession,
+			Error,
+			TEXT("JoinSession succeeded, but the session interface is invalid. OnlineSubsystem=%s ClientTravelCalled=0."),
+			*OnlineSubsystemName.ToString());
+		ReportJoinFailure(FString::Printf(
+			TEXT("the %s online subsystem has no valid session interface"),
+			*OnlineSubsystemName.ToString()));
 		OnSessionJoinComplete.Broadcast(false);
 		CleanupNamedSession();
 		return;
 	}
 
-	bClientTravelInProgress = true;
-	PlayerController->ClientTravel(TravelURL, ETravelType::TRAVEL_Absolute);
-	UE_LOG(LogParcelSession, Log, TEXT("JoinSession succeeded; ClientTravel issued."));
+	FString ConnectString;
+	const bool bResolvedConnectString = Sessions->GetResolvedConnectString(
+		NAME_GameSession,
+		ConnectString);
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("GetResolvedConnectString: Session=%s Success=%d ConnectString=\"%s\"."),
+		*FName(NAME_GameSession).ToString(),
+		bResolvedConnectString,
+		*ConnectString);
+
+	if (!bResolvedConnectString)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("GetResolvedConnectString returned false. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("GetResolvedConnectString returned false for GameSession"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (ConnectString.IsEmpty())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("GetResolvedConnectString returned an empty ConnectString. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("GetResolvedConnectString returned an empty address for GameSession"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	UGameInstance* GameInstance = GetGameInstance();
+	ULocalPlayer* LocalPlayer = GameInstance ? GameInstance->GetLocalPlayerByIndex(0) : nullptr;
+	APlayerController* PlayerController = GameInstance
+		? GameInstance->GetFirstLocalPlayerController(World)
+		: nullptr;
+	const bool bIsLocalController = PlayerController && PlayerController->IsLocalController();
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("Join travel objects: WorldValid=%d GameInstanceValid=%d LocalPlayerValid=%d PlayerControllerValid=%d IsLocalController=%d."),
+		World != nullptr,
+		GameInstance != nullptr,
+		LocalPlayer != nullptr,
+		PlayerController != nullptr,
+		bIsLocalController);
+
+	if (!World)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but the GameInstance has no active World. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("there is no active World for ClientTravel"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!LocalPlayer)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but local player index 0 is unavailable. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("local player index 0 is unavailable"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!PlayerController)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but GetFirstLocalPlayerController returned null. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("the local PlayerController is unavailable"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!bIsLocalController)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but the selected PlayerController is not local. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("the selected PlayerController is not local"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
 	ReportSessionStatus(TEXT("JoinSession succeeded. Traveling to the host."), false);
+	bClientTravelInProgress = true;
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("Calling ClientTravel: ConnectString=\"%s\" TravelType=TRAVEL_Absolute ClientTravelCalled=1."),
+		*ConnectString);
+	PlayerController->ClientTravel(ConnectString, ETravelType::TRAVEL_Absolute);
+	UE_LOG(LogParcelSession, Log, TEXT("ClientTravel call returned. ClientTravelCalled=1."));
 	OnSessionJoinComplete.Broadcast(true);
 }
 
@@ -1271,6 +1400,13 @@ void USessionSubsystem::HandleNetworkFailure(
 		TEXT("Network failure %d: %s"),
 		static_cast<uint8>(FailureType),
 		*ErrorString);
+	if (bClientTravelInProgress)
+	{
+		ReportJoinFailure(FString::Printf(
+			TEXT("ClientTravel connection failed with network error %d: %s"),
+			static_cast<uint8>(FailureType),
+			*ErrorString));
+	}
 	if (bLeaveInProgress)
 	{
 		return;
@@ -1300,6 +1436,13 @@ void USessionSubsystem::HandleTravelFailure(
 		TEXT("Travel failure %d: %s"),
 		static_cast<uint8>(FailureType),
 		*ErrorString);
+	if (bClientTravelInProgress)
+	{
+		ReportJoinFailure(FString::Printf(
+			TEXT("ClientTravel failed with travel error %d: %s"),
+			static_cast<uint8>(FailureType),
+			*ErrorString));
+	}
 	if (bLeaveInProgress)
 	{
 		bHostTravelInProgress = false;
