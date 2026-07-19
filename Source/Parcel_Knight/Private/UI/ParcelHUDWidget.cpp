@@ -101,35 +101,31 @@ void UParcelHUDWidget::TryBindUIEvents()
 	if (!CachedGameState.IsValid())
 	{
 		CachedGameState = Cast<AParcelGameState>(GetWorld()->GetGameState());
-		if (CachedGameState.IsValid())
+	}
+    
+	if (CachedGameState.IsValid())
+	{
+		UTeamScoreComponent* TeamScoreComp = CachedGameState->FindComponentByClass<UTeamScoreComponent>();
+		if (TeamScoreComp)
 		{
-			// Todo : 디커플링을 위해서 FindComponentByClass를 사용했습니다. 배포 버전을 만들 때 게터로 리팩토링이 필요합니다.
-			UTeamScoreComponent* TeamScoreComp = CachedGameState->FindComponentByClass<UTeamScoreComponent>();
-			
-			if (TeamScoreComp)
-			{
-				// 이벤트 바인딩
-				TeamScoreComp->OnTeamScoreChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
-				TeamScoreComp->OnTeamScoreChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
-				HandleOnTeamScoreChanged(TeamScoreComp->GetTeamScore());
-				
-				// 콤보 시스템 바인딩
-				TeamScoreComp->OnComboChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
-				TeamScoreComp->OnComboChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
-				HandleOnComboChanged(TeamScoreComp->GetComboCount());
+			TeamScoreComp->OnTeamScoreChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
+			TeamScoreComp->OnTeamScoreChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
+			HandleOnTeamScoreChanged(TeamScoreComp->GetTeamScore());
+          
+			TeamScoreComp->OnComboChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
+			TeamScoreComp->OnComboChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
+			HandleOnComboChanged(TeamScoreComp->GetComboCount());
 
-				// 라운드 만료 시간 바인딩
-				TeamScoreComp->OnRemainingTimeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
-				TeamScoreComp->OnRemainingTimeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
-				HandleOnExpirationTimeChanged(TeamScoreComp->GetRemainingTime());
-				
-				bComboBound = true;
-			}
-			
-			CachedGameState->OnDeliveryLogReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
-			CachedGameState->OnDeliveryLogReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
-			bLogBound = true;
+			TeamScoreComp->OnRemainingTimeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
+			TeamScoreComp->OnRemainingTimeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
+			HandleOnExpirationTimeChanged(TeamScoreComp->GetRemainingTime());
+          
+			bComboBound = true;
 		}
+       
+		CachedGameState->OnDeliveryLogReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+		CachedGameState->OnDeliveryLogReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+		bLogBound = true;
 	}
 
 	// 2. PlayerState 바인딩(삭제)
@@ -137,6 +133,18 @@ void UParcelHUDWidget::TryBindUIEvents()
 	// 3. 컴포넌트 바인딩
 	if (APawn* OwningPawn = GetOwningPlayerPawn())
 	{
+		if (UHealthComponent* CheckDeadComp = OwningPawn->FindComponentByClass<UHealthComponent>())
+		{
+			if (CheckDeadComp->IsDead())
+			{             
+				if (!RetryBindTimerHandle.IsValid() && GetWorld())
+				{
+					GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
+				}
+				return; 
+			}
+		}
+
 		if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwningPawn))
 		{
 			if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
@@ -144,7 +152,6 @@ void UParcelHUDWidget::TryBindUIEvents()
 				StateComp->OnCharacterStateTagsChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
 				StateComp->OnCharacterStateTagsChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
              
-				// 진입 시점의 최초 캐릭터 상태 태그 강제 초기화
 				HandleOnCharacterStateChanged(StateComp->GetCharacterStateTags());
 				bCharacterStateBound = true;
 			}
@@ -210,6 +217,16 @@ void UParcelHUDWidget::TryBindUIEvents()
 			GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
 			INGAMEHUD_LOG(Warning, TEXT("[UI] 일부 액터 복제 대기 중. 0.1초 후 결합을 재시도합니다."));
 		}
+	}
+}
+
+void UParcelHUDWidget::RequestRebindPlayerEvents()
+{
+	if (GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
+		
+		TryBindUIEvents();
 	}
 }
 
