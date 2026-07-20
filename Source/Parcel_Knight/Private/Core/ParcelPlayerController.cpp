@@ -5,6 +5,9 @@
 #include "UI/ParcelHUDWidget.h"
 #include "Core/ParcelCheatManager.h"
 #include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerState.h"
+#include "UI/ParcelLobbyHUDWidget.h"
+#include "Core/ParcelGameState.h"
 
 DEFINE_LOG_CATEGORY(LogParcelPlayerController);
 
@@ -173,5 +176,50 @@ void AParcelPlayerController::ToggleInGameMenu()
 			ESCMenuRef->AddToViewport(300);
 			ESCMenuRef->SetupMenu();
 		}
+	}
+}
+
+bool AParcelPlayerController::Server_SendLobbyChatMessage_Validate(const FText& ChatText)
+{
+	return !ChatText.IsEmpty() && ChatText.ToString().Len() < 200;
+}
+
+void AParcelPlayerController::Server_SendLobbyChatMessage_Implementation(const FText& ChatText)
+{
+	if (!GetWorld()) return;
+	
+	FString SenderNickname = PlayerState ? PlayerState->GetPlayerName() : TEXT("알 수 없는 참가자");
+	
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AParcelPlayerController* TargetPC = Cast<AParcelPlayerController>(It->Get());
+		if (TargetPC)
+		{
+			TargetPC->Client_ReceiveLobbyChatMessage(SenderNickname, ChatText);
+		}
+	}
+}
+
+void AParcelPlayerController::Client_ReceiveLobbyChatMessage_Implementation(const FString& SenderName, const FText& ChatText)
+{
+	if (LobbyHUDWidgetInstance && LobbyHUDWidgetInstance->IsValidLowLevel())
+	{
+		LobbyHUDWidgetInstance->AddChatLog(SenderName, ChatText);
+	}
+    
+	UE_LOG(LogTemp, Log, TEXT("[Lobby Chat RPC] %s 님의 메시지 수신 완료: %s"), *SenderName, *ChatText.ToString());
+}
+
+bool AParcelPlayerController::Server_RequestChangeLobbyMap_Validate(int32 NewMapIndex)
+{
+	return IsLocalController();
+}
+
+void AParcelPlayerController::Server_RequestChangeLobbyMap_Implementation(int32 NewMapIndex)
+{
+	if (AParcelGameState* ParcelGS = GetWorld() ? GetWorld()->GetGameState<AParcelGameState>() : nullptr)
+	{
+		ParcelGS->SetSelectedMapIndex(NewMapIndex);
+		UE_LOG(LogTemp, Warning, TEXT("[Server PC] 방장 권한 확인 완료. 월드 맵 인덱스를 %d번으로 강제 변조합니다."), NewMapIndex);
 	}
 }
