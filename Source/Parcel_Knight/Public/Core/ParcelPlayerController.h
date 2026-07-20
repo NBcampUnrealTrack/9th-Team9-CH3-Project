@@ -9,6 +9,7 @@
 class UParcelInGameDeadHUDWidget;
 class UParcelInGameESCMenuWidget;
 class UParcelLobbyHUDWidget;
+class UParcelTrapStatusOverlayWidget;
 class USoundBase;
 
 /**
@@ -32,6 +33,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_PlayTrapActivationSound(USoundBase* ActivationSound, float VolumeMultiplier, float PitchMultiplier);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowTrapStatus(FLinearColor Color, float Duration);
 	
 	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
 	void ToggleInGameMenu();
@@ -40,6 +44,7 @@ protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void AcknowledgePossession(APawn* InPawn) override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
 	// [Editor] HUD 위젯 클래스 지정
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
@@ -50,6 +55,9 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
 	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI|Trap")
+	TSubclassOf<UParcelTrapStatusOverlayWidget> TrapStatusOverlayWidgetClass;
 	
 	// HUD 위젯 인스턴스
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
@@ -60,6 +68,12 @@ protected:
 	
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
 	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI|Trap")
+	TObjectPtr<UParcelTrapStatusOverlayWidget> TrapStatusOverlayWidgetInstance;
+
+private:
+	void CreateTrapStatusOverlayIfNeeded();
 	
 public:
 	/** [Client -> Server] 클라이언트가 입력한 채팅을 서버 방장에게 전달하는 Reliable RPC */

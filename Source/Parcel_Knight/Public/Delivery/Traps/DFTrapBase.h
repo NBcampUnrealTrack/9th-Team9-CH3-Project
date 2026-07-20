@@ -103,6 +103,7 @@ private:
 	void EnterActiveState_ServerOnly();
 	void EnterCooldownState_ServerOnly();
 	void PlayActivationSoundOnce_ServerOnly(AActor* Activator);
+	void ShowScreenEdgeEffect_ServerOnly(AActor* TargetActor);
 	bool ApplyTrapEffectToOverlappingActors_ServerOnly();
 	bool ApplyTrapEffect_ServerOnly(AActor* TargetActor);
 	bool ApplyDamageOnce_ServerOnly(AActor* TargetActor);

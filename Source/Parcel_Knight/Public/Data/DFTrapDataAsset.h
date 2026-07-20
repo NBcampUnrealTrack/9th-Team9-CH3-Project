@@ -114,6 +114,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio")
 	TObjectPtr<USoundAttenuation> ActivationSoundAttenuation;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Feedback|Screen")
+	bool bShowScreenEdgeEffect = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Feedback|Screen")
+	FLinearColor ScreenEdgeColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.65f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Feedback|Screen", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float ScreenEdgeDuration = 0.75f;
+
 	// Legacy field kept for serialized compatibility. Common activation playback uses ActivationSound.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|FX")
 	TObjectPtr<USoundBase> ActivateSFX;

@@ -408,7 +408,10 @@ void ADFTrapBase::OnTrapBeginOverlap(
 
 	if (CurrentStateTag.MatchesTagExact(DFTrapTags::Active()))
 	{
-		ApplyTrapEffect_ServerOnly(TargetPawn);
+		if (ApplyTrapEffect_ServerOnly(TargetPawn))
+		{
+			ShowScreenEdgeEffect_ServerOnly(TargetPawn);
+		}
 	}
 }
 
@@ -597,6 +600,60 @@ void ADFTrapBase::PlayActivationSoundOnce_ServerOnly(AActor* Activator)
 	);
 }
 
+void ADFTrapBase::ShowScreenEdgeEffect_ServerOnly(AActor* TargetActor)
+{
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Trap] Trap screen feedback requested: Trap=%s Target=%s DataAsset=%s Authority=%d Enabled=%d Color RGBA=(%.3f, %.3f, %.3f, %.3f) Duration=%.3f"),
+		*GetNameSafe(this),
+		*GetNameSafe(TargetActor),
+		*GetNameSafe(TrapDataAsset),
+		HasAuthority(),
+		TrapDataAsset ? TrapDataAsset->bShowScreenEdgeEffect : false,
+		TrapDataAsset ? TrapDataAsset->ScreenEdgeColor.R : 0.0f,
+		TrapDataAsset ? TrapDataAsset->ScreenEdgeColor.G : 0.0f,
+		TrapDataAsset ? TrapDataAsset->ScreenEdgeColor.B : 0.0f,
+		TrapDataAsset ? TrapDataAsset->ScreenEdgeColor.A : 0.0f,
+		TrapDataAsset ? TrapDataAsset->ScreenEdgeDuration : 0.0f
+	);
+
+	if (!HasAuthority()
+		|| !TrapDataAsset
+		|| !TrapDataAsset->bShowScreenEdgeEffect
+		|| TrapDataAsset->ScreenEdgeDuration <= 0.0f
+		|| !IsValid(TargetActor))
+	{
+		return;
+	}
+
+	AParcelPlayerController* PlayerController = Cast<AParcelPlayerController>(TargetActor);
+	if (!PlayerController)
+	{
+		if (const APawn* TargetPawn = Cast<APawn>(TargetActor))
+		{
+			PlayerController = Cast<AParcelPlayerController>(TargetPawn->GetController());
+		}
+	}
+
+	if (!IsValid(PlayerController))
+	{
+		UE_LOG(
+			LogTemp,
+			Verbose,
+			TEXT("[Trap] Screen edge effect skipped: target has no ParcelPlayerController. Trap=%s Target=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(TargetActor)
+		);
+		return;
+	}
+
+	PlayerController->Client_ShowTrapStatus(
+		TrapDataAsset->ScreenEdgeColor,
+		FMath::Max(0.0f, TrapDataAsset->ScreenEdgeDuration)
+	);
+}
+
 bool ADFTrapBase::ApplyTrapEffectToOverlappingActors_ServerOnly()
 {
 	if (!HasAuthority() || !TriggerVolume)
@@ -611,6 +668,11 @@ bool ADFTrapBase::ApplyTrapEffectToOverlappingActors_ServerOnly()
 	for (AActor* OverlappingActor : OverlappingActors)
 	{
 		const bool bEffectApplied = ApplyTrapEffect_ServerOnly(OverlappingActor);
+		if (bEffectApplied)
+		{
+			ShowScreenEdgeEffect_ServerOnly(OverlappingActor);
+		}
+
 		if (OverlappingActor == PendingActivator)
 		{
 			bActivatorEffectApplied |= bEffectApplied;
@@ -620,6 +682,10 @@ bool ADFTrapBase::ApplyTrapEffectToOverlappingActors_ServerOnly()
 	if (PendingActivator && !OverlappingActors.Contains(PendingActivator))
 	{
 		bActivatorEffectApplied = ApplyTrapEffect_ServerOnly(PendingActivator);
+		if (bActivatorEffectApplied)
+		{
+			ShowScreenEdgeEffect_ServerOnly(PendingActivator);
+		}
 	}
 
 	return bActivatorEffectApplied;
