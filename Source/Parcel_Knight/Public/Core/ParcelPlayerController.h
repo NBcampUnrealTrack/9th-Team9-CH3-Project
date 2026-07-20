@@ -9,6 +9,7 @@
 class UParcelInGameDeadHUDWidget;
 class UParcelInGameESCMenuWidget;
 class UParcelLobbyHUDWidget;
+class USoundBase;
 
 /**
  * 담당자: 김로운
@@ -28,6 +29,9 @@ public:
 	// [Client]
 	UFUNCTION(Client, Reliable)
 	void Client_NotifyRespawn();
+
+	UFUNCTION(Client, Reliable)
+	void Client_PlayTrapActivationSound(USoundBase* ActivationSound, float VolumeMultiplier, float PitchMultiplier);
 	
 	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
 	void ToggleInGameMenu();

@@ -7,6 +7,7 @@
 
 class UDamageType;
 class UParticleSystem;
+class USoundAttenuation;
 class USoundBase;
 
 UCLASS(BlueprintType)
@@ -98,6 +99,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|FX")
 	TObjectPtr<UParticleSystem> ActivateVFX;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio")
+	TObjectPtr<USoundBase> ActivationSound;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float ActivationSoundVolume = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio", meta = (ClampMin = "0.01", UIMin = "0.01"))
+	float ActivationSoundPitch = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio")
+	TObjectPtr<USoundAttenuation> ActivationSoundAttenuation;
+
+	// Legacy field kept for serialized compatibility. Common activation playback uses ActivationSound.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|FX")
 	TObjectPtr<USoundBase> ActivateSFX;
 
