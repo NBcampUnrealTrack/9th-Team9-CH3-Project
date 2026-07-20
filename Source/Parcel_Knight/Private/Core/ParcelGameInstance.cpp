@@ -4,6 +4,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "OnlineSubsystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogParcelGameInstance, Log, All);
+
 const FString UParcelGameInstance::SaveSlotName = TEXT("PlayerSaveSlot");
 
 // ========================= 초기화 =========================
@@ -13,32 +15,55 @@ void UParcelGameInstance::Init()
 	Super::Init();
 	LoadData();
 
+	if (SessionInviteAcceptedHandle.IsValid() && SessionInviteSessionInterface.IsValid())
+	{
+		SessionInviteSessionInterface->ClearOnSessionUserInviteAcceptedDelegate_Handle(
+			SessionInviteAcceptedHandle);
+	}
+	SessionInviteAcceptedHandle.Reset();
+	SessionInviteSessionInterface.Reset();
+
 	if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
 	{
 		const IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
 		if (Sessions.IsValid())
 		{
+			SessionInviteSessionInterface = Sessions;
 			SessionInviteAcceptedHandle = Sessions->AddOnSessionUserInviteAcceptedDelegate_Handle(
 				FOnSessionUserInviteAcceptedDelegate::CreateUObject(
 					this,
 					&UParcelGameInstance::HandleSessionInviteAccepted));
 		}
 	}
+
+	if (!SessionInviteAcceptedHandle.IsValid())
+	{
+		UE_LOG(LogParcelGameInstance, Error, TEXT("Session invite-accepted delegate could not be registered."));
+	}
 }
 
 void UParcelGameInstance::Shutdown()
 {
-	if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
+	if (SessionInviteSessionInterface.IsValid() && SessionInviteAcceptedHandle.IsValid())
 	{
-		const IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-		if (Sessions.IsValid() && SessionInviteAcceptedHandle.IsValid())
-		{
-			Sessions->ClearOnSessionUserInviteAcceptedDelegate_Handle(SessionInviteAcceptedHandle);
-			SessionInviteAcceptedHandle.Reset();
-		}
+		SessionInviteSessionInterface->ClearOnSessionUserInviteAcceptedDelegate_Handle(
+			SessionInviteAcceptedHandle);
 	}
+	SessionInviteAcceptedHandle.Reset();
+	SessionInviteSessionInterface.Reset();
 
 	Super::Shutdown();
+}
+
+void UParcelGameInstance::ReturnToMainMenu()
+{
+	if (USessionSubsystem* SessionSubsystem = GetSubsystem<USessionSubsystem>())
+	{
+		SessionSubsystem->LeaveSession();
+		return;
+	}
+
+	Super::ReturnToMainMenu();
 }
 
 void UParcelGameInstance::HandleSessionInviteAccepted(
@@ -47,24 +72,42 @@ void UParcelGameInstance::HandleSessionInviteAccepted(
 	FUniqueNetIdPtr UserId,
 	const FOnlineSessionSearchResult& InviteResult)
 {
-	if (!bWasSuccessful || !UserId.IsValid() || !InviteResult.IsValid())
+	USessionSubsystem* SessionSubsystem = GetSubsystem<USessionSubsystem>();
+	const bool bInviteIsValid = bWasSuccessful && UserId.IsValid() && InviteResult.IsValid();
+	if (SessionSubsystem)
 	{
+		SessionSubsystem->NotifySessionInviteAccepted(bInviteIsValid);
+	}
+
+	if (!bInviteIsValid)
+	{
+		UE_LOG(
+			LogParcelGameInstance,
+			Error,
+			TEXT("Steam session invite acceptance failed: success=%d user=%d result=%d controller=%d."),
+			bWasSuccessful,
+			UserId.IsValid(),
+			InviteResult.IsValid(),
+			ControllerId);
 		return;
 	}
 
-	FOnlineSessionSearchResult SessionToJoin = InviteResult;
+	UE_LOG(
+		LogParcelGameInstance,
+		Log,
+		TEXT("Steam session invite accepted by controller %d; forwarding GameSession result."),
+		ControllerId);
 
-	// AdvancedSessions 5.5의 UAdvancedFriendsGameInstance와 동일한 UE 5.5 Steam 보정입니다.
-	// listen session 초대 결과에 presence/lobby 플래그가 누락되는 엔진 케이스를 보완합니다.
-	if (!SessionToJoin.Session.SessionSettings.bIsDedicated)
+	if (SessionSubsystem)
 	{
-		SessionToJoin.Session.SessionSettings.bUsesPresence = true;
-		SessionToJoin.Session.SessionSettings.bUseLobbiesIfAvailable = true;
+		if (!SessionSubsystem->JoinSessionResult(InviteResult))
+		{
+			UE_LOG(LogParcelGameInstance, Error, TEXT("Steam invite was accepted, but JoinSession could not be started."));
+		}
 	}
-
-	if (USessionSubsystem* SessionSubsystem = GetSubsystem<USessionSubsystem>())
+	else
 	{
-		SessionSubsystem->JoinSessionResult(SessionToJoin);
+		UE_LOG(LogParcelGameInstance, Error, TEXT("Steam invite was accepted, but SessionSubsystem is unavailable."));
 	}
 }
 

@@ -27,8 +27,14 @@ void URespawnComponent::DoRespawnPlayer(AController* Controller)
 	// 구 폰 명시적 제거 — 래그돌 상태로 월드에 남아있는 캐릭터 파괴
 	if (APawn* OldPawn = Controller->GetPawn())
 	{
-		Controller->UnPossess();
-		OldPawn->Destroy();
+		// 죽은 캐릭터를 제거
+		if (APawn* OldPawn = Controller->GetPawn())
+		{
+			OldPawn->Destroy();
+		}
+		
+		if (AGameMode* GM = GetOwner<AGameMode>())
+			GM->RestartPlayer(Controller);
 	}
 
 	GM->RestartPlayer(Controller);

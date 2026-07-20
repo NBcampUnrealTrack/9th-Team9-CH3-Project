@@ -30,6 +30,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogHeroComp, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogRagdoll, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogPlayerStateComp, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogParcelStamina, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogParcelPlayerController, Log, All);
 
 // Delivery
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryBox, Log, All);
@@ -58,6 +59,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogItem, Log, All);
 #define RAGDOLL_LOG(Verbosity, Format, ...)    UE_LOG(LogRagdoll, Verbosity, Format, ##__VA_ARGS__)
 #define PLAYERSTATECOMP_LOG(Verbosity, Format, ...)    UE_LOG(LogPlayerStateComp, Verbosity, Format, ##__VA_ARGS__)
 #define STAMINA_LOG(Verbosity, Format, ...)    UE_LOG(LogParcelStamina, Verbosity, Format, ##__VA_ARGS__)
+#define CONTROLLER_LOG(Verbosity, Format, ...)    UE_LOG(LogParcelPlayerController, Verbosity, Format, ##__VA_ARGS__)
 
 // Delivery
 #define DELIVERYBOX_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryBox, Verbosity, Format, ##__VA_ARGS__)

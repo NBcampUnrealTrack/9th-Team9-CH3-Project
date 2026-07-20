@@ -4,7 +4,8 @@
 #include "Components/VerticalBox.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
-#include "Kismet/GameplayStatics.h"
+#include "Engine/GameInstance.h"
+#include "Core/SessionSubsystem.h"
 #include "Core/ParcelPlayerState.h"
 
 void UParcelInGameESCMenuWidget::NativeConstruct()
@@ -134,9 +135,12 @@ void UParcelInGameESCMenuWidget::HandleOptionsClicked()
 
 void UParcelInGameESCMenuWidget::HandleExitClicked()
 {
-	APlayerController* PC = GetOwningPlayer();
-	if (!PC) return;
-
-	if (PC->HasAuthority()) UGameplayStatics::OpenLevel(GetWorld(), TEXT("MainMenu"));
-	else PC->ClientTravel(TEXT("/Game/Maps/MainMenu"), TRAVEL_Absolute);
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (USessionSubsystem* SessionSubsystem = GameInstance->GetSubsystem<USessionSubsystem>())
+		{
+			K2_OnTeardownStarted();
+			SessionSubsystem->LeaveSession();
+		}
+	}
 }

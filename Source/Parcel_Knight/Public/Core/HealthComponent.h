@@ -56,7 +56,7 @@ public:
 	void IncreaseMaxHP(float Amount);
 
 	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
-	UFUNCTION(NetMulticast, Unreliable)
+	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_OnDeath();
 
 private:

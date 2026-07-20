@@ -9,6 +9,7 @@
 #include "Core/ParcelGameMode.h"
 #include "Core/ParcelPlayerController.h"
 #include "Core/RespawnComponent.h"
+#include "Core/ParcelPlayerController.h"
 
 // ========================= 초기화 =========================
 
@@ -84,6 +85,12 @@ void AParcelPlayerState::HandleDeath()
 	PlayerStatComp->OnDeath();
 	Client_StartSpectating();
 
+	// [UI] [Server] : 로컬 플레이어 컨트롤러를 찾아서 클라이언트 RPC 호출
+	if (AParcelPlayerController* PC = Cast<AParcelPlayerController>(GetPlayerController()))
+	{
+		PC->Client_NotifyDeath();
+	}
+	
 	if (AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>())
 	{
 		URespawnComponent* RC = GM->GetRespawnComponent();

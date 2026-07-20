@@ -68,4 +68,8 @@ public:
 	UFUNCTION(Exec) void DebugBuyItem(FString ItemTagStr);
 	// 현재 스테이지 인벤토리(InventoryComponent) 출력
 	UFUNCTION(Exec) void DebugPrintInventory();
+	
+	// ─── UI ───
+	// 사망 및 리스폰 Suicide 명령어
+	UFUNCTION(Exec) void DebugSuicide();
 };

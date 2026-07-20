@@ -156,4 +156,8 @@ private:
 	// 점프 시작 시점과 지면 착지 타이밍 이식
 	virtual void OnJumped_Implementation() override;
 	virtual void Landed(const FHitResult& Hit) override;
+protected:
+	// 사망 로직 보완
+	UFUNCTION()
+	void HandleCharacterDeath();
 };

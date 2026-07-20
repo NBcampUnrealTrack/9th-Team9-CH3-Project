@@ -82,6 +82,13 @@ void AParcelCharacter::BeginPlay()
 		PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
 	}
 	
+	// 사망 로직 보완
+	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+	{
+		HealthComp->OnDeathDelegate.RemoveDynamic(this, &AParcelCharacter::HandleCharacterDeath);
+		HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::HandleCharacterDeath);
+	}
+	
 	if (GetWorld())
 	{
 		FTimerHandle StandaloneNameplateTimer;
@@ -228,6 +235,7 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 			InvComp->ApplyPassiveEffects(this);
 	}
 
+	
 	UpdateOverheadNameplate();
 }
 
@@ -397,4 +405,30 @@ void AParcelCharacter::DoGunLineTrace()
 void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+}
+
+void AParcelCharacter::HandleCharacterDeath()
+{
+	PLAYER_LOG(All, TEXT("[사망 체인] 캐릭터 사망 로직이 정상 가동됩니다."));
+
+	// Ragdoll 활성화
+	if (RagdollComp)
+	{
+		RagdollComp->StartRagdoll();
+	}
+
+	// Dead 상태 태그
+	if (HasAuthority() && PlayerStateComp)
+	{
+		PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Dead")));
+	}
+
+	// PlayerState로 넘김
+	if (HasAuthority())
+	{
+		if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
+		{
+			PS->HandleDeath();
+		}
+	}
 }
