@@ -15,7 +15,6 @@
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
-#include "Delivery/PhysicsJudgeManager.h"
 #include "Delivery/DeliveryBox.h"
 
 namespace DFTrapTags
@@ -677,34 +676,6 @@ bool ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 
 	bool bAppliedAnyEffect = ApplyDamageOnce_ServerOnly(TargetPawn);
 
-	// 캐릭터가 상자를 들고 있는 상태(NoCollision)에서도 함정 효과가 상자에 영향을 준다면(bAffectsCarriedBox) 상자 체력을 깎습니다.
-	// 단, 슬로우 함정(Slow)은 피해 전개에서 제외하며, ForcedDrop 효과는 ApplyForcedDropEffect_ServerOnly에서 별도로 처리하므로 제외
-	if (TrapDataAsset->bAffectsCarriedBox && !IsSlowEffect() && !IsForcedDropEffect())
-	{
-		if (UCharacterCarryComponent* CarryComponent = TargetActor->FindComponentByClass<UCharacterCarryComponent>())
-		{
-			if (CarryComponent->IsCarrying() && CarryComponent->GetCarriedBox())
-			{
-				if (UWorld* World = GetWorld())
-				{
-					if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
-					{
-						const float DamageAmount = TrapDataAsset->DamageAmount;
-						JudgeManager->EvaluateTrapImpact(CarryComponent->GetCarriedBox(), DamageAmount);
-						bAppliedAnyEffect = true;
-						UE_LOG(
-							LogTemp,
-							Warning,
-							TEXT("[Trap] 캐릭터가 함정을 밟아 들고 있는 상자(ID: %d)에 함정 피해 %f 가 누적되었습니다."),
-							CarryComponent->GetCarriedBox()->GetBoxID(),
-							DamageAmount
-						);
-					}
-				}
-			}
-		}
-	}
-
 	if (IsSlowEffect())
 	{
 		if (!TrapDataAsset->bAffectsPlayer)
@@ -863,9 +834,25 @@ bool ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 		return false;
 	}
 
+	UCharacterCarryComponent* CarryComponent = TargetCharacter->FindComponentByClass<UCharacterCarryComponent>();
+	ADeliveryBox* HeldBox = nullptr;
+	if (CarryComponent && CarryComponent->IsCarrying())
+	{
+		HeldBox = CarryComponent->GetCarriedBox();
+		if (!IsValid(HeldBox) || HeldBox->IsActorBeingDestroyed())
+		{
+			HeldBox = nullptr;
+		}
+	}
+
+	bool bPlayerDamageApplied = false;
 	if (UHealthComponent* HealthComponent = TargetCharacter->FindComponentByClass<UHealthComponent>())
 	{
-		HealthComponent->TakeDamage(DamageAmount);
+		if (!HealthComponent->IsDead())
+		{
+			HealthComponent->TakeDamage(DamageAmount);
+			bPlayerDamageApplied = true;
+		}
 	}
 	else
 	{
@@ -875,14 +862,28 @@ bool ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 			DamageTypeClass = UDamageType::StaticClass();
 		}
 
-		UGameplayStatics::ApplyDamage(
+		bPlayerDamageApplied = UGameplayStatics::ApplyDamage(
 			TargetCharacter,
 			DamageAmount,
 			GetInstigatorController(),
 			this,
 			DamageTypeClass
-		);
+		) > 0.0f;
 	}
+
+	if (!bPlayerDamageApplied)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Trap] Player damage was not applied. Target=%s Damage=%.1f"),
+			*GetNameSafe(TargetCharacter),
+			DamageAmount
+		);
+		return false;
+	}
+
+	ApplyHeldBoxDamage_ServerOnly(TargetCharacter, CarryComponent, HeldBox, DamageAmount);
 
 	UE_LOG(
 		LogTemp,
@@ -921,6 +922,64 @@ bool ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 		false
 	);
 
+	return true;
+}
+
+bool ADFTrapBase::ApplyHeldBoxDamage_ServerOnly(
+	ACharacter* TargetCharacter,
+	UCharacterCarryComponent* CarryComponent,
+	ADeliveryBox* HeldBox,
+	float PlayerDamage
+)
+{
+	if (!HasAuthority()
+		|| !TrapDataAsset
+		|| !IsValid(TargetCharacter)
+		|| !IsValid(HeldBox)
+		|| HeldBox->IsActorBeingDestroyed())
+	{
+		return false;
+	}
+
+	UHealthComponent* BoxHealthComponent = HeldBox->FindComponentByClass<UHealthComponent>();
+	if (!IsValid(BoxHealthComponent) || BoxHealthComponent->IsDead())
+	{
+		return false;
+	}
+
+	const float SafePlayerDamage = FMath::Max(0.0f, PlayerDamage);
+	const float Multiplier = FMath::Max(0.0f, TrapDataAsset->HeldBoxDamageMultiplier);
+	const float HeldBoxDamage = SafePlayerDamage * Multiplier;
+	if (HeldBoxDamage <= 0.0f)
+	{
+		return false;
+	}
+
+	// Release a lethally damaged held box through the existing carry flow before its death callback destroys it.
+	if (CarryComponent
+		&& CarryComponent->GetCarriedBox() == HeldBox
+		&& BoxHealthComponent->GetHP() <= HeldBoxDamage)
+	{
+		CarryComponent->Drop();
+	}
+
+	if (!IsValid(HeldBox) || HeldBox->IsActorBeingDestroyed() || BoxHealthComponent->IsDead())
+	{
+		return false;
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Trap] Trap activated: Player=%s Box=%s PlayerDamage=%.1f HeldBoxDamage=%.1f Multiplier=%.1f"),
+		*GetNameSafe(TargetCharacter),
+		*GetNameSafe(HeldBox),
+		SafePlayerDamage,
+		HeldBoxDamage,
+		Multiplier
+	);
+
+	BoxHealthComponent->TakeDamage(HeldBoxDamage);
 	return true;
 }
 
@@ -991,7 +1050,7 @@ bool ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
 		DamageAmount
 	);
 
-	CarryComponent->ForceDropByTrap(DamageAmount);
+	CarryComponent->Drop();
 	return true;
 }
 

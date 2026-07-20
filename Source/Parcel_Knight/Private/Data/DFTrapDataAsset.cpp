@@ -9,6 +9,7 @@ UDFTrapDataAsset::UDFTrapDataAsset()
 	TrapDamage_DEPRECATED = 0.0f;
 	bApplyDamageOnOverlap = false;
 	DamageAmount = 0.0f;
+	HeldBoxDamageMultiplier = 3.0f;
 	bDamageOnlyOncePerActivation = true;
 	DamageCooldownPerActor = 0.5f;
 }

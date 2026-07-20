@@ -10,9 +10,11 @@
 class UBoxComponent;
 class UDFTrapDataAsset;
 class ACharacter;
+class ADeliveryBox;
 class UPrimitiveComponent;
 class USceneComponent;
 class UStaticMeshComponent;
+class UCharacterCarryComponent;
 
 UCLASS(Blueprintable)
 class PARCEL_KNIGHT_API ADFTrapBase : public AActor, public IIDFTrap, public IIDFActivatableTrap
@@ -104,6 +106,12 @@ private:
 	bool ApplyTrapEffectToOverlappingActors_ServerOnly();
 	bool ApplyTrapEffect_ServerOnly(AActor* TargetActor);
 	bool ApplyDamageOnce_ServerOnly(AActor* TargetActor);
+	bool ApplyHeldBoxDamage_ServerOnly(
+		ACharacter* TargetCharacter,
+		UCharacterCarryComponent* CarryComponent,
+		ADeliveryBox* HeldBox,
+		float PlayerDamage
+	);
 	bool CanApplyDamageToActor(AActor* TargetActor) const;
 	void ClearDamageCooldownForActor(AActor* TargetActor);
 	bool ApplyForcedDropEffect_ServerOnly(AActor* TargetActor);

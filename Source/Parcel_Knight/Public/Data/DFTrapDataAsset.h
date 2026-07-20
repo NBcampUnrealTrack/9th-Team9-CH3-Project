@@ -54,6 +54,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (ClampMin = "0.0"))
 	float DamageAmount = 0.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage|Held Box", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float HeldBoxDamageMultiplier = 3.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap"))
 	TSubclassOf<UDamageType> DamageTypeClass;
 
