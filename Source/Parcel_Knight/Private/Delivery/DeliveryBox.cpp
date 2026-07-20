@@ -9,12 +9,16 @@
 #include "Materials/MaterialInterface.h"
 #include "Core/HealthComponent.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Character/ParcelCharacter.h"
+#include "Components/DFKnockbackComponent.h"
+#include "Components/TextRenderComponent.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
 ADeliveryBox::ADeliveryBox()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bAllowTickOnDedicatedServer = false; // 서버에서는 Tick 빌보드 연산 스킵
 	bReplicates = true;
 	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
 
@@ -38,6 +42,14 @@ ADeliveryBox::ADeliveryBox()
 	BoxID = -1;
 
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+
+	// 체력 표시용 3D Text Component 생성 및 기본 옵션 할당
+	HPTextVisualizer = CreateDefaultSubobject<UTextRenderComponent>(TEXT("HPTextVisualizer"));
+	HPTextVisualizer->SetupAttachment(RootComponent);
+	HPTextVisualizer->SetRelativeLocation(FVector(0.f, 0.f, 80.f)); // 상자 윗부분
+	HPTextVisualizer->SetHorizontalAlignment(EHTA_Center);
+	HPTextVisualizer->SetWorldSize(20.f); // 컴팩트하게 크기 축소 (기존 30.f)
+	HPTextVisualizer->TextRenderColor = FColor::Green;
 }
 
 void ADeliveryBox::BeginPlay()
@@ -78,6 +90,13 @@ void ADeliveryBox::BeginPlay()
 	if (HasAuthority() && HealthComponent)
 	{
 		HealthComponent->OnDeathDelegate.AddDynamic(this, &ADeliveryBox::HandleOnDeath);
+	}
+
+	if (HealthComponent)
+	{
+		HealthComponent->OnHPChanged.AddDynamic(this, &ADeliveryBox::UpdateHPText);
+		// 초기 체력 텍스트 갱신
+		UpdateHPText(HealthComponent->GetHP(), HealthComponent->GetMaxHP());
 	}
 }
 
@@ -265,6 +284,62 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	DELIVERYBOX_LOG(Warning, TEXT("[Server] %d번 상자 물리 충돌 발생. 충돌 대상: %s, 계산된 속도 변화량 수치: %f (파손 임계값: %f)"), 
 		BoxID, OtherActor ? *OtherActor->GetName() : TEXT("None"), VelocityChange, BoxData.DamageThreshold);
 
+	// 캐릭터가 이 상자에 부딪혔을 때 데미지 처리
+	if (OtherActor && OtherActor != this)
+	{
+		if (AParcelCharacter* HitCharacter = Cast<AParcelCharacter>(OtherActor))
+		{
+			// 자신이 던진 상자에 즉시 맞는 예외 상황 방지
+			bool bIsSelfHit = false;
+			if (LastCarrierPlayerState.IsValid())
+			{
+				if (APawn* LastCarrierPawn = LastCarrierPlayerState->GetPawn())
+				{
+					if (LastCarrierPawn == HitCharacter)
+					{
+						bIsSelfHit = true;
+					}
+				}
+			}
+
+			// 자신이 던진 상자가 아니고, 충분히 빠른 속도로 충돌했을 때만 데미지 적용
+			if (!bIsSelfHit && VelocityChange >= 150.f)
+			{
+				// 1) 체력 차감
+				if (UHealthComponent* TargetHealth = HitCharacter->FindComponentByClass<UHealthComponent>())
+				{
+					// 속도 변화량에 따른 데미지 계산 및 클램핑
+					float DamageAmount = (VelocityChange - 100.f) * 0.03f;
+					DamageAmount = FMath::Clamp(DamageAmount, 5.f, 50.f);
+
+					TargetHealth->TakeDamage(DamageAmount);
+
+					DELIVERYBOX_LOG(Warning, TEXT("[Server] %d번 상자가 플레이어 %s에 충돌하여 %f 데미지를 주었습니다."), 
+						BoxID, *HitCharacter->GetName(), DamageAmount);
+				}
+
+				// 2) 넉백 효과 적용
+				if (UDFKnockbackComponent* TargetKnockback = HitCharacter->FindComponentByClass<UDFKnockbackComponent>())
+				{
+					float KnockbackStrength = VelocityChange * 1.5f; // 속도 변화량 비례 넉백 세기
+					KnockbackStrength = FMath::Clamp(KnockbackStrength, 500.f, 1500.f);
+					float UpwardStrength = 300.f; // 붕 뜨게 하는 힘
+
+					TargetKnockback->ApplyKnockbackFromLocation(GetActorLocation(), KnockbackStrength, UpwardStrength);
+				}
+
+				// 3) 상자를 들고 있다면 강제로 내려놓게(떨어뜨리게) 처리
+				if (UCharacterCarryComponent* TargetCarry = HitCharacter->FindComponentByClass<UCharacterCarryComponent>())
+				{
+					if (TargetCarry->IsCarrying())
+					{
+						TargetCarry->ForceDropByTrap(VelocityChange * 0.5f);
+					}
+				}
+			}
+		}
+	}
+
 	if (UWorld* World = GetWorld())
 	{
 		if (UPhysicsJudgeManager* DamageManager = World->GetSubsystem<UPhysicsJudgeManager>())
@@ -358,5 +433,81 @@ void ADeliveryBox::Multicast_PlayDestroyEffect_Implementation()
 			GetActorRotation(),
 			FVector(1.0f) // 이펙트 크기 스케일 (필요 시 조절 가능)
 		);
+	}
+}
+
+void ADeliveryBox::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// 클라이언트에서 텍스트가 항상 로컬 플레이어 카메라를 똑바로 바라보도록 빌보드 회전 처리
+	if (HPTextVisualizer && GetWorld())
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC && PC->PlayerCameraManager)
+		{
+			FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
+			FVector TextLocation = HPTextVisualizer->GetComponentLocation();
+			FRotator LookAtRot = (CameraLocation - TextLocation).Rotation();
+
+			// 텍스트가 기우뚱해지지 않도록 Pitch와 Roll은 0으로 제한
+			LookAtRot.Pitch = 0.f;
+			LookAtRot.Roll = 0.f;
+
+			HPTextVisualizer->SetWorldRotation(LookAtRot);
+		}
+	}
+}
+
+void ADeliveryBox::UpdateHPText(float CurrentHP, float MaxHP)
+{
+	if (!HPTextVisualizer) return;
+
+	// 체력이 0 이하가 되면 텍스트를 숨기거나 표시 안 함
+	if (CurrentHP <= 0.0f)
+	{
+		HPTextVisualizer->SetVisibility(false);
+		return;
+	}
+
+	HPTextVisualizer->SetVisibility(true);
+
+	// 목적지 구역 태그 파싱 (예: "Zone.Type.A" ➔ "A")
+	FString ZoneName = TEXT("?");
+	if (BoxData.TargetZoneTag.IsValid())
+	{
+		FString TagString = BoxData.TargetZoneTag.ToString();
+		if (TagString.EndsWith(TEXT("A"))) ZoneName = TEXT("A");
+		else if (TagString.EndsWith(TEXT("B"))) ZoneName = TEXT("B");
+		else if (TagString.EndsWith(TEXT("C"))) ZoneName = TEXT("C");
+		else if (TagString.Contains(TEXT("Emergency"))) ZoneName = TEXT("Emergency");
+		else
+		{
+			TArray<FString> OutArray;
+			TagString.ParseIntoArray(OutArray, TEXT("."), true);
+			if (OutArray.Num() > 0)
+			{
+				ZoneName = OutArray.Last();
+			}
+		}
+	}
+
+	// "현재체력 / 최대체력 [Zone X]" 형태로 포맷팅
+	FString HPStr = FString::Printf(TEXT("%.0f / %.0f [Zone %s]"), CurrentHP, MaxHP, *ZoneName);
+	HPTextVisualizer->SetText(FText::FromString(HPStr));
+
+	// 체력 잔여 비율에 맞춰 3색 피드백(초록 -> 노랑 -> 빨강) 변화
+	float Ratio = MaxHP > 0.0f ? (CurrentHP / MaxHP) : 0.0f;
+	if (Ratio >= 0.7f)
+	{
+		HPTextVisualizer->SetTextRenderColor(FColor::Green);
+	}
+	else if (Ratio >= 0.3f)
+	{
+		HPTextVisualizer->SetTextRenderColor(FColor::Yellow);
+	}
+	else
+	{
+		HPTextVisualizer->SetTextRenderColor(FColor::Red);
 	}
 }

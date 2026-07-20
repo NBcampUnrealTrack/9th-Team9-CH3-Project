@@ -8,9 +8,14 @@ void UParcelSessionWidget::NativeConstruct()
 
 	if (USessionSubsystem* SS = GetSessionSubsystem())
 	{
+		SS->OnSessionCreateComplete.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionCreateComplete);
+		SS->OnSessionFindComplete.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionFindComplete);
+		SS->OnSessionJoinComplete.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionJoinComplete);
+		SS->OnSessionStatusMessage.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionStatusMessage);
 		SS->OnSessionCreateComplete.AddDynamic(this, &UParcelSessionWidget::HandleSessionCreateComplete);
 		SS->OnSessionFindComplete.AddDynamic(this, &UParcelSessionWidget::HandleSessionFindComplete);
 		SS->OnSessionJoinComplete.AddDynamic(this, &UParcelSessionWidget::HandleSessionJoinComplete);
+		SS->OnSessionStatusMessage.AddDynamic(this, &UParcelSessionWidget::HandleSessionStatusMessage);
 	}
 }
 
@@ -21,6 +26,7 @@ void UParcelSessionWidget::NativeDestruct()
 		SS->OnSessionCreateComplete.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionCreateComplete);
 		SS->OnSessionFindComplete.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionFindComplete);
 		SS->OnSessionJoinComplete.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionJoinComplete);
+		SS->OnSessionStatusMessage.RemoveDynamic(this, &UParcelSessionWidget::HandleSessionStatusMessage);
 	}
 
 	Super::NativeDestruct();
@@ -63,6 +69,11 @@ void UParcelSessionWidget::HandleSessionFindComplete(bool bWasSuccessful)
 void UParcelSessionWidget::HandleSessionJoinComplete(bool bWasSuccessful)
 {
 	OnSessionJoined(bWasSuccessful);
+}
+
+void UParcelSessionWidget::HandleSessionStatusMessage(const FText& Message, bool bIsError)
+{
+	OnSessionStatusChanged(Message, bIsError);
 }
 
 USessionSubsystem* UParcelSessionWidget::GetSessionSubsystem() const

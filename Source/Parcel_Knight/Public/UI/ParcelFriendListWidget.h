@@ -27,6 +27,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Friend")
 	void CloseFriendList();
 
+	// C++-only presentation state supplied by the owning HUD before opening.
+	void SetRestoreUIInputMode(bool bShouldRestoreUIInputMode);
+
 	void InviteFriend(const FBPUniqueNetId& FriendUniqueNetId, const FString& DisplayName);
 
 protected:
@@ -61,9 +64,18 @@ private:
 	UFUNCTION()
 	void HandleFriendsLoadFailed(const TArray<FBPFriendInfo>& Friends);
 
+	UFUNCTION()
+	void HandleSessionStatusMessage(const FText& Message, bool bIsError);
+
+	UFUNCTION()
+	void HandleSessionAvailabilityChanged(bool bWasSuccessful);
+
 	void SetStatusMessage(const FText& Message);
 	void FinishFriendsRequest();
+	void RefreshInviteAvailability();
 
 	UPROPERTY()
 	TObjectPtr<UGetFriendsCallbackProxy> ActiveFriendsRequest;
+
+	bool bRestoreUIInputMode = false;
 };

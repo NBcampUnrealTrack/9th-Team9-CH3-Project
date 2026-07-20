@@ -27,7 +27,10 @@ public:
 	FGameplayTag EffectTypeTag;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Timing", meta = (ClampMin = "0.0"))
-	float WarningTime = 0.5f;
+	float ActivationDelay = 0.0f;
+
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use ActivationDelay. Existing overlap traps activate immediately by default."))
+	float WarningTime_DEPRECATED = 0.5f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Timing", meta = (ClampMin = "0.0"))
 	float ActiveDuration = 1.0f;
@@ -41,13 +44,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
 	float EffectMagnitude = 0.5f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect", meta = (ClampMin = "0.0"))
-	float TrapDamage = 0.0f;
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use DamageAmount in the Trap|Damage category."))
+	float TrapDamage_DEPRECATED = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage")
 	bool bApplyDamageOnOverlap = false;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap", ClampMin = "0.0"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (ClampMin = "0.0"))
 	float DamageAmount = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap"))
@@ -80,8 +83,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect")
 	bool bRepeatWhileOverlapping = false;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Effect")
-	bool bRemoveEffectOnEndOverlap = true;
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Persistent effects now expire only through EffectDuration."))
+	bool bRemoveEffectOnEndOverlap_DEPRECATED = true;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Behavior")
 	bool bTriggerOnce = false;

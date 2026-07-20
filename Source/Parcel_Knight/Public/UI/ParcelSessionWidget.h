@@ -46,6 +46,10 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnSessionJoined(bool bSuccess);
 
+	/** Invite acceptance and JoinSession details suitable for a status text/toast. */
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnSessionStatusChanged(const FText& Message, bool bIsError);
+
 private:
 	UFUNCTION()
 	void HandleSessionCreateComplete(bool bWasSuccessful);
@@ -55,6 +59,9 @@ private:
 
 	UFUNCTION()
 	void HandleSessionJoinComplete(bool bWasSuccessful);
+
+	UFUNCTION()
+	void HandleSessionStatusMessage(const FText& Message, bool bIsError);
 
 	USessionSubsystem* GetSessionSubsystem() const;
 };
