@@ -9,19 +9,60 @@ void UParcelMainMenuWidget::NativeConstruct()
 	Super::NativeConstruct();
 
 	if (Btn_SinglePlay)
+	{
+		Btn_SinglePlay->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleSinglePlayClicked);
 		Btn_SinglePlay->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleSinglePlayClicked);
+	}
 
 	if (Btn_MultiPlay)
+	{
+		Btn_MultiPlay->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleMultiPlayClicked);
 		Btn_MultiPlay->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleMultiPlayClicked);
+	}
 
 	if (Btn_Options)
+	{
+		Btn_Options->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleOptionsClicked);
 		Btn_Options->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleOptionsClicked);
+	}
 
 	if (Btn_Shop)
+	{
+		Btn_Shop->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleShopClicked);
 		Btn_Shop->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleShopClicked);
+	}
 
 	if (Btn_ExitGame)
+	{
+		Btn_ExitGame->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleExitGameClicked);
 		Btn_ExitGame->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleExitGameClicked);
+	}
+}
+
+void UParcelMainMenuWidget::NativeDestruct()
+{
+	if (Btn_SinglePlay)
+	{
+		Btn_SinglePlay->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleSinglePlayClicked);
+	}
+	if (Btn_MultiPlay)
+	{
+		Btn_MultiPlay->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleMultiPlayClicked);
+	}
+	if (Btn_Options)
+	{
+		Btn_Options->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleOptionsClicked);
+	}
+	if (Btn_Shop)
+	{
+		Btn_Shop->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleShopClicked);
+	}
+	if (Btn_ExitGame)
+	{
+		Btn_ExitGame->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleExitGameClicked);
+	}
+
+	Super::NativeDestruct();
 }
 
 void UParcelMainMenuWidget::HandleSinglePlayClicked()

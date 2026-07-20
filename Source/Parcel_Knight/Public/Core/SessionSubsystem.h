@@ -13,6 +13,7 @@ class UNetDriver;
 class UWorld;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionCreateComplete, bool, bWasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSessionSearchStarted);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionFindComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionJoinComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSessionDestroyComplete, bool, bWasSuccessful);
@@ -38,6 +39,10 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnSessionCreateComplete OnSessionCreateComplete;
+
+	/** Emitted after stale search results are cleared and before a new request starts. */
+	UPROPERTY(BlueprintAssignable)
+	FOnSessionSearchStarted OnSessionSearchStarted;
 
 	UPROPERTY(BlueprintAssignable)
 	FOnSessionFindComplete OnSessionFindComplete;

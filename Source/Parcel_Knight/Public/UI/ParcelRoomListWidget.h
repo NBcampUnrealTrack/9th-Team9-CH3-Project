@@ -20,11 +20,16 @@ class PARCEL_KNIGHT_API UParcelRoomListWidget : public UParcelSessionWidget
 public:
 	UFUNCTION(BlueprintCallable, Category = "RoomList")
 	void RefreshRoomList();
+
+	/** Clears the visible room entries without starting a new search. */
+	UFUNCTION(BlueprintCallable, Category = "RoomList")
+	void ClearRoomListEntries();
 	
 	void SetSelectedEntry(UParcelRoomListEntry* NewEntry);
 	
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	
 	// UMG 위젯 바인딩
 	UPROPERTY(meta = (BindWidget))
@@ -51,6 +56,9 @@ protected:
 	void K2_OnBackToMainMenuStarted();
 	
 private:
+	UFUNCTION()
+	void HandleSessionSearchStarted();
+
 	// 버튼 클릭 핸들러
 	UFUNCTION() void HandleRefreshRoomsClicked();
 	UFUNCTION() void HandleBackToMenuClicked();

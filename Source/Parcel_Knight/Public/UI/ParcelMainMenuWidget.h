@@ -18,6 +18,7 @@ class PARCEL_KNIGHT_API UParcelMainMenuWidget : public UParcelSessionWidget
 
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 
 	// UMG 위젯 버튼 바인딩
 	UPROPERTY(meta = (BindWidget))
