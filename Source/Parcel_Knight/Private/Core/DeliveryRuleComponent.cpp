@@ -2,6 +2,7 @@
 
 #include "Core/DeliveryRuleComponent.h"
 
+#include "Core/ParcelGameInstance.h"
 #include "Core/ParcelGameState.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/TeamScoreComponent.h"
@@ -165,6 +166,17 @@ void UDeliveryRuleComponent::OnTimeUp()
 	else if (Ratio >= CurrentStageData->GradeC_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.C");
 	else                                                   Grade = FGameplayTag::RequestGameplayTag("Grade.F");
 	TeamScoreComp->SetGrade(Grade);
+
+	// B 이상이면 스테이지 클리어 — GameInstance에 최고 기록 갱신 요청 (서버에서만 실행되므로 즉시 저장)
+	static const FGameplayTag GradeA = FGameplayTag::RequestGameplayTag("Grade.A");
+	static const FGameplayTag GradeB = FGameplayTag::RequestGameplayTag("Grade.B");
+	if (Grade == GradeA || Grade == GradeB)
+	{
+		if (UParcelGameInstance* GI = GetWorld()->GetGameInstance<UParcelGameInstance>())
+		{
+			GI->UpdateMaxClearedStage(CurrentStageData->StageIndex);
+		}
+	}
 
 	// 등급별 보상 금액 결정 후 전원 지급
 	int32 Reward = 0;

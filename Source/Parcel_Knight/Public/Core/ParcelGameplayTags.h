@@ -18,6 +18,10 @@ namespace ParcelGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_Gun)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_HPBoost)
 
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Title)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Title_Ace)
+
 	// ========================= Character =========================
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_State_GettingUp)
 }

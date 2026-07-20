@@ -69,6 +69,12 @@ public:
 	// 현재 스테이지 인벤토리(InventoryComponent) 출력
 	UFUNCTION(Exec) void DebugPrintInventory();
 	
+	// ─── 칭호 ───
+	// 칭호 장착 테스트 — 태그 문자열로 입력 (예: Item.Cosmetic.Title.Ace)
+	UFUNCTION(Exec) void DebugEquipTitle(FString TitleTagStr);
+	// 칭호 해제
+	UFUNCTION(Exec) void DebugClearTitle();
+
 	// ─── UI ───
 	// 사망 및 리스폰 Suicide 명령어
 	UFUNCTION(Exec) void DebugSuicide();

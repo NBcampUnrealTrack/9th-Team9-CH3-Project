@@ -72,6 +72,20 @@ public:
 	// [Debug] 중복 허용 여부 반환
 	bool IsAllowDuplicateLoadout() const;
 
+	// ========================= 스테이지 진행도 =========================
+
+	// [All] 클리어한 최고 스테이지 번호 반환 (0 = 아무것도 클리어 안 함)
+	UFUNCTION(BlueprintPure)
+	int32 GetMaxClearedStage() const;
+
+	// [All] 스테이지 클리어 시 호출 — 갱신이 일어나면 즉시 저장
+	UFUNCTION(BlueprintCallable)
+	void UpdateMaxClearedStage(int32 ClearedStageIndex);
+
+	// [Blueprint] N번 스테이지 진입 가능 여부 반환 (1번은 항상 true)
+	UFUNCTION(BlueprintPure)
+	bool IsStageUnlocked(int32 StageIndex) const;
+
 	// ========================= 스테이지 맵 =========================
 
 	// [Blueprint] 세션 생성 전 이동할 스테이지 맵 경로 설정 — UI에서 스테이지 선택 시 호출
@@ -111,6 +125,7 @@ private:
 	IOnlineSessionPtr SessionInviteSessionInterface;
 
 	// 런타임 캐시 — SaveGame 데이터를 메모리에 올려둔 복사본
+	int32 MaxClearedStage = 0;
 	int32 Money = 0;
 	TArray<FGameplayTag> OwnedConsumables;
 	TArray<FGameplayTag> OwnedCosmetics;
