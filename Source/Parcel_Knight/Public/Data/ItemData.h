@@ -3,7 +3,34 @@
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "GameplayTagContainer.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundBase.h"
 #include "ItemData.generated.h"
+
+UENUM(BlueprintType)
+enum class EItemActivationType : uint8
+{
+	Passive,   // 게임 시작 시 자동 발동 — 슬롯에 표시만
+	Active,    // 1/2/3 키로 발동
+};
+
+/**
+ * 아이템 효과 하나를 표현하는 구조체
+ * DataTable의 Effects 배열 원소 — 에디터에서 + 버튼으로 필요한 만큼만 추가한다.
+ */
+USTRUCT(BlueprintType)
+struct PARCEL_KNIGHT_API FItemEffect
+{
+	GENERATED_BODY()
+
+	// 효과 종류 — 프로젝트 세팅에서 picker로 선택 (Effect.Stat.HP 등)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FGameplayTag EffectTag;
+
+	// 효과 수치 (HP 증가량, 속도 증가량 등)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	float Value = 0.f;
+};
 
 /**
  * 상점 아이템 데이터 Row 구조체
@@ -40,4 +67,25 @@ struct PARCEL_KNIGHT_API FItemData : public FTableRowBase
 	// 영구 사용 가능 여부 — true면 사용해도 인벤토리에서 제거되지 않음
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bIsPermanent = false;
+
+	// 사용 효과 목록 — + 버튼으로 필요한 효과만 추가
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effects")
+	TArray<FItemEffect> Effects;
+
+	// 재사용 대기 시간 (초) — 0이면 쿨타임 없음
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effects")
+	float Cooldown = 0.f;
+
+	// 소모품 전용 — Passive: 게임 시작 시 자동, Active: 키 입력 시 발동
+	// Item.Cosmetic.* 태그 아이템은 이 필드를 무시함
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effects")
+	EItemActivationType ActivationType = EItemActivationType::Active;
+
+	// 사용 시 재생할 나이아가라 이펙트
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "FX")
+	TSoftObjectPtr<UNiagaraSystem> UseEffect;
+
+	// 사용 시 재생할 사운드
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "FX")
+	TSoftObjectPtr<USoundBase> UseSound;
 };

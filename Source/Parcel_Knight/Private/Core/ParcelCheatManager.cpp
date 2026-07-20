@@ -8,11 +8,37 @@
 #include "Core/ShopComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "Core/HealthComponent.h"
 #include "GameplayTagContainer.h"
 #include "Core/HealthComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "ParcelLog.h"
+
+// ========================= 사망 / 부활 =========================
+
+void UParcelCheatManager::DebugKillSelf()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) { GAMERULE_LOG(Warning, TEXT("[치트] PC null")); return; }
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn) { GAMERULE_LOG(Warning, TEXT("[치트] Pawn null")); return; }
+	UHealthComponent* HC = Pawn->FindComponentByClass<UHealthComponent>();
+	if (!HC) { GAMERULE_LOG(Warning, TEXT("[치트] HealthComponent 없음")); return; }
+	GAMERULE_LOG(Log, TEXT("[치트] HP=%.0f → TakeDamage(99999)"), HC->GetHP());
+	HC->TakeDamage(99999.f);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 강제 사망"));
+}
+
+void UParcelCheatManager::DebugForceRespawn()
+{
+	AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>();
+	if (!GM) return;
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	GM->RestartPlayer(PC);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 강제 부활"));
+}
 
 // ========================= 배달 =========================
 
@@ -181,6 +207,31 @@ void UParcelCheatManager::DebugPrintInventory()
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Purple, Msg);
 }
 
+// ========================= 아이템 테스트 =========================
+
+void UParcelCheatManager::DebugGiveGun()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Gun")));
+	GAMERULE_LOG(Log, TEXT("[치트] 총 아이템 지급 완료"));
+}
+
+void UParcelCheatManager::DebugGiveHPBoost()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.HPBoost")));
+	GAMERULE_LOG(Log, TEXT("[치트] HP 증가 아이템 지급 완료"));
+}
 void UParcelCheatManager::DebugSuicide()
 {
 	// 현재 치트를 발동한 로컬 플레이어 Controller 확보

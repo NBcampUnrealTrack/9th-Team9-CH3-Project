@@ -40,10 +40,23 @@ public:
 	// [All] 현재 보유 아이템 목록 반환 — UI 표시용
 	const TArray<FGameplayTag>& GetItems() const;
 
-	// ========================= 사용 =========================
+	// [Server] 쿨타임·보유 여부를 모두 검사 — 사용 가능하면 true
+	bool CanUseItem(FGameplayTag ItemTag) const;
 
-	// [Server] 아이템 사용 — 영구 아이템이면 제거하지 않음, 없으면 false 반환
+	// ========================= 추가·사용 =========================
+
+	// [Server] 아이템 추가 — 치트·보상 지급용
+	void AddItem(FGameplayTag ItemTag);
+
+	// [Server] 스폰 시 패시브 소모품 효과 일괄 적용 — PossessedBy에서 호출
+	void ApplyPassiveEffects(APawn* Pawn);
+
+	// [Server] 아이템 사용 — 쿨타임·효과 적용, 비영구 아이템은 제거. 실패 시 false
 	bool UseItem(FGameplayTag ItemTag);
+
+	// [Server via Client RPC] UI에서 아이템 사용 요청 — UseItem을 서버에서 실행
+	UFUNCTION(Server, Reliable)
+	void Server_UseItem(FGameplayTag ItemTag);
 
 	// ========================= 이벤트 =========================
 
@@ -58,10 +71,18 @@ public:
 	TObjectPtr<UDataTable> ConsumableDataTable;
 
 private:
-	// 서버에서 변경 후 클라이언트에 복제 — OnRep에서 UI 갱신 델리게이트 호출
 	UFUNCTION()
 	void OnRep_Items();
 
 	UPROPERTY(ReplicatedUsing = OnRep_Items)
 	TArray<FGameplayTag> Items;
+
+	// 아이템별 마지막 사용 시각 — 서버 전용, 쿨타임 계산용
+	TMap<FGameplayTag, float> ItemLastUsedTime;
+
+	// DataTable에서 ItemTag에 해당하는 행 검색
+	struct FItemData* FindItemData(FGameplayTag ItemTag) const;
+
+	// 효과 배열을 순회하며 캐릭터에 적용
+	void ApplyEffects(const struct FItemData* Data, APawn* Pawn);
 };

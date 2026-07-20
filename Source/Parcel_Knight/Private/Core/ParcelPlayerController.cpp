@@ -4,7 +4,9 @@
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "UI/ParcelHUDWidget.h"
 #include "Core/ParcelCheatManager.h"
+#include "Core/HealthComponent.h"
 #include "Blueprint/UserWidget.h"
+#include "GameFramework/GameState.h"
 #include "GameFramework/PlayerState.h"
 #include "UI/ParcelLobbyHUDWidget.h"
 #include "Core/ParcelGameState.h"
@@ -26,7 +28,7 @@ AParcelPlayerController::AParcelPlayerController()
 void AParcelPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	if (IsLocalController())
 	{
 		const FString CurrentLevelName = UGameplayStatics::GetCurrentLevelName(this, true);

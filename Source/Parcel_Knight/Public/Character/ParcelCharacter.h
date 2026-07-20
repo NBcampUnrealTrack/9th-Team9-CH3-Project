@@ -118,27 +118,27 @@ protected:
 	UFUNCTION()
 	void OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags);
 
-public: 
-    // 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출, 원격 접속 클라이언트가 possession 이후 입력 매핑을 놓치지 않게 합니다.
-    virtual void OnRep_Controller() override;
-    
-    // 점프 시작 시점과 지면 착지 타이밍 이식
-    virtual void OnJumped_Implementation() override;
-    virtual void Landed(const FHitResult& Hit) override;
-    
-    // 양손, 무브먼트, UI 등이 상태 창고에 접근할 수 있도록 열어주는 게터
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UParcelPlayerStateComponent* GetParcelPlayerStateComponent() const { return PlayerStateComp; }
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UParcelInteractionComponent* GetParcelInteractionComponent() const { return InteractionComp; }
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
-    UFUNCTION(BlueprintPure, Category = "Components")
-    FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
-    UFUNCTION(BlueprintPure, Category = "Components")
-    FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
+	UFUNCTION()
+	void OnCharacterDeath();
+
+public:
+	// [Server] 슬롯 인덱스의 아이템 사용 — 소모품(Active)/코스메틱 분기 처리
+	UFUNCTION(Server, Reliable)
+	void Server_UseSlot(int32 SlotIndex);
+
+	// 컴포넌트 게터 — 외부 컴포넌트·AI·UI에서 접근용
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelPlayerStateComponent* GetParcelPlayerStateComponent() const { return PlayerStateComp; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelInteractionComponent* GetParcelInteractionComponent() const { return InteractionComp; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
 	UFUNCTION(BlueprintPure, Category = "Components")
 	FORCEINLINE UDFStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 	UFUNCTION(BlueprintPure, Category = "Components")
@@ -146,6 +146,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Character|Components")
 	FORCEINLINE UParcelStaminaComponent* GetParcelStaminaComponent() const { return StaminaComp; }
 
+private:
+	// 총 히트스캔 — Server_UseSlot에서 Gun 아이템일 때 호출
+	void DoGunLineTrace();
+
+	// 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출
+	virtual void OnRep_Controller() override;
+
+	// 점프 시작 시점과 지면 착지 타이밍 이식
+	virtual void OnJumped_Implementation() override;
+	virtual void Landed(const FHitResult& Hit) override;
 protected:
 	// 사망 로직 보완
 	UFUNCTION()

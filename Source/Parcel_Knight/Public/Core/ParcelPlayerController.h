@@ -32,12 +32,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
 	void ToggleInGameMenu();
 
+	// [Client] 사망 시 관전 시작 — HandleDeath에서 Client RPC로 호출됨
+	void StartSpectating();
+
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void AcknowledgePossession(APawn* InPawn) override;
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
-	
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void AcknowledgePossession(APawn* P) override;
+	virtual bool InputKey(FKey Key, EInputEvent EventType, float AmountDepressed, bool bGamepad) override;
+
 	// [Editor] HUD 위젯 클래스 지정
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;

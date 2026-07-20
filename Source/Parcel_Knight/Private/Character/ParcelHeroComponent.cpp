@@ -175,7 +175,11 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
     {
         EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
     }
-    
+
+    if (UseSlotAction1) EnhancedInputComponent->BindAction(UseSlotAction1, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot1);
+    if (UseSlotAction2) EnhancedInputComponent->BindAction(UseSlotAction2, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot2);
+    if (UseSlotAction3) EnhancedInputComponent->BindAction(UseSlotAction3, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot3);
+
     HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
@@ -568,6 +572,38 @@ void UParcelHeroComponent::ApplyJumpTag(bool bNewIsJumping)
             }
         }
     }
+}
+
+void UParcelHeroComponent::UseSlot1(const FInputActionValue& Value) { UseSlot(0); }
+void UParcelHeroComponent::UseSlot2(const FInputActionValue& Value) { UseSlot(1); }
+void UParcelHeroComponent::UseSlot3(const FInputActionValue& Value) { UseSlot(2); }
+
+void UParcelHeroComponent::UseSlot(int32 SlotIndex)
+{
+    HEROCOMP_LOG(Log, TEXT("[Client] UseSlot(%d) 입력 감지"), SlotIndex);
+
+    if (!CanProcessLocalInput())
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 로컬 입력 불가 (컨트롤러/로컬 여부 확인)"), SlotIndex);
+        return;
+    }
+
+    AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner());
+    if (!ParcelChar)
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 오너가 ParcelCharacter 아님"), SlotIndex);
+        return;
+    }
+
+    URagdollComponent* RagdollComp = ParcelChar->FindComponentByClass<URagdollComponent>();
+    if (RagdollComp && RagdollComp->IsRagdoll())
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 래그돌 상태"), SlotIndex);
+        return;
+    }
+
+    HEROCOMP_LOG(Log, TEXT("[Client→Server] Server_UseSlot(%d) 전송"), SlotIndex);
+    ParcelChar->Server_UseSlot(SlotIndex);
 }
 
 void UParcelHeroComponent::ToggleInGameMenu()
