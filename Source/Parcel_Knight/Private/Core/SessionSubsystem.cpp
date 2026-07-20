@@ -1,237 +1,973 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #include "Core/SessionSubsystem.h"
-#include "Core/ParcelGameInstance.h"
+
 #include "AdvancedFriendsLibrary.h"
+#include "Core/ParcelGameInstance.h"
+#include "Engine/Engine.h"
+#include "Engine/NetDriver.h"
+#include "Engine/World.h"
+#include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/OnlineIdentityInterface.h"
-#include "OnlineSubsystemUtils.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 #include "Online/OnlineSessionNames.h"
+#include "OnlineSubsystem.h"
+#include "UObject/UObjectGlobals.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogParcelSession, Log, All);
+
+namespace ParcelSessionMaps
+{
+	const FString Lobby = TEXT("/Game/Maps/LV_DF_Lobby_Stage00");
+	const FString Frontend = TEXT("/Game/Maps/TestMaps/Testing_DF_Stage01");
+	const FName SteamSubsystem = FName(TEXT("STEAM"));
+
+	const TCHAR* JoinResultToString(EOnJoinSessionCompleteResult::Type Result)
+	{
+		switch (Result)
+		{
+		case EOnJoinSessionCompleteResult::Success: return TEXT("Success");
+		case EOnJoinSessionCompleteResult::SessionIsFull: return TEXT("SessionIsFull");
+		case EOnJoinSessionCompleteResult::SessionDoesNotExist: return TEXT("SessionDoesNotExist");
+		case EOnJoinSessionCompleteResult::CouldNotRetrieveAddress: return TEXT("CouldNotRetrieveAddress");
+		case EOnJoinSessionCompleteResult::AlreadyInSession: return TEXT("AlreadyInSession");
+		default: return TEXT("UnknownError");
+		}
+	}
+}
+
+void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
+		this,
+		&USessionSubsystem::HandlePostLoadMap);
+
+	if (GEngine)
+	{
+		NetworkFailureHandle = GEngine->OnNetworkFailure().AddUObject(
+			this,
+			&USessionSubsystem::HandleNetworkFailure);
+		TravelFailureHandle = GEngine->OnTravelFailure().AddUObject(
+			this,
+			&USessionSubsystem::HandleTravelFailure);
+	}
+}
+
+void USessionSubsystem::Deinitialize()
+{
+	if (PostLoadMapHandle.IsValid())
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapHandle);
+		PostLoadMapHandle.Reset();
+	}
+
+	if (GEngine)
+	{
+		if (NetworkFailureHandle.IsValid())
+		{
+			GEngine->OnNetworkFailure().Remove(NetworkFailureHandle);
+			NetworkFailureHandle.Reset();
+		}
+		if (TravelFailureHandle.IsValid())
+		{
+			GEngine->OnTravelFailure().Remove(TravelFailureHandle);
+			TravelFailureHandle.Reset();
+		}
+	}
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (Sessions.IsValid() && CurrentOperation == ESessionOperation::Finding)
+	{
+		Sessions->CancelFindSessions();
+	}
+	ClearAllDelegateHandles(Sessions);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(OperationTimeoutHandle);
+	}
+
+	SessionSearch.Reset();
+	PendingJoinResult = FOnlineSessionSearchResult();
+	bHasPendingJoinResult = false;
+	PendingNumConnections = 0;
+	DestroyIntent = EDestroyIntent::None;
+	CurrentOperation = ESessionOperation::None;
+	bOperationFailureReported = false;
+	bLeaveInProgress = false;
+	bHostTravelInProgress = false;
+	bClientTravelInProgress = false;
+
+	Super::Deinitialize();
+}
+
+IOnlineSessionPtr USessionSubsystem::GetSessionInterface() const
+{
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	return OSS ? OSS->GetSessionInterface() : nullptr;
+}
+
+bool USessionSubsystem::GetSteamSessionInterface(
+	IOnlineSessionPtr& OutSessions,
+	const TCHAR* Context) const
+{
+	OutSessions.Reset();
+
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	if (!OSS)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("[%s] OnlineSubsystem is unavailable."), Context);
+		return false;
+	}
+
+	if (OSS->GetSubsystemName() != ParcelSessionMaps::SteamSubsystem)
+	{
+		UE_LOG(
+			LogParcelSession,
+			Error,
+			TEXT("[%s] Steam is required, but the active OnlineSubsystem is %s."),
+			Context,
+			*OSS->GetSubsystemName().ToString());
+		return false;
+	}
+
+	const IOnlineIdentityPtr Identity = OSS->GetIdentityInterface();
+	if (!Identity.IsValid() || Identity->GetLoginStatus(0) != ELoginStatus::LoggedIn)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("[%s] Local Steam user 0 is not logged in."), Context);
+		return false;
+	}
+
+	OutSessions = OSS->GetSessionInterface();
+	if (!OutSessions.IsValid())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("[%s] Steam session interface is unavailable."), Context);
+		return false;
+	}
+
+	return true;
+}
+
+void USessionSubsystem::BeginOperation(ESessionOperation NewOperation)
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(OperationTimeoutHandle);
+		World->GetTimerManager().SetTimer(
+			OperationTimeoutHandle,
+			this,
+			&USessionSubsystem::OnOperationTimeout,
+			OperationTimeoutSeconds,
+			false);
+	}
+
+	CurrentOperation = NewOperation;
+	bOperationFailureReported = false;
+}
 
 void USessionSubsystem::ClearOperationState()
 {
 	if (UWorld* World = GetWorld())
+	{
 		World->GetTimerManager().ClearTimer(OperationTimeoutHandle);
-	bIsOperationInProgress = false;
+	}
+
 	CurrentOperation = ESessionOperation::None;
+	bOperationFailureReported = false;
 }
 
-void USessionSubsystem::CancelCurrentOperation()
+void USessionSubsystem::ClearDelegateHandleForOperation(
+	const IOnlineSessionPtr& Sessions,
+	ESessionOperation Operation)
 {
-	// 등록된 OSS 델리게이트 먼저 해제 — 취소 후 구 콜백이 재발동되지 않도록
-	if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
+	if (Sessions.IsValid())
 	{
-		if (IOnlineSessionPtr Sessions = OSS->GetSessionInterface())
+		switch (Operation)
 		{
-			switch (CurrentOperation)
+		case ESessionOperation::Creating:
+			if (CreateSessionHandle.IsValid())
 			{
-			case ESessionOperation::Creating: Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle); break;
-			case ESessionOperation::Finding:  Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsHandle);  break;
-			case ESessionOperation::Joining:  Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);  
-           JoinSessionHandle.Reset();
-          break;
-			default: break;
+				Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle);
 			}
+			break;
+		case ESessionOperation::Starting:
+			if (StartSessionHandle.IsValid())
+			{
+				Sessions->ClearOnStartSessionCompleteDelegate_Handle(StartSessionHandle);
+			}
+			break;
+		case ESessionOperation::Finding:
+			if (FindSessionsHandle.IsValid())
+			{
+				Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsHandle);
+			}
+			break;
+		case ESessionOperation::Joining:
+			if (JoinSessionHandle.IsValid())
+			{
+				Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
+			}
+			break;
+		case ESessionOperation::Destroying:
+			if (DestroySessionHandle.IsValid())
+			{
+				Sessions->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionHandle);
+			}
+			break;
+		default:
+			break;
 		}
 	}
 
-	const ESessionOperation Op = CurrentOperation;
-	ClearOperationState();
-
-	switch (Op)
+	switch (Operation)
 	{
-	case ESessionOperation::Creating: OnSessionCreateComplete.Broadcast(false); break;
-	case ESessionOperation::Finding:  OnSessionFindComplete.Broadcast(false);   break;
-	case ESessionOperation::Joining:  OnSessionJoinComplete.Broadcast(false);   break;
+	case ESessionOperation::Creating: CreateSessionHandle.Reset(); break;
+	case ESessionOperation::Starting: StartSessionHandle.Reset(); break;
+	case ESessionOperation::Finding: FindSessionsHandle.Reset(); break;
+	case ESessionOperation::Joining: JoinSessionHandle.Reset(); break;
+	case ESessionOperation::Destroying: DestroySessionHandle.Reset(); break;
 	default: break;
+	}
+}
+
+void USessionSubsystem::ClearAllDelegateHandles(const IOnlineSessionPtr& Sessions)
+{
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Creating);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Starting);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Destroying);
+}
+
+void USessionSubsystem::ReportSessionStatus(const FString& Message, bool bIsError)
+{
+	if (bIsError)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("%s"), *Message);
+	}
+	else
+	{
+		UE_LOG(LogParcelSession, Log, TEXT("%s"), *Message);
+	}
+
+	OnSessionStatusMessage.Broadcast(FText::FromString(Message), bIsError);
+}
+
+void USessionSubsystem::ReportJoinFailure(const FString& Reason)
+{
+	ReportSessionStatus(FString::Printf(TEXT("JoinSession failed: %s"), *Reason), true);
+}
+
+void USessionSubsystem::ReportOperationFailure(ESessionOperation Operation)
+{
+	if (bOperationFailureReported)
+	{
+		return;
+	}
+
+	bOperationFailureReported = true;
+
+	switch (Operation)
+	{
+	case ESessionOperation::Creating:
+	case ESessionOperation::Starting:
+		OnSessionCreateComplete.Broadcast(false);
+		break;
+	case ESessionOperation::Finding:
+		OnSessionFindComplete.Broadcast(false);
+		break;
+	case ESessionOperation::Joining:
+		ReportJoinFailure(TEXT("the online request timed out"));
+		OnSessionJoinComplete.Broadcast(false);
+		break;
+	case ESessionOperation::Destroying:
+		switch (DestroyIntent)
+		{
+		case EDestroyIntent::Recreate:
+			OnSessionCreateComplete.Broadcast(false);
+			break;
+		case EDestroyIntent::JoinPending:
+			ReportJoinFailure(TEXT("the previous GameSession could not be destroyed before joining"));
+			OnSessionJoinComplete.Broadcast(false);
+			break;
+		case EDestroyIntent::UserRequested:
+		case EDestroyIntent::Leave:
+			OnSessionDestroyComplete.Broadcast(false);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
 	}
 }
 
 void USessionSubsystem::OnOperationTimeout()
 {
-	if (!bIsOperationInProgress) return;
-	CancelCurrentOperation();
+	if (CurrentOperation == ESessionOperation::None)
+	{
+		return;
+	}
+
+	UE_LOG(
+		LogParcelSession,
+		Error,
+		TEXT("Session operation %d timed out after %.0f seconds."),
+		static_cast<uint8>(CurrentOperation),
+		OperationTimeoutSeconds);
+
+	if (CurrentOperation == ESessionOperation::Finding)
+	{
+		const IOnlineSessionPtr Sessions = GetSessionInterface();
+		if (Sessions.IsValid())
+		{
+			Sessions->CancelFindSessions();
+		}
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
+		ClearOperationState();
+		OnSessionFindComplete.Broadcast(false);
+		return;
+	}
+
+	if (CurrentOperation == ESessionOperation::Destroying && DestroyIntent == EDestroyIntent::Leave)
+	{
+		ReportOperationFailure(ESessionOperation::Destroying);
+		// DestroySession cannot be cancelled. Return the user to the front-end,
+		// but keep this operation quarantined until its callback is drained so a
+		// late Steam task cannot remove a newly created NAME_GameSession.
+		TravelToFrontend(false);
+		return;
+	}
+
+	// Create/Start/Join/Destroy have no backend cancellation API. Keep their
+	// delegate and state until the late callback arrives so it cannot satisfy a
+	// newly registered operation of the same type.
+	ReportOperationFailure(CurrentOperation);
 }
 
 void USessionSubsystem::CreateSession(int32 NumPublicConnections)
 {
-	// 다른 작업 중이면 취소; 이미 Creating 중인 경우(Destroy→Create 내부 재진입)는 그대로 유지
-	if (bIsOperationInProgress && CurrentOperation != ESessionOperation::Creating)
-		CancelCurrentOperation();
-
-	// Creating 상태로 진입 (재진입 시 타이머 재시작)
-	if (UWorld* World = GetWorld())
-		World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
-	bIsOperationInProgress = true;
-	CurrentOperation = ESessionOperation::Creating;
-
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) { CancelCurrentOperation(); return; }
-
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
-
-	// 동일 이름 세션이 이미 있으면 파괴 후 자동 재생성 (OnDestroySessionComplete에서 이어받음)
-	if (Sessions->GetNamedSession(NAME_GameSession))
+	if (IsSessionTransitionLocked())
 	{
-		bPendingCreate = true;
-		PendingNumConnections = NumPublicConnections;
-		DestroySession();
+		UE_LOG(LogParcelSession, Warning, TEXT("CreateSession ignored during map or leave transition."));
 		return;
 	}
 
+	if (NumPublicConnections < 1)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("CreateSession requires at least one public connection."));
+		OnSessionCreateComplete.Broadcast(false);
+		return;
+	}
+
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("CreateSession ignored because another session operation is active."));
+		return;
+	}
+
+	IOnlineSessionPtr Sessions;
+	if (!GetSteamSessionInterface(Sessions, TEXT("CreateSession")))
+	{
+		OnSessionCreateComplete.Broadcast(false);
+		return;
+	}
+
+	// Hosting always enters the Lobby first. Stage travel remains StartGame's job.
+	if (UParcelGameInstance* GI = Cast<UParcelGameInstance>(GetGameInstance()))
+	{
+		GI->SetPendingMapPath(ParcelSessionMaps::Lobby);
+	}
+
+	if (Sessions->GetNamedSession(NAME_GameSession))
+	{
+		PendingNumConnections = NumPublicConnections;
+		BeginDestroySession(EDestroyIntent::Recreate);
+		return;
+	}
+
+	BeginCreateSession(NumPublicConnections);
+}
+
+bool USessionSubsystem::BeginCreateSession(int32 NumPublicConnections)
+{
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		return false;
+	}
+
+	IOnlineSessionPtr Sessions;
+	if (!GetSteamSessionInterface(Sessions, TEXT("BeginCreateSession")))
+	{
+		OnSessionCreateComplete.Broadcast(false);
+		return false;
+	}
+
 	FOnlineSessionSettings SessionSettings;
-	// Null OSS이면 LAN 모드, EOS·Steam이면 온라인 모드 — ini 변경만으로 전환 가능
-	SessionSettings.bIsLANMatch = OSS->GetSubsystemName() == "NULL";
+	SessionSettings.bIsLANMatch = false;
 	SessionSettings.NumPublicConnections = NumPublicConnections;
 	SessionSettings.bShouldAdvertise = true;
 	SessionSettings.bAllowInvites = true;
 	SessionSettings.bUsesPresence = true;
-	SessionSettings.bUseLobbiesIfAvailable = OSS->GetSubsystemName() == FName(TEXT("STEAM"));
+	SessionSettings.bUseLobbiesIfAvailable = true;
+	SessionSettings.bAllowJoinViaPresence = true;
 	SessionSettings.bAllowJoinInProgress = true;
 
+	BeginOperation(ESessionOperation::Creating);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Creating);
 	CreateSessionHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(
-		FOnCreateSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnCreateSessionComplete)
-	);
-	Sessions->CreateSession(0, NAME_GameSession, SessionSettings);
+		FOnCreateSessionCompleteDelegate::CreateUObject(
+			this,
+			&USessionSubsystem::OnCreateSessionComplete));
+
+	UE_LOG(LogParcelSession, Log, TEXT("Creating Steam session GameSession for %d public connections."), NumPublicConnections);
+	const bool bStarted = Sessions->CreateSession(0, NAME_GameSession, SessionSettings);
+	if (!bStarted && CurrentOperation == ESessionOperation::Creating)
+	{
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Creating);
+		ClearOperationState();
+		UE_LOG(LogParcelSession, Error, TEXT("CreateSession returned false immediately."));
+		OnSessionCreateComplete.Broadcast(false);
+		return false;
+	}
+
+	return bStarted;
 }
 
 void USessionSubsystem::FindSessions()
 {
-	if (bIsOperationInProgress)
-		CancelCurrentOperation();
+	if (IsSessionTransitionLocked())
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("FindSessions ignored during map or leave transition."));
+		return;
+	}
 
-	if (UWorld* World = GetWorld())
-		World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
-	bIsOperationInProgress = true;
-	CurrentOperation = ESessionOperation::Finding;
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("FindSessions ignored because another session operation is active."));
+		if (CurrentOperation != ESessionOperation::Finding)
+		{
+			OnSessionFindComplete.Broadcast(false);
+		}
+		return;
+	}
 
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) { CancelCurrentOperation(); return; }
-
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) { CancelCurrentOperation(); return; }
+	IOnlineSessionPtr Sessions;
+	if (!GetSteamSessionInterface(Sessions, TEXT("FindSessions")))
+	{
+		OnSessionFindComplete.Broadcast(false);
+		return;
+	}
 
 	SessionSearch = MakeShared<FOnlineSessionSearch>();
 	SessionSearch->MaxSearchResults = 5000;
-	SessionSearch->bIsLanQuery = OSS->GetSubsystemName() == "NULL";
+	SessionSearch->bIsLanQuery = false;
 	SessionSearch->TimeoutInSeconds = 10.0f;
 	SessionSearch->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
-	
 
+	BeginOperation(ESessionOperation::Finding);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
 	FindSessionsHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(
-		FOnFindSessionsCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnFindSessionsComplete)
-	);
-	Sessions->FindSessions(0, SessionSearch.ToSharedRef());
+		FOnFindSessionsCompleteDelegate::CreateUObject(
+			this,
+			&USessionSubsystem::OnFindSessionsComplete));
+
+	const bool bStarted = Sessions->FindSessions(0, SessionSearch.ToSharedRef());
+	if (!bStarted && CurrentOperation == ESessionOperation::Finding)
+	{
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
+		ClearOperationState();
+		UE_LOG(LogParcelSession, Error, TEXT("FindSessions returned false immediately."));
+		OnSessionFindComplete.Broadcast(false);
+	}
 }
 
 void USessionSubsystem::JoinSession(int32 SessionIndex)
 {
-    if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex)) 
-      return;
-    StartJoinSession(SessionSearch->SearchResults[SessionIndex]);
-}
+	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex))
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession received invalid search-result index %d."), SessionIndex);
+		OnSessionJoinComplete.Broadcast(false);
+		return;
+	}
 
+	StartJoinSession(SessionSearch->SearchResults[SessionIndex]);
+}
 
 bool USessionSubsystem::JoinSessionResult(const FOnlineSessionSearchResult& SessionResult)
 {
-    return StartJoinSession(SessionResult);
+	return StartJoinSession(SessionResult);
+}
+
+void USessionSubsystem::NotifySessionInviteAccepted(bool bWasSuccessful)
+{
+	if (bWasSuccessful)
+	{
+		ReportSessionStatus(TEXT("Steam session invite accepted. Joining the invited GameSession."), false);
+	}
+	else
+	{
+		ReportSessionStatus(
+			TEXT("Steam session invite acceptance failed because the invite result was invalid."),
+			true);
+	}
 }
 
 bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& SessionResult)
 {
-    if (!SessionResult.IsValid()) { OnSessionJoinComplete.Broadcast(false); return false; }
+	if (IsSessionTransitionLocked())
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("JoinSession rejected during map or leave transition."));
+		ReportJoinFailure(TEXT("a map or leave transition is already in progress"));
+		OnSessionJoinComplete.Broadcast(false);
+		return false;
+	}
 
-    if (bIsOperationInProgress)
-        CancelCurrentOperation();
+	if (!SessionResult.IsValid())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession received an invalid session result."));
+		ReportJoinFailure(TEXT("the session search result is invalid"));
+		OnSessionJoinComplete.Broadcast(false);
+		return false;
+	}
 
-    if (UWorld* World = GetWorld())
-        World->GetTimerManager().SetTimer(OperationTimeoutHandle, this, &USessionSubsystem::OnOperationTimeout, OperationTimeoutSeconds, false);
-    bIsOperationInProgress = true;
-    CurrentOperation = ESessionOperation::Joining;
+	IOnlineSessionPtr Sessions;
+	if (!GetSteamSessionInterface(Sessions, TEXT("JoinSession")))
+	{
+		ReportJoinFailure(TEXT("Steam is unavailable or the local Steam user is not logged in"));
+		OnSessionJoinComplete.Broadcast(false);
+		return false;
+	}
 
-    IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-    if (!OSS) { CancelCurrentOperation(); return false; }
+	bool bCancelledActiveFind = false;
+	if (CurrentOperation == ESessionOperation::Finding)
+	{
+		Sessions->CancelFindSessions();
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
+		ClearOperationState();
+		bCancelledActiveFind = true;
+	}
 
-    IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-    if (!Sessions.IsValid()) { CancelCurrentOperation(); return false; }
+	if (CurrentOperation == ESessionOperation::Destroying)
+	{
+		if (bOperationFailureReported || DestroyIntent == EDestroyIntent::Leave)
+		{
+			UE_LOG(LogParcelSession, Warning, TEXT("Invite join rejected while a timed-out or leave destroy is active."));
+			ReportJoinFailure(TEXT("the current GameSession is still leaving or timed out while being destroyed"));
+			OnSessionJoinComplete.Broadcast(false);
+			return false;
+		}
 
-    if (JoinSessionHandle.IsValid())
-    {
-        Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
-        JoinSessionHandle.Reset();
-    }
+		PendingJoinResult = SessionResult;
+		bHasPendingJoinResult = true;
+		PendingNumConnections = 0;
+		DestroyIntent = EDestroyIntent::JoinPending;
+		UE_LOG(LogParcelSession, Log, TEXT("Invite join queued behind the active session destroy."));
+		if (bCancelledActiveFind)
+		{
+			OnSessionFindComplete.Broadcast(false);
+		}
+		return true;
+	}
 
-    JoinSessionHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
-        FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnJoinSessionComplete)
-    );
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("JoinSession rejected because another session operation is active."));
+		ReportJoinFailure(TEXT("another session operation is already active"));
+		OnSessionJoinComplete.Broadcast(false);
+		return false;
+	}
 
-    if (!Sessions->JoinSession(0, NAME_GameSession, SessionResult))
-    {
-        Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
-        JoinSessionHandle.Reset();
-        CancelCurrentOperation();
-        return false;
-    }
+	bool bJoinStarted = false;
+	if (Sessions->GetNamedSession(NAME_GameSession))
+	{
+		PendingJoinResult = SessionResult;
+		bHasPendingJoinResult = true;
+		bJoinStarted = BeginDestroySession(EDestroyIntent::JoinPending);
+	}
+	else
+	{
+		bJoinStarted = BeginJoinSession(SessionResult);
+	}
 
-    return true;
+	if (bCancelledActiveFind)
+	{
+		OnSessionFindComplete.Broadcast(false);
+	}
+	return bJoinStarted;
+}
+
+bool USessionSubsystem::BeginJoinSession(const FOnlineSessionSearchResult& SessionResult)
+{
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		return false;
+	}
+
+	IOnlineSessionPtr Sessions;
+	if (!GetSteamSessionInterface(Sessions, TEXT("BeginJoinSession")))
+	{
+		ReportJoinFailure(TEXT("Steam is unavailable or the local Steam user is not logged in"));
+		OnSessionJoinComplete.Broadcast(false);
+		return false;
+	}
+
+	BeginOperation(ESessionOperation::Joining);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
+	JoinSessionHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
+		FOnJoinSessionCompleteDelegate::CreateUObject(
+			this,
+			&USessionSubsystem::OnJoinSessionComplete));
+
+	UE_LOG(LogParcelSession, Log, TEXT("Joining Steam session as GameSession."));
+	const bool bStarted = Sessions->JoinSession(0, NAME_GameSession, SessionResult);
+	if (!bStarted && CurrentOperation == ESessionOperation::Joining)
+	{
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
+		ClearOperationState();
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession returned false immediately."));
+		ReportJoinFailure(TEXT("the online subsystem rejected the join request immediately"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return false;
+	}
+
+	return bStarted;
 }
 
 void USessionSubsystem::DestroySession()
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	if (IsSessionTransitionLocked())
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("DestroySession ignored during map or leave transition."));
+		return;
+	}
 
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("DestroySession rejected because another session operation is active."));
+		OnSessionDestroyComplete.Broadcast(false);
+		return;
+	}
 
-	DestroySessionHandle = Sessions->AddOnDestroySessionCompleteDelegate_Handle(
-		FOnDestroySessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnDestroySessionComplete)
-	);
-	
-	Sessions->DestroySession(NAME_GameSession);
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (!Sessions.IsValid() || !Sessions->GetNamedSession(NAME_GameSession))
+	{
+		OnSessionDestroyComplete.Broadcast(true);
+		return;
+	}
+
+	BeginDestroySession(EDestroyIntent::UserRequested);
 }
 
+bool USessionSubsystem::BeginDestroySession(EDestroyIntent Intent)
+{
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		return false;
+	}
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (!Sessions.IsValid() || !Sessions->GetNamedSession(NAME_GameSession))
+	{
+		CompleteDestroyIntent(Intent, Sessions.IsValid());
+		return Sessions.IsValid();
+	}
+
+	DestroyIntent = Intent;
+	BeginOperation(ESessionOperation::Destroying);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Destroying);
+	DestroySessionHandle = Sessions->AddOnDestroySessionCompleteDelegate_Handle(
+		FOnDestroySessionCompleteDelegate::CreateUObject(
+			this,
+			&USessionSubsystem::OnDestroySessionComplete));
+
+	UE_LOG(LogParcelSession, Log, TEXT("Destroying GameSession with intent %d."), static_cast<uint8>(Intent));
+	const bool bStarted = Sessions->DestroySession(NAME_GameSession);
+	if (!bStarted && CurrentOperation == ESessionOperation::Destroying && DestroyIntent == Intent)
+	{
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Destroying);
+		ClearOperationState();
+		DestroyIntent = EDestroyIntent::None;
+		UE_LOG(LogParcelSession, Error, TEXT("DestroySession returned false immediately."));
+		CompleteDestroyIntent(Intent, false);
+		return false;
+	}
+
+	return bStarted;
+}
+
+void USessionSubsystem::CompleteDestroyIntent(EDestroyIntent Intent, bool bWasSuccessful)
+{
+	switch (Intent)
+	{
+	case EDestroyIntent::UserRequested:
+		OnSessionDestroyComplete.Broadcast(bWasSuccessful);
+		break;
+
+	case EDestroyIntent::Recreate:
+	{
+		const int32 NumConnections = PendingNumConnections;
+		PendingNumConnections = 0;
+		if (bWasSuccessful)
+		{
+			BeginCreateSession(NumConnections);
+		}
+		else
+		{
+			UE_LOG(LogParcelSession, Error, TEXT("Recreate aborted because the existing session could not be destroyed."));
+			OnSessionCreateComplete.Broadcast(false);
+		}
+		break;
+	}
+
+	case EDestroyIntent::JoinPending:
+	{
+		const FOnlineSessionSearchResult SessionToJoin = PendingJoinResult;
+		const bool bHadPendingJoin = bHasPendingJoinResult;
+		PendingJoinResult = FOnlineSessionSearchResult();
+		bHasPendingJoinResult = false;
+		if (bWasSuccessful && bHadPendingJoin && SessionToJoin.IsValid())
+		{
+			BeginJoinSession(SessionToJoin);
+		}
+		else
+		{
+			UE_LOG(LogParcelSession, Error, TEXT("Invite join aborted because the previous session could not be destroyed."));
+			ReportJoinFailure(TEXT("the previous GameSession could not be destroyed"));
+			OnSessionJoinComplete.Broadcast(false);
+		}
+		break;
+	}
+
+	case EDestroyIntent::Leave:
+	{
+		if (!bWasSuccessful)
+		{
+			UE_LOG(
+				LogParcelSession,
+				Error,
+				TEXT("Leave reached the front-end, but Steam did not confirm GameSession destruction. A new host/join will retry destroy first."));
+		}
+		PendingNumConnections = 0;
+		PendingJoinResult = FOnlineSessionSearchResult();
+		bHasPendingJoinResult = false;
+		OnSessionDestroyComplete.Broadcast(bWasSuccessful);
+		TravelToFrontend();
+		break;
+	}
+
+	case EDestroyIntent::Cleanup:
+		if (!bWasSuccessful)
+		{
+			UE_LOG(LogParcelSession, Warning, TEXT("Failed to clean up a stale GameSession."));
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+void USessionSubsystem::CleanupNamedSession()
+{
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		return;
+	}
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (Sessions.IsValid() && Sessions->GetNamedSession(NAME_GameSession))
+	{
+		BeginDestroySession(EDestroyIntent::Cleanup);
+	}
+}
+
+void USessionSubsystem::LeaveSession()
+{
+	if (bLeaveInProgress)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("LeaveSession failed because there is no world."));
+		return;
+	}
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (CurrentOperation == ESessionOperation::None &&
+		(!Sessions.IsValid() || !Sessions->GetNamedSession(NAME_GameSession)) &&
+		IsFrontendWorld(World))
+	{
+		return;
+	}
+
+	bLeaveInProgress = true;
+	bHostTravelInProgress = false;
+	bClientTravelInProgress = false;
+
+	// Notify every remote client first. Their ClientReturnToMainMenu RPC calls
+	// UParcelGameInstance::ReturnToMainMenu, which routes back to this subsystem
+	// on each machine. The local host re-entry is stopped by bLeaveInProgress.
+	if (World->GetNetMode() == NM_ListenServer)
+	{
+		if (AGameModeBase* GameMode = World->GetAuthGameMode())
+		{
+			GameMode->ReturnToMainMenuHost();
+		}
+	}
+
+	if (CurrentOperation == ESessionOperation::Destroying)
+	{
+		if (bOperationFailureReported)
+		{
+			DestroyIntent = EDestroyIntent::Leave;
+			TravelToFrontend(false);
+			return;
+		}
+
+		DestroyIntent = EDestroyIntent::Leave;
+		PendingNumConnections = 0;
+		PendingJoinResult = FOnlineSessionSearchResult();
+		bHasPendingJoinResult = false;
+		return;
+	}
+
+	if (CurrentOperation == ESessionOperation::Finding)
+	{
+		if (Sessions.IsValid())
+		{
+			Sessions->CancelFindSessions();
+		}
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
+		ClearOperationState();
+		OnSessionFindComplete.Broadcast(false);
+	}
+	else if (CurrentOperation != ESessionOperation::None)
+	{
+		// Create/Start/Join cannot be cancelled safely. Keep the operation and its
+		// delegate alive; its completion callback will convert the result into a
+		// Leave destroy instead of starting travel or reporting success.
+		UE_LOG(LogParcelSession, Log, TEXT("Leave queued behind active operation %d."), static_cast<uint8>(CurrentOperation));
+		if (bOperationFailureReported)
+		{
+			TravelToFrontend(false);
+		}
+		return;
+	}
+
+	BeginDestroySession(EDestroyIntent::Leave);
+}
+
+void USessionSubsystem::TravelToFrontend(bool bFinishLeaveFlow)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		bLeaveInProgress = false;
+		return;
+	}
+
+	if (IsFrontendWorld(World))
+	{
+		if (bFinishLeaveFlow)
+		{
+			bLeaveInProgress = false;
+		}
+		return;
+	}
+
+	UE_LOG(LogParcelSession, Log, TEXT("Returning to front-end map %s."), *ParcelSessionMaps::Frontend);
+	UGameplayStatics::OpenLevel(World, FName(*ParcelSessionMaps::Frontend));
+}
+
+bool USessionSubsystem::IsFrontendWorld(const UWorld* World) const
+{
+	return World &&
+		UGameplayStatics::GetCurrentLevelName(World, true) ==
+		FPackageName::GetShortName(ParcelSessionMaps::Frontend);
+}
+
+bool USessionSubsystem::IsSessionTransitionLocked() const
+{
+	return bLeaveInProgress || bHostTravelInProgress || bClientTravelInProgress;
+}
 
 void USessionSubsystem::StartGame(const FString& MapPath)
 {
-	GetWorld()->ServerTravel(MapPath + "?listen");
+	if (IsSessionTransitionLocked())
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("StartGame ignored during map or leave transition."));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_Client || MapPath.IsEmpty())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("StartGame is host-only and requires a valid map path."));
+		return;
+	}
+
+	if (CurrentOperation != ESessionOperation::None)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("StartGame ignored while a session operation is active."));
+		return;
+	}
+
+	const FString TravelURL = MapPath + TEXT("?listen");
+	bHostTravelInProgress = true;
+	if (!World->ServerTravel(TravelURL))
+	{
+		bHostTravelInProgress = false;
+		UE_LOG(LogParcelSession, Error, TEXT("ServerTravel failed to start for %s."), *TravelURL);
+	}
 }
 
 int32 USessionSubsystem::GetSearchResultCount() const
 {
-	if (SessionSearch.IsValid())
-		return SessionSearch->SearchResults.Num();
-	return 0;
+	return SessionSearch.IsValid() ? SessionSearch->SearchResults.Num() : 0;
 }
 
 FString USessionSubsystem::GetSessionOwnerName(int32 Index) const
 {
 	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(Index))
+	{
 		return TEXT("");
-	// OwningUserName: OSS가 기록한 세션 호스트의 플레이어 이름, Steam사용?
+	}
 	return SessionSearch->SearchResults[Index].Session.OwningUserName;
 }
 
 int32 USessionSubsystem::GetSessionPlayerCount(int32 Index) const
 {
 	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(Index))
+	{
 		return 0;
+	}
+
 	const FOnlineSession& Session = SessionSearch->SearchResults[Index].Session;
-	// 최대 인원 - 남은 빈 슬롯 = 현재 접속 인원
 	return Session.SessionSettings.NumPublicConnections - Session.NumOpenPublicConnections;
 }
 
 bool USessionSubsystem::CanInviteToCurrentSession() const
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS || !GetWorld() || GetWorld()->GetNetMode() == NM_Client)
+	if (IsSessionTransitionLocked())
 	{
 		return false;
 	}
 
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid())
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_Client)
+	{
+		return false;
+	}
+
+	IOnlineSessionPtr Sessions;
+	if (!GetSteamSessionInterface(Sessions, TEXT("CanInviteToCurrentSession")))
 	{
 		return false;
 	}
@@ -242,21 +978,22 @@ bool USessionSubsystem::CanInviteToCurrentSession() const
 		return false;
 	}
 
-	const EOnlineSessionState::Type SessionState = Sessions->GetSessionState(NAME_GameSession);
-	if (SessionState == EOnlineSessionState::NoSession || SessionState == EOnlineSessionState::Destroying)
+	const EOnlineSessionState::Type State = Sessions->GetSessionState(NAME_GameSession);
+	if (State == EOnlineSessionState::NoSession || State == EOnlineSessionState::Destroying)
 	{
 		return false;
 	}
 
-	IOnlineIdentityPtr Identity = OSS->GetIdentityInterface();
-	const TSharedPtr<const FUniqueNetId> LocalUserId = Identity.IsValid() ? Identity->GetUniquePlayerId(0) : nullptr;
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	const IOnlineIdentityPtr Identity = OSS ? OSS->GetIdentityInterface() : nullptr;
+	const TSharedPtr<const FUniqueNetId> LocalUserId =
+		Identity.IsValid() ? Identity->GetUniquePlayerId(0) : nullptr;
 	if (LocalUserId.IsValid() && NamedSession->OwningUserId.IsValid())
 	{
 		return *LocalUserId == *NamedSession->OwningUserId;
 	}
 
-	// 일부 로컬/개발 OSS는 소유자 ID를 채우지 않으므로 listen host 여부를 안전한 fallback으로 사용합니다.
-	return GetWorld()->GetNetMode() == NM_ListenServer;
+	return World->GetNetMode() == NM_ListenServer;
 }
 
 bool USessionSubsystem::SendSessionInviteToFriend(
@@ -264,110 +1001,468 @@ bool USessionSubsystem::SendSessionInviteToFriend(
 	const FBPUniqueNetId& FriendUniqueNetId) const
 {
 	if (!PlayerController || !PlayerController->IsLocalController() ||
-		!CanInviteToCurrentSession() || !FriendUniqueNetId.IsValid())
+		!FriendUniqueNetId.IsValid() || !CanInviteToCurrentSession())
 	{
+		UE_LOG(LogParcelSession, Warning, TEXT("Steam session invite rejected by local validation."));
 		return false;
 	}
 
 	EBlueprintResultSwitch Result = EBlueprintResultSwitch::OnFailure;
 	UAdvancedFriendsLibrary::SendSessionInviteToFriend(PlayerController, FriendUniqueNetId, Result);
-	return Result == EBlueprintResultSwitch::OnSuccess;
+	const bool bRequested = Result == EBlueprintResultSwitch::OnSuccess;
+	UE_LOG(LogParcelSession, Log, TEXT("Steam invite request result: %s."), bRequested ? TEXT("success") : TEXT("failure"));
+	return bRequested;
 }
-
-//---------------세션 컴플리트----------------------------------------------------------
 
 void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
-
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
-
-	Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionHandle);
-	ClearOperationState();
-	OnSessionCreateComplete.Broadcast(bWasSuccessful);
-	if (bWasSuccessful && GetWorld()->GetNetMode() != NM_Client)
+	if (SessionName != NAME_GameSession || CurrentOperation != ESessionOperation::Creating)
 	{
-		StartSessionHandle = Sessions->AddOnStartSessionCompleteDelegate_Handle(
-			FOnStartSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnStartSessionComplete)
-		);
-		Sessions->StartSession(NAME_GameSession);
+		return;
+	}
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Creating);
+	const bool bTimedOut = bOperationFailureReported;
+	ClearOperationState();
+	if (bLeaveInProgress)
+	{
+		UE_LOG(LogParcelSession, Log, TEXT("CreateSession completion converted to pending Leave."));
+		BeginDestroySession(EDestroyIntent::Leave);
+		return;
+	}
+
+	if (bTimedOut)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("Ignoring late CreateSession completion after timeout."));
+		if (bWasSuccessful)
+		{
+			CleanupNamedSession();
+		}
+		return;
+	}
+
+	if (!bWasSuccessful || !Sessions.IsValid())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("CreateSession completion failed."));
+		OnSessionCreateComplete.Broadcast(false);
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_Client)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("CreateSession completed on an invalid host world."));
+		OnSessionCreateComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	BeginOperation(ESessionOperation::Starting);
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Starting);
+	StartSessionHandle = Sessions->AddOnStartSessionCompleteDelegate_Handle(
+		FOnStartSessionCompleteDelegate::CreateUObject(
+			this,
+			&USessionSubsystem::OnStartSessionComplete));
+
+	const bool bStarted = Sessions->StartSession(NAME_GameSession);
+	if (!bStarted && CurrentOperation == ESessionOperation::Starting)
+	{
+		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Starting);
+		ClearOperationState();
+		UE_LOG(LogParcelSession, Error, TEXT("StartSession returned false immediately."));
+		OnSessionCreateComplete.Broadcast(false);
+		CleanupNamedSession();
 	}
 }
 
 void USessionSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	if (SessionName != NAME_GameSession || CurrentOperation != ESessionOperation::Starting)
+	{
+		return;
+	}
 
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Starting);
+	const bool bTimedOut = bOperationFailureReported;
+	ClearOperationState();
+	if (bLeaveInProgress)
+	{
+		UE_LOG(LogParcelSession, Log, TEXT("StartSession completion converted to pending Leave."));
+		BeginDestroySession(EDestroyIntent::Leave);
+		return;
+	}
 
-	Sessions->ClearOnStartSessionCompleteDelegate_Handle(StartSessionHandle);
+	if (bTimedOut)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("Ignoring late StartSession completion after timeout."));
+		CleanupNamedSession();
+		return;
+	}
 
-	if (bWasSuccessful)
-		if (UParcelGameInstance* GI = Cast<UParcelGameInstance>(GetGameInstance()))
-			GetWorld()->ServerTravel(GI->GetPendingMapPath() + "?listen");
+	if (!bWasSuccessful || !Sessions.IsValid())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("StartSession completion failed."));
+		OnSessionCreateComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	const FString TravelURL = ParcelSessionMaps::Lobby + TEXT("?listen");
+	bHostTravelInProgress = true;
+	if (!World || World->GetNetMode() == NM_Client || !World->ServerTravel(TravelURL))
+	{
+		bHostTravelInProgress = false;
+		UE_LOG(LogParcelSession, Error, TEXT("Lobby ServerTravel failed to start for %s."), *TravelURL);
+		OnSessionCreateComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	UE_LOG(LogParcelSession, Log, TEXT("GameSession started; Lobby listen travel issued."));
+	OnSessionCreateComplete.Broadcast(true);
 }
 
 void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	if (CurrentOperation != ESessionOperation::Finding)
+	{
+		return;
+	}
 
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
-
-	Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsHandle);
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
 	ClearOperationState();
-	OnSessionFindComplete.Broadcast(bWasSuccessful);
+	const bool bCompletedSuccessfully = bWasSuccessful && Sessions.IsValid();
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("FindSessions completed: success=%d results=%d."),
+		bCompletedSuccessfully,
+		GetSearchResultCount());
+	OnSessionFindComplete.Broadcast(bCompletedSuccessfully);
 }
 
-void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
+void USessionSubsystem::OnJoinSessionComplete(
+	FName SessionName,
+	EOnJoinSessionCompleteResult::Type Result)
 {
 	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
+	const FName OnlineSubsystemName = OSS ? OSS->GetSubsystemName() : NAME_None;
+	const IOnlineSessionPtr Sessions = OSS ? OSS->GetSessionInterface() : nullptr;
 
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("JoinSession complete: Session=%s Result=%s(%d) OnlineSubsystem=%s SessionInterfaceValid=%d CurrentOperation=%d."),
+		*SessionName.ToString(),
+		ParcelSessionMaps::JoinResultToString(Result),
+		static_cast<int32>(Result),
+		*OnlineSubsystemName.ToString(),
+		Sessions.IsValid(),
+		static_cast<uint8>(CurrentOperation));
 
-	Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionHandle);
-	JoinSessionHandle.Reset();
-	ClearOperationState();
-  
-	OnSessionJoinComplete.Broadcast(Result == EOnJoinSessionCompleteResult::Success);
-	if (Result == EOnJoinSessionCompleteResult::Success)
+	if (SessionName != NAME_GameSession || CurrentOperation != ESessionOperation::Joining)
 	{
-		FString TravelURL;
-		// OSS 내부 주소를 클라이언트가 접속 가능한 IP:Port 형태로 변환
-		if (Sessions->GetResolvedConnectString(NAME_GameSession, TravelURL))
+		UE_LOG(
+			LogParcelSession,
+			Warning,
+			TEXT("JoinSession completion ignored: ExpectedSession=%s IsJoining=%d ClientTravelCalled=0."),
+			*FName(NAME_GameSession).ToString(),
+			CurrentOperation == ESessionOperation::Joining);
+		return;
+	}
+
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
+	const bool bTimedOut = bOperationFailureReported;
+	ClearOperationState();
+	if (bLeaveInProgress)
+	{
+		UE_LOG(LogParcelSession, Log, TEXT("JoinSession completion converted to pending Leave. ClientTravelCalled=0."));
+		BeginDestroySession(EDestroyIntent::Leave);
+		return;
+	}
+
+	if (bTimedOut)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("Ignoring late JoinSession completion after timeout. ClientTravelCalled=0."));
+		CleanupNamedSession();
+		return;
+	}
+
+	if (Result != EOnJoinSessionCompleteResult::Success)
+	{
+		UE_LOG(
+			LogParcelSession,
+			Error,
+			TEXT("JoinSession completion failed: Result=%s(%d) OnlineSubsystem=%s ClientTravelCalled=0."),
+			ParcelSessionMaps::JoinResultToString(Result),
+			static_cast<int32>(Result),
+			*OnlineSubsystemName.ToString());
+		FString FailureReason;
+		switch (Result)
 		{
-			APlayerController* PC = GetWorld()->GetFirstPlayerController();
-			if (PC) PC->ClientTravel(TravelURL, ETravelType::TRAVEL_Absolute);
+		case EOnJoinSessionCompleteResult::SessionIsFull:
+			FailureReason = TEXT("the session is full");
+			break;
+		case EOnJoinSessionCompleteResult::SessionDoesNotExist:
+			FailureReason = TEXT("the invited session no longer exists");
+			break;
+		case EOnJoinSessionCompleteResult::CouldNotRetrieveAddress:
+			FailureReason = TEXT("Steam could not retrieve the host address");
+			break;
+		case EOnJoinSessionCompleteResult::AlreadyInSession:
+			FailureReason = TEXT("the local user is already in GameSession");
+			break;
+		default:
+			FailureReason = Sessions.IsValid()
+				? TEXT("the online subsystem returned an unknown error")
+				: TEXT("the Steam session interface became unavailable");
+			break;
 		}
+		ReportJoinFailure(FailureReason);
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!Sessions.IsValid())
+	{
+		UE_LOG(
+			LogParcelSession,
+			Error,
+			TEXT("JoinSession succeeded, but the session interface is invalid. OnlineSubsystem=%s ClientTravelCalled=0."),
+			*OnlineSubsystemName.ToString());
+		ReportJoinFailure(FString::Printf(
+			TEXT("the %s online subsystem has no valid session interface"),
+			*OnlineSubsystemName.ToString()));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	FString ConnectString;
+	const bool bResolvedConnectString = Sessions->GetResolvedConnectString(
+		NAME_GameSession,
+		ConnectString);
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("GetResolvedConnectString: Session=%s Success=%d ConnectString=\"%s\"."),
+		*FName(NAME_GameSession).ToString(),
+		bResolvedConnectString,
+		*ConnectString);
+
+	if (!bResolvedConnectString)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("GetResolvedConnectString returned false. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("GetResolvedConnectString returned false for GameSession"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (ConnectString.IsEmpty())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("GetResolvedConnectString returned an empty ConnectString. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("GetResolvedConnectString returned an empty address for GameSession"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	UGameInstance* GameInstance = GetGameInstance();
+	ULocalPlayer* LocalPlayer = GameInstance ? GameInstance->GetLocalPlayerByIndex(0) : nullptr;
+	APlayerController* PlayerController = GameInstance
+		? GameInstance->GetFirstLocalPlayerController(World)
+		: nullptr;
+	const bool bIsLocalController = PlayerController && PlayerController->IsLocalController();
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("Join travel objects: WorldValid=%d GameInstanceValid=%d LocalPlayerValid=%d PlayerControllerValid=%d IsLocalController=%d."),
+		World != nullptr,
+		GameInstance != nullptr,
+		LocalPlayer != nullptr,
+		PlayerController != nullptr,
+		bIsLocalController);
+
+	if (!World)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but the GameInstance has no active World. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("there is no active World for ClientTravel"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!LocalPlayer)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but local player index 0 is unavailable. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("local player index 0 is unavailable"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!PlayerController)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but GetFirstLocalPlayerController returned null. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("the local PlayerController is unavailable"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	if (!bIsLocalController)
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("JoinSession succeeded, but the selected PlayerController is not local. ClientTravelCalled=0."));
+		ReportJoinFailure(TEXT("the selected PlayerController is not local"));
+		OnSessionJoinComplete.Broadcast(false);
+		CleanupNamedSession();
+		return;
+	}
+
+	ReportSessionStatus(TEXT("JoinSession succeeded. Traveling to the host."), false);
+	bClientTravelInProgress = true;
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("Calling ClientTravel: ConnectString=\"%s\" TravelType=TRAVEL_Absolute ClientTravelCalled=1."),
+		*ConnectString);
+	PlayerController->ClientTravel(ConnectString, ETravelType::TRAVEL_Absolute);
+	UE_LOG(LogParcelSession, Log, TEXT("ClientTravel call returned. ClientTravelCalled=1."));
+	OnSessionJoinComplete.Broadcast(true);
+}
+
+void USessionSubsystem::HandlePostLoadMap(UWorld* LoadedWorld)
+{
+	if (!LoadedWorld || LoadedWorld->GetGameInstance() != GetGameInstance())
+	{
+		return;
+	}
+
+	bHostTravelInProgress = false;
+	bClientTravelInProgress = false;
+	if (IsFrontendWorld(LoadedWorld))
+	{
+		bLeaveInProgress = false;
 	}
 }
 
 void USessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
-	if (!OSS) return;
-
-	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
-	if (!Sessions.IsValid()) return;
-	
-	Sessions->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionHandle);
-
-	// CreateSession 중 기존 세션 제거였으면 Broadcast 없이 바로 재생성
-	if (bPendingCreate)
+	if (SessionName != NAME_GameSession || CurrentOperation != ESessionOperation::Destroying)
 	{
-		bPendingCreate = false;
-		CreateSession(PendingNumConnections);
 		return;
 	}
 
-	OnSessionDestroyComplete.Broadcast(bWasSuccessful);
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Destroying);
+	const EDestroyIntent CompletedIntent = DestroyIntent;
+	const bool bTimedOut = bOperationFailureReported;
+	DestroyIntent = EDestroyIntent::None;
+	ClearOperationState();
 
-	
+	if (bTimedOut)
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("Ignoring late DestroySession completion after timeout."));
+		PendingNumConnections = 0;
+		PendingJoinResult = FOnlineSessionSearchResult();
+		bHasPendingJoinResult = false;
+		if (CompletedIntent == EDestroyIntent::Leave)
+		{
+			TravelToFrontend(true);
+		}
+		return;
+	}
+
+	CompleteDestroyIntent(CompletedIntent, bWasSuccessful);
+}
+
+void USessionSubsystem::HandleNetworkFailure(
+	UWorld* World,
+	UNetDriver* NetDriver,
+	ENetworkFailure::Type FailureType,
+	const FString& ErrorString)
+{
+	if (!World || World->GetGameInstance() != GetGameInstance())
+	{
+		return;
+	}
+
+	UE_LOG(
+		LogParcelSession,
+		Error,
+		TEXT("Network failure %d: %s"),
+		static_cast<uint8>(FailureType),
+		*ErrorString);
+	if (bClientTravelInProgress)
+	{
+		ReportJoinFailure(FString::Printf(
+			TEXT("ClientTravel connection failed with network error %d: %s"),
+			static_cast<uint8>(FailureType),
+			*ErrorString));
+	}
+	if (bLeaveInProgress)
+	{
+		return;
+	}
+
+	const bool bWasClient = World->GetNetMode() == NM_Client ||
+		(NetDriver && NetDriver->ServerConnection != nullptr);
+	if (bWasClient)
+	{
+		LeaveSession();
+	}
+}
+
+void USessionSubsystem::HandleTravelFailure(
+	UWorld* World,
+	ETravelFailure::Type FailureType,
+	const FString& ErrorString)
+{
+	if (!World || World->GetGameInstance() != GetGameInstance())
+	{
+		return;
+	}
+
+	UE_LOG(
+		LogParcelSession,
+		Error,
+		TEXT("Travel failure %d: %s"),
+		static_cast<uint8>(FailureType),
+		*ErrorString);
+	if (bClientTravelInProgress)
+	{
+		ReportJoinFailure(FString::Printf(
+			TEXT("ClientTravel failed with travel error %d: %s"),
+			static_cast<uint8>(FailureType),
+			*ErrorString));
+	}
+	if (bLeaveInProgress)
+	{
+		bHostTravelInProgress = false;
+		bClientTravelInProgress = false;
+		// If Leave is waiting for a non-cancellable Steam callback, preserve the
+		// leave intent. The callback will retry cleanup/travel instead of allowing
+		// a late Create/Start/Join result to resume normal play.
+		if (CurrentOperation == ESessionOperation::None)
+		{
+			bLeaveInProgress = false;
+		}
+		return;
+	}
+
+	bHostTravelInProgress = false;
+	bClientTravelInProgress = false;
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (Sessions.IsValid() && Sessions->GetNamedSession(NAME_GameSession))
+	{
+		LeaveSession();
+	}
 }

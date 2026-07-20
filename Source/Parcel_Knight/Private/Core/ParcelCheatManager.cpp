@@ -9,6 +9,9 @@
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
 #include "GameplayTagContainer.h"
+#include "Core/HealthComponent.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "ParcelLog.h"
 
 // ========================= 배달 =========================
@@ -176,4 +179,27 @@ void UParcelCheatManager::DebugPrintInventory()
 	if (Inv->GetItems().IsEmpty()) Msg += TEXT("\n  (없음)");
 	GAMERULE_LOG(Log, TEXT("[콘솔] %s"), *Msg);
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Purple, Msg);
+}
+
+void UParcelCheatManager::DebugSuicide()
+{
+	// 현재 치트를 발동한 로컬 플레이어 Controller 확보
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+
+	// 조종 중인 캐릭터 Pawn 확보
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[치트] 조종 중인 캐릭터(Pawn)가 없어 치트를 발동할 수 없습니다."));
+		return;
+	}
+
+	// 캐릭터 내부의 HealthComponent를 추적하여 데미지 주입
+	if (UHealthComponent* HealthComp = Pawn->FindComponentByClass<UHealthComponent>())
+	{
+		float FatalDamage = HealthComp->GetMaxHP();
+		HealthComp->TakeDamage(FatalDamage);
+		UE_LOG(LogTemp, Log, TEXT("[치트] DebugSuicide 발동. 캐릭터에게 %f 만큼의 치명적 데미지를 부여했습니다."), FatalDamage);
+	}
 }
