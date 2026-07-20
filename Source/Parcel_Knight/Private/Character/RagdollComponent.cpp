@@ -7,6 +7,8 @@
 #include "Character/ParcelCharacter.h"
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Character/CharacterCarryComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Engine/World.h"
 
@@ -15,9 +17,7 @@ DEFINE_LOG_CATEGORY(LogRagdoll);
 URagdollComponent::URagdollComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
-    
-    // 컴포넌트 자체는 복제하지 않으며 PlayerState의 태그 동기화 기능을 빌려 씁니다.
-    SetIsReplicatedByDefault(false);
+    SetIsReplicatedByDefault(true);
 }
 
 void URagdollComponent::BeginPlay()
@@ -46,8 +46,7 @@ void URagdollComponent::StartRagdoll()
        ServerSetRagdoll(true);
        return;
     }
-
-    ApplyStartRagdoll();
+    Multicast_SetRagdoll(true);
 }
 
 void URagdollComponent::StopRagdoll()
@@ -57,28 +56,19 @@ void URagdollComponent::StopRagdoll()
        ServerSetRagdoll(false);
        return;
     }
-
-    ApplyStopRagdoll();
+    Multicast_SetRagdoll(false);
 }
 
 void URagdollComponent::ToggleRagdoll()
 {
     bool bCurrentlyRagdoll = IsRagdoll();
-    
+
     if (!GetOwner() || !GetOwner()->HasAuthority())
     {
        ServerSetRagdoll(!bCurrentlyRagdoll);
        return;
     }
-
-    if (bCurrentlyRagdoll) 
-    {
-        ApplyStopRagdoll();
-    }
-    else 
-    {
-        ApplyStartRagdoll();
-    }
+    Multicast_SetRagdoll(!bCurrentlyRagdoll);
 }
 
 bool URagdollComponent::IsRagdoll() const
@@ -139,14 +129,36 @@ UAnimMontage* URagdollComponent::GetSelectedGetUpMontage(bool bFront) const
 
 void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
 {
-    if (bNewIsRagdoll)
+    Multicast_SetRagdoll(bNewIsRagdoll);
+}
+
+void URagdollComponent::Multicast_SetRagdoll_Implementation(bool bNewIsRagdoll)
+{
+    if (bNewIsRagdoll) ApplyStartRagdoll();
+    else               ApplyStopRagdoll();
+}
+
+void URagdollComponent::AttemptAutoRecovery()
+{
+    if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter) return;
+
+    // 상태이상이 활성화 중이면 2초 후 재시도
+    if (UDFStatusEffectComponent* StatusComp = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
     {
-       ApplyStartRagdoll();
+        if (StatusComp->HasActiveStatusEffect())
+        {
+            GetWorld()->GetTimerManager().SetTimer(
+                AutoRecoveryTimerHandle,
+                this,
+                &URagdollComponent::AttemptAutoRecovery,
+                2.0f,
+                false
+            );
+            return;
+        }
     }
-    else
-    {
-       ApplyStopRagdoll();
-    }
+
+    StopRagdoll();
 }
 
 void URagdollComponent::ApplyStartRagdoll()
@@ -193,14 +205,37 @@ void URagdollComponent::ApplyStartRagdoll()
                 StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting")));
             }
         }
+
+        // 래그돌 진입 시 들고 있던 상자 강제 드롭
+        if (UCharacterCarryComponent* CarryComp = OwnerCharacter->FindComponentByClass<UCharacterCarryComponent>())
+        {
+            if (CarryComp->IsCarrying())
+                CarryComp->Drop();
+        }
+
+        // 상태이상이 없으면 AutoRecoveryDelay 초 후 강제 기상 시도
+        GetWorld()->GetTimerManager().SetTimer(
+            AutoRecoveryTimerHandle,
+            this,
+            &URagdollComponent::AttemptAutoRecovery,
+            AutoRecoveryDelay,
+            false
+        );
     }
-    
-    // 4. 카메라 제어권 변경
-    if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+
+    // 4. AnimBP 상태 갱신 — Multicast로 모든 클라이언트에서 호출되므로 직접 설정
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
     {
-       HeroComp->EnterRagdollCameraMode();
+        ParcelChar->SetRagdollState(true, false);
     }
-   
+
+    // 5. 카메라 제어권 변경 — 로컬 플레이어만 적용
+    if (OwnerCharacter->IsLocallyControlled())
+    {
+        if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+            HeroComp->EnterRagdollCameraMode();
+    }
+
     RAGDOLL_LOG(Log, TEXT("Ragdoll started successfully."));
 }
 
@@ -257,7 +292,7 @@ void URagdollComponent::ApplyStopRagdoll()
        Movement->SetMovementMode(MOVE_Walking);
     }
     
-    // 6. [서버 권한] 기절 상태 완료 태그 제거
+    // 6. [서버 권한] 기절 상태 완료 태그 제거 및 자동 기상 타이머 정리
     if (GetOwner()->HasAuthority())
     {
        if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
@@ -265,28 +300,28 @@ void URagdollComponent::ApplyStopRagdoll()
           if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
           {
              StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
+             // 래그돌 중 Landed()가 호출되지 않아 InAir 태그가 잔류하는 경우 강제 제거
+             StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir")));
           }
        }
+       GetWorld()->GetTimerManager().ClearTimer(AutoRecoveryTimerHandle);
     }
 
-    // 7. 카메라 원위치 복구
-    if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+    // 7. AnimBP 상태 갱신
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
     {
-       HeroComp->ExitRagdollCameraMode();
+        ParcelChar->SetRagdollState(false, true);
     }
-    
-    // 8. 몽타주 기상 애니메이션 실행 처리 (앞면 디폴트로 호출)
+
+    // 8. 카메라 원위치 복구 — 로컬 플레이어만 적용
+    if (OwnerCharacter->IsLocallyControlled())
+    {
+        if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+            HeroComp->ExitRagdollCameraMode();
+    }
+
+    // 9. 기상 애니메이션 실행 (앞면 디폴트)
     PlayGetUpAnimation(true);
     
     RAGDOLL_LOG(Log, TEXT("Ragdoll stopped successfully."));
-}
-
-void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-}
-
-void AParcelCharacter::OnRep_CharacterStateTags()
-{
-
 }

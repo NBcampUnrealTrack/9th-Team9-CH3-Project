@@ -29,12 +29,17 @@ DECLARE_LOG_CATEGORY_EXTERN(LogParcelInteraction, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogHeroComp, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogRagdoll, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogPlayerStateComp, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogParcelStamina, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogParcelPlayerController, Log, All);
 
 // Delivery
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryBox, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryZone, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliveryPhysics, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogDeliverySubsystem, Log, All);
+
+// UI
+DECLARE_LOG_CATEGORY_EXTERN(LogInGameHUD, Log, All);
 
 //GameRule
 DECLARE_LOG_CATEGORY_EXTERN(LogGameRule, Log, All);
@@ -50,12 +55,17 @@ DECLARE_LOG_CATEGORY_EXTERN(LogGameRule, Log, All);
 #define HEROCOMP_LOG(Verbosity, Format, ...)    UE_LOG(LogHeroComp, Verbosity, Format, ##__VA_ARGS__)
 #define RAGDOLL_LOG(Verbosity, Format, ...)    UE_LOG(LogRagdoll, Verbosity, Format, ##__VA_ARGS__)
 #define PLAYERSTATECOMP_LOG(Verbosity, Format, ...)    UE_LOG(LogPlayerStateComp, Verbosity, Format, ##__VA_ARGS__)
+#define STAMINA_LOG(Verbosity, Format, ...)    UE_LOG(LogParcelStamina, Verbosity, Format, ##__VA_ARGS__)
+#define CONTROLLER_LOG(Verbosity, Format, ...)    UE_LOG(LogParcelPlayerController, Verbosity, Format, ##__VA_ARGS__)
 
 // Delivery
 #define DELIVERYBOX_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryBox, Verbosity, Format, ##__VA_ARGS__)
 #define DELIVERYZONE_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryZone, Verbosity, Format, ##__VA_ARGS__)
 #define PHYSICSJUDGE_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliveryPhysics, Verbosity, Format, ##__VA_ARGS__)
 #define DELIVERYSUBSYSTEM_LOG(Verbosity, Format, ...)    UE_LOG(LogDeliverySubsystem, Verbosity, Format, ##__VA_ARGS__)
+
+// UI
+#define INGAMEHUD_LOG(Verbosity, Format, ...)    UE_LOG(LogInGameHUD, Verbosity, Format, ##__VA_ARGS__)
 
 // GameRule
 #define GAMERULE_LOG(Verbosity, Format, ...) UE_LOG(LogGameRule, Verbosity, Format, ##__VA_ARGS__)

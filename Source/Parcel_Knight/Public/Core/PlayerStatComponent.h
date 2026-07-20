@@ -6,8 +6,11 @@
 #include "Components/ActorComponent.h"
 #include "PlayerStatComponent.generated.h"
 
+// [UI]
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPersonalScoreChangedSignature, int32, NewPersonalScore);
+
 /**
- * 개인 점수, 콤보, 성공·실패 횟수를 관리하는 컴포넌트
+ * 개인 점수, 성공·실패 횟수를 관리하는 컴포넌트
  * PlayerState에 부착된다.
  *
  * 담당자: 한수현
@@ -20,7 +23,6 @@ class PARCEL_KNIGHT_API UPlayerStatComponent : public UActorComponent
 public:
 	UPlayerStatComponent();
 
-	
 	/*
 	 * Replicated로 클라이언트에 보내지는 변수들을 복사하는 함수
 	 * 엔진이 호출하는 함수라 관례상 public에 둔다
@@ -34,14 +36,17 @@ public:
 	// [All] 개인 누적 점수 반환
 	int32 GetPersonalScore() const;
 
-	// [All] 현재 콤보 횟수 반환
-	int32 GetComboCount() const;
-
 	// [All] 배송 성공 횟수 반환
 	int32 GetSuccessCount() const;
 
+	// [All] 배송 실패 횟수 반환
+	int32 GetFailCount() const;
+
+	// [All] 사망 횟수 반환
+	int32 GetDeathCount() const;
+
 	// ─────────────────────────────────────
-	// 점수 및 콤보 처리
+	// 점수 처리
 	// ─────────────────────────────────────
 
 	/**
@@ -50,19 +55,33 @@ public:
 	 */
 	void AddScore(int32 Amount);
 
-	// [Server Only] 배송 성공 시 호출 — 콤보 증가 및 성공 횟수 누적
+	// [Server Only] 배송 성공 시 호출 — 성공 횟수 누적
 	void OnDeliverySuccess();
 
-	// [Server Only] 배송 실패·파손 시 호출 — 콤보 리셋
+	// [Server Only] 배송 실패·파손 시 호출 — 실패 횟수 누적
 	void OnDeliveryFail();
 
+	// [Server Only] 사망 시 호출 — 사망 횟수 누적
+	void OnDeath();
+
+	// [UI] HUD 위젯 바인딩 브로드캐스트 변수
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnPersonalScoreChangedSignature OnPersonalScoreChanged;
+
+	// [UI] 개인 점수 복제 수신 콜백 함수
+	UFUNCTION()
+	void OnRep_PersonalScore();
+	
 private:
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing=OnRep_PersonalScore)
 	int32 PersonalScore;  // 개인 누적 점수
 
 	UPROPERTY(Replicated)
-	int32 SuccessCount;   // 연속 성공 콤보 계산 기준
+	int32 SuccessCount;   // 배달 성공 횟수
 
 	UPROPERTY(Replicated)
-	int32 ComboCount;     // 콤보 배율 적용에 사용
+	int32 FailCount;      // 배달 실패 횟수
+
+	UPROPERTY(Replicated)
+	int32 DeathCount;     // 사망 횟수
 };

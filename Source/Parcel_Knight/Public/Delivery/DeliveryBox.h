@@ -10,6 +10,9 @@
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class UMaterialInterface;
+class UHealthComponent;
+class UNiagaraSystem;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -50,6 +53,10 @@ public:
     FORCEINLINE FBoxData GetBoxData() const { return BoxData; }
     FORCEINLINE float GetDamageThreshold() const { return BoxData.DamageThreshold; }
 	
+	// 스폰 초기 무적 상태 여부 확인 (0.5초 무적)
+	UFUNCTION(BlueprintCallable, Category = "Delivery")
+	bool IsInvulnerable() const;
+	
 protected:
 	// [Client] 태그 변경 시 클라이언트 연출용 RepNotify
 	UFUNCTION()
@@ -74,6 +81,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> BoxMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UHealthComponent> HealthComponent;
 	
 	/* ==========================================================================
 		   동기화 규칙 변수 (Replicated)
@@ -93,4 +103,30 @@ private:
 
 	// [Server] 서버에서 스코어링 판정용 PlayerState 캐시
 	TWeakObjectPtr<AParcelPlayerState> LastCarrierPlayerState;
+
+protected:
+	// 각 구역 태그별로 머티리얼을 매핑할 수 있는 맵 (A, B, C 구역별 색상 지정용)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Material")
+	TMap<FGameplayTag, TObjectPtr<UMaterialInterface>> ZoneMaterials;
+
+	// 상자 파손 소멸 시 재생할 나이아가라 이펙트
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
+	TObjectPtr<UNiagaraSystem> DestroyEffect;
+
+	// 모든 클라이언트에서 나이아가라 이펙트 재생을 위한 멀티캐스트 RPC
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayDestroyEffect();
+
+private:
+	// 상자 목적지 구역 태그에 맞춰 머티리얼을 동적으로 적용합니다.
+	void ApplyZoneMaterial();
+
+	UFUNCTION()
+	void HandleOnDeath();
+
+	// 상자 스폰 시점의 게임 시간 (초 단위)
+	float SpawnTime = 0.0f;
+
+	// 상자가 한 번이라도 플레이어에게 주워졌는지 여부 (주워지기 전까지 무적 처리용)
+	bool bHasBeenPickedUp = false;
 };

@@ -17,7 +17,7 @@ UCharacterCarryComponent::UCharacterCarryComponent()
     CarriedBox = nullptr;
     bIsCarrying = false;
     MoveSpeedMultiplier = 1.0f;
-    HandSocketName = TEXT("HandSocket");
+    HandSocketName = TEXT("HandSocketName");
 }
 
 void UCharacterCarryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -185,6 +185,12 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
           PreviousCarriedBox = nullptr;
        }
     }
+	
+	// [Broadcast]
+	if (OwnerCharacter->IsLocallyControlled())
+	{
+		OnCarriedBoxChanged.Broadcast(CarriedBox);
+	}
 }
 
 void UCharacterCarryComponent::SyncWeightToMovement()

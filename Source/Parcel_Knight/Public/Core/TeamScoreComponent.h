@@ -4,17 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GameplayTagContainer.h"
 #include "TeamScoreComponent.generated.h"
 
-//TODO: 나중에 결과에 따라 애니메이션/UI 출력이 바뀌거나 한다면 확장성을 고려했을 때 Tag로 바꾸는 것이 좋아보임
-UENUM(BlueprintType)
-enum class EGrade : uint8
-{
-	A,
-	B,
-	C,
-	F
-};
+// [UI]
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamScoreChangedSignature, int32, NewTeamScore);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRemainingTimeChangedSignature, float, RemainingTime);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnComboChangedSignature, int32, NewComboCount);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnScoreAddedSignature, int32, AddedScore, int32, BaseScore, int32, CurrentCombo);
+
 
 /**
  * 팀 점수와 남은 시간을 관리하는 컴포넌트
@@ -39,27 +37,69 @@ public:
 	int32 GetTeamScore() const;
 	// [All] 남은 시간 반환
 	float GetRemainingTime() const;
-	// [All] 최종 등급 반환
-	EGrade GetGrade() const;
+	// [All] 최종 등급 태그 반환 — 결과 화면 표시용 (Grade.A / Grade.B / Grade.C / Grade.F)
+	FGameplayTag GetGrade() const;
 	// [Server Only] 팀 점수 증감
 	void AddTeamScore(int32 Amount);
 	// [Server Only] 남은 시간 감소 — OnEverySecond에서 호출
 	void DecreaseRemainingTime(float Amount);
 	// [Server Only] 남은 시간 초기화 — StartRound에서 호출
 	void InitRemainingTime(float InTimeLimit);
-	// [Server Only] 등급 설정 — OnTimeUp에서 호출
-	void SetGrade(EGrade InGrade);
+	// [Server Only] 등급 태그 설정 — OnTimeUp에서 호출
+	void SetGrade(FGameplayTag InGrade);
+	// [Server Only] 배달 성공 — 콤보 증가
+	void OnDeliverySuccess();
+	// [Server Only] 배달 실패 — 콤보 초기화
+	void OnDeliveryFail();
+	// [All] 현재 콤보 배율 반환
+	float GetComboMultiplier();
+	
+	// [UI] HUD 위젯 바인딩 BroadCast 변수
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnTeamScoreChangedSignature OnTeamScoreChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnRemainingTimeChangedSignature OnRemainingTimeChanged;
+	
+	// [UI] 남은 시간 복제 수신 콜백 함수
+	UFUNCTION()
+	void OnRep_RemainingTime();
+	
+	// [UI] 콤보 복제 수신 콜백 함수
+	UFUNCTION()
+	void OnRep_ComboCount();
+	
+	// [UI] 현재 콤보 카운트 반환 게터 함수
+	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
+	int32 GetComboCount() const;
+	
+	// [UI] 콤보 위젯 바인딩 Broadcast
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnComboChangedSignature OnComboChanged;
 
 private:
 	// 모든 클라이언트에 복제 — UI 점수판 갱신용
 	UPROPERTY(ReplicatedUsing=OnRep_TeamScore)
 	int32 TeamScore;
 
+	// 점수 배율을 적용시키는 콤보 카운트
+	UPROPERTY(ReplicatedUsing=OnRep_ComboCount)
+	int32 ComboCount;
+
 	// 남은 시간 복제 — 서버 타이머 기준, 클라이언트는 읽기만
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing=OnRep_RemainingTime)
 	float RemainingTime;
 
-	// 최종 등급 복제 — 결과 화면 표시용 (3단계)
+	// 콤보 배율 최솟값 — 에디터에서 조정 가능 (기본값 1.0)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(AllowPrivateAccess="true"))
+	float MinComboMultiplier;
+	// 콤보 배율 최댓값 — 에디터에서 조정 가능 (기본값 2.0, 콤보 10회에서 도달)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(AllowPrivateAccess="true"))
+	float MaxComboMultiplier;
+
+	// 최종 등급 태그 복제 — 결과 화면 표시용 (Grade.A / Grade.B / Grade.C / Grade.F)
 	UPROPERTY(Replicated)
-	EGrade CurrentGrade;
+	FGameplayTag CurrentGrade;
+	
+	
 };

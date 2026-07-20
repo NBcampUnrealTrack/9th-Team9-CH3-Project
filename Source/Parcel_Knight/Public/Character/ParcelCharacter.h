@@ -12,7 +12,11 @@ class URagdollComponent;
 class UParcelHeroComponent;
 class UParcelInteractionComponent;
 class UCharacterCarryComponent;
+class UDFStatusEffectComponent;
+class UDFKnockbackComponent;
 class UAnimMontage;
+class UWidgetComponent;
+class UParcelStaminaComponent;
 
 // 플레이어가 조종하는 기본 캐릭터 클래스
 // 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원
@@ -33,7 +37,10 @@ public:
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
     // 서버에서 이 캐릭터가 컨트롤러에 빙의될 때 호출, Listen Server의 로컬 플레이어 입력 매핑 등록을 보강
-    virtual void PossessedBy(AController* NewController) override;
+	virtual void PossessedBy(AController* NewController) override;
+	
+	// [UI] 3D 아이디 위젯
+	virtual void OnRep_PlayerState() override;
 
 	void SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp);
 
@@ -56,13 +63,21 @@ public:
 	TObjectPtr<UAnimMontage> GetUpFrontMontage;
 
 protected:
+	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode) override;
+	
 	// Player State Component
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<UParcelPlayerStateComponent> PlayerStateComp;
     
-  // Ragdoll Component
+	// Ragdoll Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<URagdollComponent> RagdollComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDFStatusEffectComponent> StatusEffectComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDFKnockbackComponent> KnockbackComponent;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
 	bool bIsRagdoll = false;
@@ -88,13 +103,20 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCharacterCarryComponent> CarryComp;
 	
-private:
-	// 서버에서 상태를 받아 클라이언트의 애니메이션/효과를 켜기 위한 RepNotify 함수
+	// Nameplate Component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UWidgetComponent> NameplateWidgetComp;
+	
+	// Stamina Component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+	TObjectPtr<UParcelStaminaComponent> StaminaComp;
+	
+	void UpdateOverheadNameplate();
+	
+	FTimerHandle NameplateRetryTimerHandle;
+	
 	UFUNCTION()
-	void OnRep_CharacterStateTags();
-
-	UPROPERTY(ReplicatedUsing = OnRep_CharacterStateTags, VisibleAnywhere, Category = "Character|State")
-	FGameplayTagContainer CharacterStateTags;
+	void OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags);
 
 public: 
     // 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출, 원격 접속 클라이언트가 possession 이후 입력 매핑을 놓치지 않게 합니다.
@@ -117,4 +139,15 @@ public:
     FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
     UFUNCTION(BlueprintPure, Category = "Components")
     FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UDFStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UDFKnockbackComponent* GetKnockbackComponent() const { return KnockbackComponent; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelStaminaComponent* GetParcelStaminaComponent() const { return StaminaComp; }
+
+protected:
+	// 사망 로직 보완
+	UFUNCTION()
+	void HandleCharacterDeath();
 };

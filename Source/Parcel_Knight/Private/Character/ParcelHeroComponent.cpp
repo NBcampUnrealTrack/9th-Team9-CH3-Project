@@ -12,6 +12,8 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "UI/ParcelInGameESCMenuWidget.h"
+#include "Components/DFStatusEffectComponent.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
@@ -22,6 +24,8 @@ UParcelHeroComponent::UParcelHeroComponent()
     
     // [Server] : 컴포넌트에서 Server RPC 가동
     SetIsReplicatedByDefault(true);
+    
+    MouseSensitivity = 1.0f;
 
     // 카메라
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -72,17 +76,58 @@ void UParcelHeroComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!Character) return;
 
+    if (Character->IsLocallyControlled() && bIsChargingThrow)
+    {
+        // [UI] 방어 코드 : 던지는 도중 맞거나 래그돌 등 상자 놓친 경우 예외 처리
+        UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+        if (!CarryComp || !CarryComp->IsCarrying())
+        {
+            HEROCOMP_LOG(Warning, TEXT("차징 연출을 강제 취소합니다."));
+            bIsChargingThrow = false;
+            CurrentThrowChargeTime = 0.f;
+            
+            OnThrowChargeChanged.Broadcast(false, 0.0f);
+            
+            if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+            {
+                if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+                {
+                    StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+                }
+            }
+            
+            URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+            bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
+            if (!bNeedsTick)
+            {
+                PrimaryComponentTick.SetTickFunctionEnable(false);
+            }
+            return;
+        }
+        
+        CurrentThrowChargeTime += DeltaTime;
+        if (CurrentThrowChargeTime > MaxThrowChargeTime)
+        {
+            CurrentThrowChargeTime = MaxThrowChargeTime;
+        }
+        
+        // [UI] 프레임마다 변경되는 ChargeRatio 전달
+        float ChargeRatio = MaxThrowChargeTime > 0.f ? FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f) : 0.f;
+        OnThrowChargeChanged.Broadcast(true, ChargeRatio);
+        
+    }
+
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
 
     // 래그돌 상태가 활성화 되었을 때만 카메라 연산 가동함(카메라 보정)
     if (Character->IsLocallyControlled() && RagdollComp && RagdollComp->IsRagdoll() && Character->GetMesh() && SpringArm)
     {
-       const FVector HeadLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
-       const FRotator ViewRotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
-       const FVector CameraBackDirection = -FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::X);
-       const FVector TargetLocation = HeadLocation + FVector::UpVector * RagdollCameraHeightOffset + CameraBackDirection * RagdollCameraBackOffset;
+        const FVector HeadLocation = Character->GetMesh()->GetSocketLocation(TEXT("head"));
+        const FRotator ViewRotation = Character->GetController() ? Character->GetController()->GetControlRotation() : Character->GetActorRotation();
+        const FVector CameraBackDirection = -FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::X);
+        const FVector TargetLocation = HeadLocation + FVector::UpVector * RagdollCameraHeightOffset + CameraBackDirection * RagdollCameraBackOffset;
 
-       SpringArm->SetWorldLocation(TargetLocation);
+        SpringArm->SetWorldLocation(TargetLocation);
     }
 }
 
@@ -120,6 +165,17 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
        EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
     }
     
+    if (ThrowAction)
+    {
+       EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Started, this, &UParcelHeroComponent::StartThrow);
+       EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::ReleaseThrow);
+    }
+    
+    if (InGameMenuAction)
+    {
+        EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+    }
+    
     HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
@@ -132,7 +188,16 @@ void UParcelHeroComponent::Move(const FInputActionValue& Value)
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     if (RagdollComp && RagdollComp->IsRagdoll()) return;
     
-    const FVector2D MoveValue = Value.Get<FVector2D>();
+	// 반전 함정
+	FVector2D MoveValue = Value.Get<FVector2D>();
+	if (const UDFStatusEffectComponent* StatusEffectComponent = Character->FindComponentByClass<UDFStatusEffectComponent>())
+	{
+		if (StatusEffectComponent->IsInputInverted())
+		{
+			MoveValue *= -1.0f;
+		}
+	}
+
     const FRotator ControlRotation = Character->GetController()->GetControlRotation();
     const FRotator YawRotation(0.f, ControlRotation.Yaw, 0.f);
 
@@ -148,7 +213,8 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    const FVector2D LookValue = Value.Get<FVector2D>();
+    const FVector2D LookValue = Value.Get<FVector2D>() * MouseSensitivity;
+    
     Character->AddControllerYawInput(LookValue.X);
     Character->AddControllerPitchInput(LookValue.Y);
 }
@@ -157,23 +223,31 @@ void UParcelHeroComponent::StartJump(const FInputActionValue& Value)
 {
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
-
-    // Throwing 액션 중에는 물리적인 점프 발동을 차단
-    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
-    {
-        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-        {
-            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")))) return;
-        }
-    }
-
+    
     Character->Jump();
+
+    // 점프 액션 태그 로컬 적용 및 서버 동기화 요청
+    ApplyJumpTag(true);
+    if (!Character->HasAuthority())
+    {
+        ServerSetJumping(true);
+    }
 }
 
 void UParcelHeroComponent::StopJump(const FInputActionValue& Value)
 {
     ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (CanProcessLocalInput() && Character) Character->StopJumping();
+    if (!CanProcessLocalInput() || !Character) return;
+
+    // 물리적인 점프 입력 중단
+    Character->StopJumping();
+
+    // 점프 액션 태그 로컬 해제 및 서버 동기화 요청
+    ApplyJumpTag(false);
+    if (!Character->HasAuthority())
+    {
+        ServerSetJumping(false);
+    }
 }
 
 void UParcelHeroComponent::StartSprint(const FInputActionValue& Value)
@@ -183,6 +257,18 @@ void UParcelHeroComponent::StartSprint(const FInputActionValue& Value)
 
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     if (!CanProcessLocalInput() || (RagdollComp && RagdollComp->IsRagdoll())) return;
+    
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Exhausted"))))
+            {
+                HEROCOMP_LOG(Warning, TEXT("탈진 상태(Exhausted). 스프린트 불가."));
+                return;
+            }
+        }
+    }
 
     ApplySprintSpeed(true);
     if (!Character->HasAuthority()) ServerSetSprinting(true);
@@ -239,12 +325,46 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
     HEROCOMP_LOG(Log, TEXT("상호작용 조작(E키) 감지: InteractionComponent 호출"));
     
     // [Add] 방어 코드 : 캐릭터가 없으면 상호작용 중단
+    
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!Character) return;
     
     // [Add] 방어 코드 : 래그돌 도중에는 상호작용 불가
     URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
     if (RagdollComp && RagdollComp->IsRagdoll()) return;
+
+    // 만약 이미 상자를 들고 있다면 내려놓기(Drop) 실행
+    if (UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>())
+    {
+        if (CarryComp->IsCarrying())
+        {
+            HEROCOMP_LOG(Log, TEXT("이미 상자를 운반 중: 내려놓기(Drop) 실행"));
+            
+            // [방어코드] : 던지기 충전 중이었다면 충전 상태 해제
+            if (bIsChargingThrow)
+            {
+                bIsChargingThrow = false;
+                CurrentThrowChargeTime = 0.f;
+                OnThrowChargeChanged.Broadcast(false, 0.0f);
+                
+                if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+                {
+                    if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+                    {
+                        StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+                    }
+                }
+
+                if (!RagdollComp || !RagdollComp->IsRagdoll())
+                {
+                    PrimaryComponentTick.SetTickFunctionEnable(false);
+                }
+            }
+            
+            CarryComp->Drop();
+            return;
+        }
+    }
 
     // InAir 상태에서는 집기 상호작용 불가
     if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
@@ -268,6 +388,21 @@ void UParcelHeroComponent::Interact(const FInputActionValue& Value)
 
 void UParcelHeroComponent::ServerSetSprinting_Implementation(bool bNewIsSprinting)
 {
+    if (bNewIsSprinting)
+    {
+        if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner()))
+        {
+            if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+            {
+                if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Exhausted"))))
+                {
+                    HEROCOMP_LOG(Warning, TEXT("[Server] %s 가 탈진 중 스프린트 패킷을 발송."), *ParcelChar->GetName());
+                    return;
+                }
+            }
+        }
+    }
+    
     HEROCOMP_LOG(Log, TEXT("[Server] 클라이언트의 요청으로 달리기 상태 변경 적용: %s"), bNewIsSprinting ? TEXT("True") : TEXT("False"));
     ApplySprintSpeed(bNewIsSprinting);
 }
@@ -286,12 +421,12 @@ void UParcelHeroComponent::ApplySprintSpeed(bool bNewIsSprinting)
           if (bNewIsSprinting) StateComp->AddStateTag(SprintTag);
           else StateComp->RemoveStateTag(SprintTag);
        }
-    }
-
-    // MovementStat을 담당하는 매니저에 속도 계산 위임
-    if (UParcelMovementStatComponent* StatComp = ParcelChar->GetParcelMovementStatComponent())
-    {
-       StatComp->RefreshMoveSpeed();
+        
+        // MovementStat을 담당하는 매니저에 속도 계산 위임
+        if (UParcelMovementStatComponent* StatComp = ParcelChar->GetParcelMovementStatComponent())
+        {
+            StatComp->RefreshMoveSpeed();
+        }
     }
 }
 
@@ -327,4 +462,140 @@ void UParcelHeroComponent::ExitRagdollCameraMode()
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 	ResetCameraAttachment();
 	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
+}
+
+void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
+{
+    if (!CanProcessLocalInput()) return;
+
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+    if (CarryComp && CarryComp->IsCarrying())
+    {
+        bIsChargingThrow = true;
+        CurrentThrowChargeTime = 0.f;
+        
+        // 게이지 모으는 중 틱 활성화
+        PrimaryComponentTick.SetTickFunctionEnable(true);
+        HEROCOMP_LOG(Log, TEXT("던지기 충전 시작: 틱 활성화"));
+        
+        // [UI] 던지기 차징 게이지 브로드캐스트
+        OnThrowChargeChanged.Broadcast(true, 0.0f);
+        
+        if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+        {
+            if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+            {
+                StateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+            }
+        }
+    }
+}
+
+void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
+{
+    if (!bIsChargingThrow) return;
+
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+    if (CarryComp && CarryComp->IsCarrying())
+    {
+        float ChargeRatio = FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f);
+        float ForceMag = FMath::Lerp(MinThrowForce, MaxThrowForce, ChargeRatio);
+        
+        // 카메라의 조준 방향 계산 (약간 위로 향해 포물선을 그리도록 보정)
+        FVector ThrowDir = FollowCamera->GetForwardVector();
+        ThrowDir.Z += 0.2f;
+        ThrowDir.Normalize();
+        
+        FVector ThrowForce = ThrowDir * ForceMag;
+        CarryComp->Throw(ThrowForce);
+        HEROCOMP_LOG(Log, TEXT("던지기 실행! 충전 비율: %f, 최종 힘: %f"), ChargeRatio, ForceMag);
+    }
+
+    // [UI] 던지기 차징 종료 브로드캐스트
+    OnThrowChargeChanged.Broadcast(false, 0.0f);
+    
+    bIsChargingThrow = false;
+    CurrentThrowChargeTime = 0.f;
+    
+    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+        }
+    }
+
+    URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>();
+    bool bNeedsTick = RagdollComp && RagdollComp->IsRagdoll();
+    if (!bNeedsTick)
+    {
+        PrimaryComponentTick.SetTickFunctionEnable(false);
+    }
+}
+
+void UParcelHeroComponent::ServerSetJumping_Implementation(bool bNewIsJumping)
+{
+    ApplyJumpTag(bNewIsJumping);
+}
+
+void UParcelHeroComponent::ApplyJumpTag(bool bNewIsJumping)
+{
+    AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner());
+    if (!ParcelChar) return;
+
+    // 서버 전용 권한 확인 후 중앙 상태 창고 컴포넌트에 실시간 점프 태그 토글 제어
+    if (ParcelChar->HasAuthority())
+    {
+        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+        {
+            FGameplayTag JumpTag = FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Jump"));
+            
+            if (bNewIsJumping)
+            {
+                StateComp->AddStateTag(JumpTag);
+                HEROCOMP_LOG(Log, TEXT("[Server] 캐릭터에 'Character.Action.Jump' 태그 추가."));
+            }
+            else
+            {
+                StateComp->RemoveStateTag(JumpTag);
+                HEROCOMP_LOG(Log, TEXT("[Server] 캐릭터의 'Character.Action.Jump' 태그 제거."));
+            }
+        }
+    }
+}
+
+void UParcelHeroComponent::ToggleInGameMenu()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[ESC Test] ToggleInGameMenu 함수가 정상적으로 호출되었습니다!"));
+
+    if (!CanProcessLocalInput()) return;
+
+    ACharacter* OwnerChar = Cast<ACharacter>(GetOwner());
+    if (!OwnerChar) return;
+
+    APlayerController* PC = Cast<APlayerController>(OwnerChar->GetController());
+    if (!PC) return;
+    
+    if (ESCMenuRef && ESCMenuRef->IsValidLowLevel() && ESCMenuRef->IsInViewport())
+    {
+        ESCMenuRef->K2_OnMenuCloseStarted(); 
+        ESCMenuRef = nullptr;
+        return;
+    }
+    
+    if (ESCMenuClass)
+    {
+        ESCMenuRef = CreateWidget<UParcelInGameESCMenuWidget>(PC, ESCMenuClass);
+        if (ESCMenuRef)
+        {
+            ESCMenuRef->AddToViewport();
+            ESCMenuRef->SetupMenu();
+        }
+    }
 }

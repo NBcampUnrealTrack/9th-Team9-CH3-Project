@@ -3,27 +3,39 @@
 #include "Core/DeliveryRuleComponent.h"
 
 #include "Core/ParcelGameState.h"
+#include "Core/ParcelPlayerState.h"
 #include "Core/TeamScoreComponent.h"
+#include "Delivery/StageData.h"
+#include "Delivery/DeliverySubsystem.h"
+#include "Delivery/DeliveryBoxSpawner.h"
 #include "ParcelLog.h"
+#include "EngineUtils.h"
 #include "GameFramework/GameMode.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogGameRule);
+
+// ========================= 초기화 =========================
 
 UDeliveryRuleComponent::UDeliveryRuleComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UDeliveryRuleComponent::StartRound(float InTimeLimit, int32 InTargetScore)
+// ========================= 라운드 관리 =========================
+
+void UDeliveryRuleComponent::StartRound(UStageData* InStageData)
 {
-	TimeLimit = InTimeLimit;
-	TargetScore = InTargetScore;
-	
+	if (!InStageData) return;
+	CurrentStageData = InStageData;
+
 	GetWorld()->GetGameState<AParcelGameState>()
-	->GetTeamScoreComponent()->InitRemainingTime(TimeLimit);
-	//로그
-	GAMERULE_LOG(Log, TEXT("StartRound — TimeLimit: %.0f / TargetScore: %d"), InTimeLimit, InTargetScore);
-	
+		->GetTeamScoreComponent()->InitRemainingTime(CurrentStageData->TimeLimit);
+
+	GAMERULE_LOG(Log, TEXT("라운드 시작 시간제한: %.0f / 목표 점수: %d"), CurrentStageData->TimeLimit, CurrentStageData->TargetScore);
+
 	// 1초마다 반복 — 시간 경과 점수 감소
 	GetWorld()->GetTimerManager().SetTimer(
 		RoundTimerHandle,
@@ -38,9 +50,16 @@ void UDeliveryRuleComponent::StartRound(float InTimeLimit, int32 InTargetScore)
 		TimeUpHandle,
 		this,
 		&UDeliveryRuleComponent::OnTimeUp,
-		TimeLimit,
+		CurrentStageData->TimeLimit,
 		false
 	);
+
+	// 서브시스템 초기화
+	UDeliverySubsystem* DeliverySubsystem = GetWorld()->GetSubsystem<UDeliverySubsystem>();
+	if (DeliverySubsystem)
+	{
+		DeliverySubsystem->InitializeStage(CurrentStageData);
+	}
 }
 
 void UDeliveryRuleComponent::EndRound()
@@ -49,36 +68,119 @@ void UDeliveryRuleComponent::EndRound()
 	GetWorld()->GetTimerManager().ClearTimer(RoundTimerHandle);
 }
 
+// ========================= 배달 판정 =========================
+
+void UDeliveryRuleComponent::OnDeliveryCompleted(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount)
+{
+	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
+		->GetTeamScoreComponent();
+
+	if (TeamScoreComp)
+	{
+		TeamScoreComp->OnDeliverySuccess();
+		TeamScoreComp->AddTeamScore(ScoreAmount);
+	}
+
+	if (Deliverer)
+	{
+		if (AParcelPlayerState* PS = Deliverer->GetPlayerState<AParcelPlayerState>())
+		{
+			PS->OnDeliverySuccess();
+			PS->AddScore(ScoreAmount);
+		}
+	}
+	
+	if (Deliverer)
+	{
+		FString PlayerName = Deliverer->PlayerState ? Deliverer->PlayerState->GetPlayerName() : TEXT("알 수 없는 배달원");
+		if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
+		{
+			ParcelGS->Multicast_NotifyDeliveryLog(PlayerName, BoxName, true);
+		}
+	}
+
+	GAMERULE_LOG(Log, TEXT("[서버] 배달 성공 — Score: %d"), ScoreAmount);
+}
+
+void UDeliveryRuleComponent::OnDeliveryFailed(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount)
+{
+	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
+		->GetTeamScoreComponent();
+
+	if (TeamScoreComp)
+	{
+		TeamScoreComp->OnDeliveryFail();
+		if (ScoreAmount != 0)
+		{
+			TeamScoreComp->AddTeamScore(ScoreAmount); // 오배송 페널티 감점 적용
+		}
+	}
+
+	if (Deliverer)
+	{
+		if (AParcelPlayerState* PS = Deliverer->GetPlayerState<AParcelPlayerState>())
+		{
+			PS->OnDeliveryFail();
+			if (ScoreAmount != 0)
+			{
+				PS->AddScore(ScoreAmount);
+			}
+		}
+	}
+	
+	if (Deliverer)
+	{
+		FString PlayerName = Deliverer->PlayerState ? Deliverer->PlayerState->GetPlayerName() : TEXT("알 수 없는 배달원");
+		if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
+		{
+			ParcelGS->Multicast_NotifyDeliveryLog(PlayerName, BoxName, false);
+		}
+	}
+
+	GAMERULE_LOG(Log, TEXT("[서버] 배달 실패 — 콤보 리셋 및 페널티 점수: %d"), ScoreAmount);
+}
+
+// ========================= 내부 타이머 =========================
 
 void UDeliveryRuleComponent::OnEverySecond()
 {
 	GetWorld()->GetGameState<AParcelGameState>()
-	          ->GetTeamScoreComponent()->AddTeamScore(-DecreaseScore);
+		->GetTeamScoreComponent()->AddTeamScore(-DecreaseScore);
 	GetWorld()->GetGameState<AParcelGameState>()
-	          ->GetTeamScoreComponent()->DecreaseRemainingTime(1.0f);
+		->GetTeamScoreComponent()->DecreaseRemainingTime(1.0f);
 	GAMERULE_LOG(Verbose, TEXT("매초 점수 감소"));
 }
 
 void UDeliveryRuleComponent::OnTimeUp()
 {
-	GAMERULE_LOG(Warning, TEXT("시간 만료 —"));
+	GAMERULE_LOG(Warning, TEXT("시간 만료 — 최종 등급 산정"));
 	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
-	                                               ->GetTeamScoreComponent();
+		->GetTeamScoreComponent();
 
-	TeamScoreComp->AddTeamScore(-TimeUpScore);
-
-	// 최종 점수 기준 등급 산출
-	float Ratio = (float)TeamScoreComp->GetTeamScore() / (float)TargetScore;
-	EGrade Grade;
-	if      (Ratio >= 1.2f) Grade = EGrade::A;
-	else if (Ratio >= 0.9f) Grade = EGrade::B;
-	else if (Ratio >= 0.6f) Grade = EGrade::C;
-	else                    Grade = EGrade::F;
+	// 제한시간 내 획득 점수 / 기준 점수 비율로 등급 결정
+	float Ratio = (float)TeamScoreComp->GetTeamScore() / (float)CurrentStageData->TargetScore;
+	FGameplayTag Grade;
+	if      (Ratio >= CurrentStageData->GradeA_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.A");
+	else if (Ratio >= CurrentStageData->GradeB_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.B");
+	else if (Ratio >= CurrentStageData->GradeC_Threshold) Grade = FGameplayTag::RequestGameplayTag("Grade.C");
+	else                                                   Grade = FGameplayTag::RequestGameplayTag("Grade.F");
 	TeamScoreComp->SetGrade(Grade);
 
-	//GameMode의 EndMatch()를 호출해서 매치 종료
-	if (AGameMode* GM = GetOwner<AGameMode>())
+	// 등급별 보상 금액 결정 후 전원 지급
+	int32 Reward = 0;
+	if      (Grade == FGameplayTag::RequestGameplayTag("Grade.A")) Reward = CurrentStageData->RewardMoney_A;
+	else if (Grade == FGameplayTag::RequestGameplayTag("Grade.B")) Reward = CurrentStageData->RewardMoney_B;
+	else if (Grade == FGameplayTag::RequestGameplayTag("Grade.C")) Reward = CurrentStageData->RewardMoney_C;
+	else                                                            Reward = CurrentStageData->RewardMoney_F;
+
+	GAMERULE_LOG(Log, TEXT("보상 지급 — %s: %d"), *Grade.ToString(), Reward);
+
+	for (APlayerState* PS : GetWorld()->GetGameState()->PlayerArray)
 	{
-		GM->EndMatch();
+		if (AParcelPlayerState* PPS = Cast<AParcelPlayerState>(PS))
+			PPS->Client_GrantReward(Reward);
 	}
+
+	if (AGameMode* GM = GetOwner<AGameMode>())
+		GM->EndMatch();
 }

@@ -6,6 +6,9 @@
 #include "Character/CharacterCarryComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Net/UnrealNetwork.h"
+#include "Materials/MaterialInterface.h"
+#include "Core/HealthComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -23,17 +26,25 @@ ADeliveryBox::ADeliveryBox()
 	CollisionComponent->SetCollisionProfileName(TEXT("PhysicsBody"));
 	CollisionComponent->SetNotifyRigidBodyCollision(true);
 	
+	// 상자가 가볍게 붕 뜨거나 무한히 굴러다니는 현상을 제어하기 위해 선형/회전 감쇄 적용
+	CollisionComponent->SetLinearDamping(0.8f);
+	CollisionComponent->SetAngularDamping(1.0f);
+	
 	BoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoxMesh"));
 	BoxMesh->SetupAttachment(RootComponent);
 	BoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BoxMesh->SetSimulatePhysics(false);
 	
 	BoxID = -1;
+
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ADeliveryBox::BeginPlay()
 {
 	Super::BeginPlay();
+
+	SpawnTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	
 	// 원래 서브시스템에서 스폰되어야 하는데, 에디터에서 직접 드래그해서 배치하는 경우 사용할 값
 	if (BoxID == -1)
@@ -45,11 +56,28 @@ void ADeliveryBox::BeginPlay()
 		{
 			BoxStateTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 		}
+
+		// 에디터 직접 배치 상자도 에디터 및 뷰포트 물리 시뮬레이션 시 무게 적용되도록 처리
+		if (CollisionComponent)
+		{
+			CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 3.0f, true);
+		}
+
+		// 에디터 배치용 테스트 상자도 생성 시점에 체력 컴포넌트 값을 안전하게 초기화해 줍니다.
+		if (HealthComponent)
+		{
+			HealthComponent->InitializeHP(BoxData.DamageThreshold);
+		}
 	}
 	
 	if (HasAuthority() && CollisionComponent)
 	{
 		CollisionComponent->OnComponentHit.AddDynamic(this, &ADeliveryBox::OnPhysicsHit);
+	}
+
+	if (HasAuthority() && HealthComponent)
+	{
+		HealthComponent->OnDeathDelegate.AddDynamic(this, &ADeliveryBox::HandleOnDeath);
 	}
 }
 
@@ -67,15 +95,27 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 {
 	if (!HasAuthority()) return;
 
+	SpawnTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
 	BoxID = InBoxID;
 	BoxData = InBoxData;
 	
 	if (BoxData.BoxMeshAsset && BoxMesh && CollisionComponent)
 	{
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
-		// 무게 적용 (밸런싱 수치 조절 (현재 1.0f))
-		CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 1.0f, true);
+		// 무게 적용 (밸런싱 무게 3.0배 가중치 세팅으로 묵직하게 조절)
+		CollisionComponent->SetMassOverrideInKg(NAME_None, BoxData.Weight * 3.0f, true);
 	}
+	
+	// 목적지 구역에 맞는 색상 머티리얼 적용
+	ApplyZoneMaterial();
+
+	// 상자 체력 컴포넌트의 초기/최대 체력을 데이터 테이블 임계값 정보로 매핑하여 초기화
+	if (HealthComponent)
+	{
+		HealthComponent->InitializeHP(BoxData.DamageThreshold);
+	}
+
 	// Spawned 태그 부여
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 	
@@ -89,6 +129,9 @@ void ADeliveryBox::OnRep_BoxData()
 	if (BoxData.BoxMeshAsset && BoxMesh)
 	{
 		BoxMesh->SetStaticMesh(BoxData.BoxMeshAsset);
+		
+		// 목적지 구역에 맞는 색상 머티리얼 적용
+		ApplyZoneMaterial();
 	}
 	
 	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 상자 타입 태그: %s"), 
@@ -188,6 +231,9 @@ void ADeliveryBox::OnPickedUp_Implementation(AActor* Carrier)
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
+
+	// 플레이어가 최초로 주워 들었으므로 이제 무적 처리를 해제할 수 있습니다.
+	bHasBeenPickedUp = true;
 }
 
 void ADeliveryBox::OnDropped_Implementation()
@@ -208,6 +254,7 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	if (!HasAuthority()) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")))) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")))) return;
+	if (IsInvulnerable()) return;
 
 	// 언리얼의 NormalImpulse를 그대로 사용하면 상자가 너무 쉽게 부서짐. 따라서 순간 속도 변화량을 역계산하여 사용.
 	float ImpactImpulse = NormalImpulse.Size();
@@ -247,5 +294,69 @@ void ADeliveryBox::Interact_Implementation(AActor* Interactor)
 	if (UCharacterCarryComponent* CharacterCarryComp = Interactor->FindComponentByClass<UCharacterCarryComponent>())
 	{
 		CharacterCarryComp->Pickup(this);
+	}
+}
+
+void ADeliveryBox::ApplyZoneMaterial()
+{
+	if (!BoxMesh || !BoxData.TargetZoneTag.IsValid()) return;
+
+	if (TObjectPtr<UMaterialInterface>* FoundMaterial = ZoneMaterials.Find(BoxData.TargetZoneTag))
+	{
+		if (*FoundMaterial)
+		{
+			BoxMesh->SetMaterial(0, *FoundMaterial);
+			DELIVERYBOX_LOG(Log, TEXT("[Material] 상자 ID %d번의 목적지 구역 %s에 맞는 머티리얼을 적용했습니다."), 
+				BoxID, *BoxData.TargetZoneTag.ToString());
+		}
+	}
+}
+
+void ADeliveryBox::HandleOnDeath()
+{
+	if (!HasAuthority()) return;
+
+	// 모든 클라이언트들에게 파손 소멸 이펙트 재생 요청
+	Multicast_PlayDestroyEffect();
+
+	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")));
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
+		{
+			JudgeManager->OnBoxDamaged.Broadcast(this);
+		}
+	}
+
+	DELIVERYBOX_LOG(Warning, TEXT("[Server] 상자 ID %d번 체력(HP)이 0이 되어 맵에서 소멸 처리되었습니다."), BoxID);
+
+	// 상자를 파손 즉시 맵에서 소멸시킴
+	Destroy();
+}
+
+bool ADeliveryBox::IsInvulnerable() const
+{
+	// 플레이어가 상자를 최소 한 번 집어 올리기 전까지는 월드 물리/함정 충격 대미지에 대해 100% 무적 처리
+	if (!bHasBeenPickedUp) return true;
+
+	if (UWorld* World = GetWorld())
+	{
+		return (World->GetTimeSeconds() - SpawnTime) < 0.5f;
+	}
+	return false;
+}
+
+void ADeliveryBox::Multicast_PlayDestroyEffect_Implementation()
+{
+	if (DestroyEffect)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			this,
+			DestroyEffect,
+			GetActorLocation(),
+			GetActorRotation(),
+			FVector(1.0f) // 이펙트 크기 스케일 (필요 시 조절 가능)
+		);
 	}
 }

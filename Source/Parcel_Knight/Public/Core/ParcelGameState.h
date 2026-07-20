@@ -7,6 +7,9 @@
 #include "ParcelGameState.generated.h"
 
 class UTeamScoreComponent;
+class UShopComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnDeliveryLogReceivedSignature, const FString&, PlayerName, const FString&, BoxName, bool, bSuccess);
 
 /**
  * 팀 점수 및 남은 시간을 관리하는 GameState
@@ -22,8 +25,20 @@ class PARCEL_KNIGHT_API AParcelGameState : public AGameState
 public:
 	AParcelGameState();
 	UTeamScoreComponent* GetTeamScoreComponent() const;
+	UShopComponent* GetShopComponent() const;
+	
+	// [UI]
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnDeliveryLogReceivedSignature OnDeliveryLogReceived;
+	
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_NotifyDeliveryLog(const FString& PlayerName, const FString& BoxName, bool bSuccess);
 
 private:
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UTeamScoreComponent> TeamScoreComp;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UShopComponent> ShopComp;
 };
+

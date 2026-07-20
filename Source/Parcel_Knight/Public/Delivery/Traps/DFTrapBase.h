@@ -9,6 +9,7 @@
 
 class UBoxComponent;
 class UDFTrapDataAsset;
+class ACharacter;
 class UPrimitiveComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -60,6 +61,14 @@ protected:
 	);
 
 	UFUNCTION()
+	void OnTrapEndOverlap(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex
+	);
+
+	UFUNCTION()
 	void OnRep_CurrentState();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Trap|Visual")
@@ -93,13 +102,46 @@ private:
 	void EnterCooldownState_ServerOnly();
 	void ApplyTrapEffectToOverlappingActors_ServerOnly();
 	void ApplyTrapEffect_ServerOnly(AActor* TargetActor);
+	void ApplyDamageOnce_ServerOnly(AActor* TargetActor);
+	bool CanApplyDamageToActor(AActor* TargetActor) const;
+	void ClearDamageCooldownForActor(AActor* TargetActor);
+	void ApplyForcedDropEffect_ServerOnly(AActor* TargetActor);
+	void ApplyPushEffect_ServerOnly(AActor* TargetActor);
+	void ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated);
+	void ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetCharacter, bool bRepeated);
+	void ApplyInputInvertEffect_ServerOnly(AActor* TargetActor);
+	void LaunchCharacterFromTrap_ServerOnly(
+		ACharacter* TargetCharacter,
+		const FVector& Direction,
+		const TCHAR* EffectName,
+		bool bXYOverride,
+		bool bZOverride
+	);
+	void AddRepeatingReversePushTarget_ServerOnly(AActor* TargetActor);
+	void RemoveRepeatingReversePushTarget_ServerOnly(AActor* TargetActor);
+	void StartRepeatEffectTimer_ServerOnly();
+	void StopRepeatEffectTimer_ServerOnly();
+	void ApplyRepeatEffect_ServerOnly();
 	bool IsOverlapTrigger() const;
 	bool IsSlowEffect() const;
+	bool IsForcedDropEffect() const;
+	bool IsPushEffect() const;
+	bool IsReversePushEffect() const;
+	bool IsInputInvertEffect() const;
+	bool IsKnownEffect() const;
+	bool ShouldRepeatReversePush() const;
 
 	UPROPERTY()
 	TObjectPtr<AActor> PendingActivator;
 
+	TArray<TWeakObjectPtr<ACharacter>> RepeatingReversePushTargets;
+	TSet<TWeakObjectPtr<AActor>> ActorsInsideTrigger;
+	TSet<TWeakObjectPtr<AActor>> AffectedActorsThisActivation;
+	TSet<TWeakObjectPtr<AActor>> DamagedActorsThisActivation;
+	TSet<TWeakObjectPtr<AActor>> ActorsOnDamageCooldown;
+
 	FTimerHandle WarningTimerHandle;
 	FTimerHandle ActiveTimerHandle;
 	FTimerHandle CooldownTimerHandle;
+	FTimerHandle RepeatEffectTimerHandle;
 };

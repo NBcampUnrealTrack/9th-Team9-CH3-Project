@@ -8,7 +8,7 @@
 #include "HealthComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChangedSignature, float, CurrentHP, float, MaxHP);
 
 /**
  * 체력 관리 컴포넌트
@@ -30,6 +30,10 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnDeathSignature OnDeathDelegate;
 	
+	// [UI]
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnHPChangedSignature OnHPChanged;
+	
 	// IHealthInterface 구현
 	virtual float GetHP() const override;
 	virtual float GetMaxHP() const override;
@@ -38,13 +42,25 @@ public:
 	virtual void OnDeath() override;
 	virtual bool IsDead() const override;
 
+	// 최대 체력 및 현재 체력을 초기화
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void InitializeHP(float InMaxHP);
+
+	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_OnDeath();
+
 private:
 	// 복제 — 클라이언트 체력바 갱신용
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_HP)
 	float HP;
+	
+	// [Client] Notify 함수
+	UFUNCTION()
+	void OnRep_HP();
 
 	// 초기/최대 체력 — 추후 DataAsset 등에서 설정 가능
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(Replicated, EditDefaultsOnly)
 	float MaxHP;
 
 	/*

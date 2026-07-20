@@ -83,18 +83,9 @@ void UParcelInteractionComponent::CheckTraceTarget()
     if (GetWorld()->SweepSingleByChannel(HitResult, TraceStart, TraceEnd, FQuat::Identity, ECC_Visibility, SweepSphere, QueryParams))
     {
         AActor* HitActor = HitResult.GetActor();
-    
-        // [디버그] 레이저나 Sweep이 무언가 물체를 물리적으로 맞추긴 했는지 확인
-        if (HitActor)
-        {
-            INTERACT_LOG(Log, TEXT("[Client Trace] 레이저가 무언가 맞춤: %s"), *HitActor->GetName());
-        }
    
         if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
         {
-            // [디버그] 인터페이스 계약 관계는 정상인지 확인
-            INTERACT_LOG(Log, TEXT("[Client Trace] %s 객체는 InteractableInterface를 구현함"), *HitActor->GetName());
-
             if (IInteractableInterface::Execute_CanInteract(HitActor, OwnerCharacter))
             {
                 NewFocusedActor = HitActor;
@@ -107,18 +98,9 @@ void UParcelInteractionComponent::CheckTraceTarget()
         }
     }
     
-    // 이전 대상과 새로 조준한 대상이 다를 때만(상태 변화 시) 로그 출력 및 상태 업데이트
+    // 이전 대상과 새로 조준한 대상이 다를 때만(상태 변화 시) 상태 업데이트
     if (CurrentFocusedActor != NewFocusedActor)
     {
-        if (NewFocusedActor)
-        {
-            INTERACT_LOG(Log, TEXT("조준 타겟 변경됨. [%s]"), *NewFocusedActor->GetName());
-        }
-        else if (CurrentFocusedActor)
-        {
-            INTERACT_LOG(Log, TEXT("조준 타겟 잃음. (이전 대상: %s)"), *CurrentFocusedActor->GetName());
-        }
-        
         CurrentFocusedActor = NewFocusedActor;
         OnFocusChanged.Broadcast(CurrentFocusedActor);
     }

@@ -2,6 +2,9 @@
 
 #include "Core/PlayerStatComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "ParcelLog.h"
+
+// ========================= 초기화 =========================
 
 UPlayerStatComponent::UPlayerStatComponent()
 {
@@ -14,21 +17,15 @@ void UPlayerStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UPlayerStatComponent, PersonalScore);
 	DOREPLIFETIME(UPlayerStatComponent, SuccessCount);
-	DOREPLIFETIME(UPlayerStatComponent, ComboCount);
+	DOREPLIFETIME(UPlayerStatComponent, FailCount);
+	DOREPLIFETIME(UPlayerStatComponent, DeathCount);
 }
 
-// ─────────────────────────────────────
-// 조회
-// ─────────────────────────────────────
+// ========================= 조회 =========================
 
 int32 UPlayerStatComponent::GetPersonalScore() const
 {
 	return PersonalScore;
-}
-
-int32 UPlayerStatComponent::GetComboCount() const
-{
-	return ComboCount;
 }
 
 int32 UPlayerStatComponent::GetSuccessCount() const
@@ -36,29 +33,57 @@ int32 UPlayerStatComponent::GetSuccessCount() const
 	return SuccessCount;
 }
 
-// ─────────────────────────────────────
-// 점수 및 콤보 처리
-// ─────────────────────────────────────
+int32 UPlayerStatComponent::GetFailCount() const
+{
+	return FailCount;
+}
+
+int32 UPlayerStatComponent::GetDeathCount() const
+{
+	return DeathCount;
+}
+
+// ========================= 점수 =========================
 
 void UPlayerStatComponent::AddScore(int32 Amount)
 {
-	float comboscore = 1.0f;
-	//최대 10회까지 콤보 보너스 축적 가능, 스코어 배율 1x ~ 2x
-	comboscore += FMath::Clamp(ComboCount*0.1f, 0.f,1.f); 
 	if (!GetOwner()->HasAuthority()) return;
-	PersonalScore += Amount * comboscore;
+	PersonalScore += Amount;
+	
+	// [UI] 호스트 UI 대시보드 즉시 동기화
+	OnRep_PersonalScore();
 }
+
+// ========================= 배달 판정 =========================
 
 void UPlayerStatComponent::OnDeliverySuccess()
 {
 	if (!GetOwner()->HasAuthority()) return;
 	SuccessCount++;
-	ComboCount++;
+	GAMERULE_LOG(Log, TEXT("[서버] 배달 성공 — SuccessCount: %d"), SuccessCount);
 }
 
 void UPlayerStatComponent::OnDeliveryFail()
 {
 	if (!GetOwner()->HasAuthority()) return;
-	ComboCount = 0;
-	//TODO: 점수 감소 로직 및 콤보 관련 이야기 필요
+	FailCount++;
+	GAMERULE_LOG(Log, TEXT("[서버] 배달 실패 — FailCount: %d"), FailCount);
+}
+
+// ========================= 사망 =========================
+
+void UPlayerStatComponent::OnDeath()
+{
+	if (!GetOwner()->HasAuthority()) return;
+	DeathCount++;
+	GAMERULE_LOG(Log, TEXT("[서버] 사망 — DeathCount: %d"), DeathCount);
+}
+
+// [UI] 개인 점수 복제 알림 및 위젯 전송 구현
+void UPlayerStatComponent::OnRep_PersonalScore()
+{
+	if (OnPersonalScoreChanged.IsBound())
+	{
+		OnPersonalScoreChanged.Broadcast(PersonalScore);
+	}
 }
