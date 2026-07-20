@@ -13,6 +13,7 @@ class UStaticMeshComponent;
 class UMaterialInterface;
 class UHealthComponent;
 class UNiagaraSystem;
+class UTextRenderComponent;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -21,6 +22,7 @@ class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface
 	
 public:	
 	ADeliveryBox();
+	virtual void Tick(float DeltaTime) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
@@ -116,6 +118,13 @@ protected:
 	// 모든 클라이언트에서 나이아가라 이펙트 재생을 위한 멀티캐스트 RPC
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_PlayDestroyEffect();
+
+	// 상자 위에 표시할 실시간 3D 체력 텍스트 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Delivery Box Visual")
+	TObjectPtr<UTextRenderComponent> HPTextVisualizer;
+
+	UFUNCTION()
+	void UpdateHPText(float CurrentHP, float MaxHP);
 
 private:
 	// 상자 목적지 구역 태그에 맞춰 머티리얼을 동적으로 적용합니다.
