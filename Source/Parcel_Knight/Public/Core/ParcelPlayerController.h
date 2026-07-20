@@ -43,6 +43,9 @@ protected:
 	TSubclassOf<UUserWidget> HUDWidgetClass;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
+	TSubclassOf<UParcelLobbyHUDWidget> LobbyHUDWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
 	TSubclassOf<UParcelInGameDeadHUDWidget> DeadHUDWidgetClass;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
