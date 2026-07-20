@@ -107,8 +107,6 @@ void AParcelPlayerState::HandleDeath()
 
 void AParcelPlayerState::Client_StartSpectating_Implementation()
 {
-	if (AParcelPlayerController* PC = Cast<AParcelPlayerController>(GetPlayerController()))
-		PC->StartSpectating();
 }
 
 void AParcelPlayerState::Client_GrantReward_Implementation(int32 RewardAmount)
