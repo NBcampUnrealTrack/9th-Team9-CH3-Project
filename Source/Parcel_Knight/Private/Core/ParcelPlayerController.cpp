@@ -164,6 +164,25 @@ void AParcelPlayerController::Client_NotifyRespawn_Implementation()
 	bShowMouseCursor = false;
 }
 
+void AParcelPlayerController::Client_PlayTrapActivationSound_Implementation(
+	USoundBase* ActivationSound,
+	float VolumeMultiplier,
+	float PitchMultiplier
+)
+{
+	if (!IsLocalController() || !ActivationSound)
+	{
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(
+		this,
+		ActivationSound,
+		FMath::Max(0.0f, VolumeMultiplier),
+		FMath::Max(0.01f, PitchMultiplier)
+	);
+}
+
 void AParcelPlayerController::ToggleInGameMenu()
 {
 	if (!IsLocalController()) return;

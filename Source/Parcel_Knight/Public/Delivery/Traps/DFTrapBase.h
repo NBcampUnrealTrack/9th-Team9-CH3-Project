@@ -100,17 +100,18 @@ private:
 	void SetTrapState_ServerOnly(FGameplayTag NewStateTag);
 	void EnterActiveState_ServerOnly();
 	void EnterCooldownState_ServerOnly();
-	void ApplyTrapEffectToOverlappingActors_ServerOnly();
-	void ApplyTrapEffect_ServerOnly(AActor* TargetActor);
-	void ApplyDamageOnce_ServerOnly(AActor* TargetActor);
+	void PlayActivationSoundOnce_ServerOnly(AActor* Activator);
+	bool ApplyTrapEffectToOverlappingActors_ServerOnly();
+	bool ApplyTrapEffect_ServerOnly(AActor* TargetActor);
+	bool ApplyDamageOnce_ServerOnly(AActor* TargetActor);
 	bool CanApplyDamageToActor(AActor* TargetActor) const;
 	void ClearDamageCooldownForActor(AActor* TargetActor);
-	void ApplyForcedDropEffect_ServerOnly(AActor* TargetActor);
-	void ApplyPushEffect_ServerOnly(AActor* TargetActor);
-	void ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated);
-	void ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetCharacter, bool bRepeated);
-	void ApplyInputInvertEffect_ServerOnly(AActor* TargetActor);
-	void LaunchCharacterFromTrap_ServerOnly(
+	bool ApplyForcedDropEffect_ServerOnly(AActor* TargetActor);
+	bool ApplyPushEffect_ServerOnly(AActor* TargetActor);
+	bool ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated);
+	bool ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetCharacter, bool bRepeated);
+	bool ApplyInputInvertEffect_ServerOnly(AActor* TargetActor);
+	bool LaunchCharacterFromTrap_ServerOnly(
 		ACharacter* TargetCharacter,
 		const FVector& Direction,
 		const TCHAR* EffectName,
@@ -139,6 +140,7 @@ private:
 	TSet<TWeakObjectPtr<AActor>> AffectedActorsThisActivation;
 	TSet<TWeakObjectPtr<AActor>> DamagedActorsThisActivation;
 	TSet<TWeakObjectPtr<AActor>> ActorsOnDamageCooldown;
+	bool bActivationSoundPlayedThisActivation = false;
 
 	FTimerHandle WarningTimerHandle;
 	FTimerHandle ActiveTimerHandle;

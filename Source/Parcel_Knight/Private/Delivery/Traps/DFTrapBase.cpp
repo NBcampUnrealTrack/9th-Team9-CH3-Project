@@ -5,6 +5,7 @@
 #include "Components/DFStatusEffectComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/ParcelPlayerController.h"
 #include "Core/HealthComponent.h"
 #include "Data/DFTrapDataAsset.h"
 #include "GameFramework/Character.h"
@@ -243,6 +244,7 @@ void ADFTrapBase::ActivateTrap_ServerOnly(AActor* Activator)
 
 	PendingActivator = Activator;
 	bHasTriggeredOnce = true;
+	bActivationSoundPlayedThisActivation = false;
 	AffectedActorsThisActivation.Reset();
 	DamagedActorsThisActivation.Reset();
 
@@ -297,11 +299,6 @@ void ADFTrapBase::Multicast_PlayActivateFX_Implementation()
 		if (TrapDataAsset->ActivateVFX)
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), TrapDataAsset->ActivateVFX, GetActorTransform());
-		}
-
-		if (TrapDataAsset->ActivateSFX)
-		{
-			UGameplayStatics::PlaySoundAtLocation(this, TrapDataAsset->ActivateSFX, GetActorLocation());
 		}
 	}
 
@@ -497,7 +494,10 @@ void ADFTrapBase::EnterActiveState_ServerOnly()
 
 	SetTrapState_ServerOnly(DFTrapTags::Active());
 	Multicast_PlayActivateFX();
-	ApplyTrapEffectToOverlappingActors_ServerOnly();
+	if (ApplyTrapEffectToOverlappingActors_ServerOnly())
+	{
+		PlayActivationSoundOnce_ServerOnly(PendingActivator);
+	}
 
 	const float ActiveDuration = TrapDataAsset ? FMath::Max(0.0f, TrapDataAsset->ActiveDuration) : 0.0f;
 	if (ActiveDuration > 0.0f)
@@ -558,52 +558,99 @@ void ADFTrapBase::EnterCooldownState_ServerOnly()
 	}
 }
 
-void ADFTrapBase::ApplyTrapEffectToOverlappingActors_ServerOnly()
+void ADFTrapBase::PlayActivationSoundOnce_ServerOnly(AActor* Activator)
 {
-	if (!HasAuthority() || !TriggerVolume)
+	if (!HasAuthority()
+		|| bActivationSoundPlayedThisActivation
+		|| !TrapDataAsset
+		|| !TrapDataAsset->ActivationSound
+		|| !IsValid(Activator))
 	{
 		return;
 	}
 
+	AParcelPlayerController* PlayerController = Cast<AParcelPlayerController>(Activator);
+	if (!PlayerController)
+	{
+		if (const APawn* ActivatorPawn = Cast<APawn>(Activator))
+		{
+			PlayerController = Cast<AParcelPlayerController>(ActivatorPawn->GetController());
+		}
+	}
+
+	if (!IsValid(PlayerController))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Trap] Activation sound skipped: activator has no ParcelPlayerController. Trap=%s Activator=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(Activator)
+		);
+		return;
+	}
+
+	bActivationSoundPlayedThisActivation = true;
+	PlayerController->Client_PlayTrapActivationSound(
+		TrapDataAsset->ActivationSound,
+		TrapDataAsset->ActivationSoundVolume,
+		TrapDataAsset->ActivationSoundPitch
+	);
+}
+
+bool ADFTrapBase::ApplyTrapEffectToOverlappingActors_ServerOnly()
+{
+	if (!HasAuthority() || !TriggerVolume)
+	{
+		return false;
+	}
+
+	bool bActivatorEffectApplied = false;
 	TArray<AActor*> OverlappingActors;
 	TriggerVolume->GetOverlappingActors(OverlappingActors);
 
 	for (AActor* OverlappingActor : OverlappingActors)
 	{
-		ApplyTrapEffect_ServerOnly(OverlappingActor);
+		const bool bEffectApplied = ApplyTrapEffect_ServerOnly(OverlappingActor);
+		if (OverlappingActor == PendingActivator)
+		{
+			bActivatorEffectApplied |= bEffectApplied;
+		}
 	}
 
 	if (PendingActivator && !OverlappingActors.Contains(PendingActivator))
 	{
-		ApplyTrapEffect_ServerOnly(PendingActivator);
+		bActivatorEffectApplied = ApplyTrapEffect_ServerOnly(PendingActivator);
 	}
+
+	return bActivatorEffectApplied;
 }
 
-void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
+bool ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 {
 	if (!HasAuthority())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect ignored on non-authority instance: %s"), *GetNameSafe(this));
-		return;
+		return false;
 	}
 
 	if (!TrapDataAsset)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect failed: TrapDataAsset is null (%s)"), *GetNameSafe(this));
-		return;
+		return false;
 	}
 
 	if (!TargetActor)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ApplyTrapEffect failed: TargetActor is null (%s)"), *GetNameSafe(this));
-		return;
+		return false;
 	}
 
 	APawn* TargetPawn = Cast<APawn>(TargetActor);
 	if (!TargetPawn)
 	{
 		UE_LOG(LogTemp, Verbose, TEXT("[Trap] ApplyTrapEffect ignored: target is not a Pawn (%s)"), *GetNameSafe(TargetActor));
-		return;
+		return false;
 	}
 
 	for (auto ActorIt = AffectedActorsThisActivation.CreateIterator(); ActorIt; ++ActorIt)
@@ -624,11 +671,11 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 			*GetNameSafe(this),
 			*GetNameSafe(TargetPawn)
 		);
-		return;
+		return false;
 	}
 	AffectedActorsThisActivation.Add(TargetKey);
 
-	ApplyDamageOnce_ServerOnly(TargetPawn);
+	bool bAppliedAnyEffect = ApplyDamageOnce_ServerOnly(TargetPawn);
 
 	// 캐릭터가 상자를 들고 있는 상태(NoCollision)에서도 함정 효과가 상자에 영향을 준다면(bAffectsCarriedBox) 상자 체력을 깎습니다.
 	// 단, 슬로우 함정(Slow)은 피해 전개에서 제외하며, ForcedDrop 효과는 ApplyForcedDropEffect_ServerOnly에서 별도로 처리하므로 제외
@@ -644,6 +691,7 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 					{
 						const float DamageAmount = TrapDataAsset->DamageAmount;
 						JudgeManager->EvaluateTrapImpact(CarryComponent->GetCarriedBox(), DamageAmount);
+						bAppliedAnyEffect = true;
 						UE_LOG(
 							LogTemp,
 							Warning,
@@ -662,7 +710,7 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		if (!TrapDataAsset->bAffectsPlayer)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Trap] Slow ignored: bAffectsPlayer is false (%s)"), *GetNameSafe(this));
-			return;
+			return bAppliedAnyEffect;
 		}
 
 		const float EffectDuration = FMath::Max(0.0f, TrapDataAsset->EffectDuration);
@@ -674,7 +722,7 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 				TEXT("[Trap] Slow ignored: EffectDuration must be greater than zero (%s)"),
 				*GetNameSafe(this)
 			);
-			return;
+			return bAppliedAnyEffect;
 		}
 
 		if (UDFStatusEffectComponent* StatusEffectComponent =
@@ -695,7 +743,7 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 				TrapDataAsset->EffectMagnitude,
 				EffectDuration
 			);
-			return;
+			return true;
 		}
 
 		UE_LOG(
@@ -704,7 +752,7 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 			TEXT("[Trap] No UDFStatusEffectComponent on %s"),
 			*GetNameSafe(TargetActor)
 		);
-		return;
+		return bAppliedAnyEffect;
 	}
 
 	if (IsForcedDropEffect())
@@ -712,11 +760,10 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		if (!TrapDataAsset->bAffectsPlayer && !TrapDataAsset->bAffectsCarriedBox)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Trap] ForcedDrop ignored: no valid target flags (%s)"), *GetNameSafe(this));
-			return;
+			return bAppliedAnyEffect;
 		}
 
-		ApplyForcedDropEffect_ServerOnly(TargetActor);
-		return;
+		return ApplyForcedDropEffect_ServerOnly(TargetActor) || bAppliedAnyEffect;
 	}
 
 	if (IsPushEffect())
@@ -724,11 +771,10 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		if (!TrapDataAsset->bAffectsPlayer)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Trap] Push ignored: bAffectsPlayer is false (%s)"), *GetNameSafe(this));
-			return;
+			return bAppliedAnyEffect;
 		}
 
-		ApplyPushEffect_ServerOnly(TargetActor);
-		return;
+		return ApplyPushEffect_ServerOnly(TargetActor) || bAppliedAnyEffect;
 	}
 
 	if (IsReversePushEffect())
@@ -736,18 +782,16 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		if (!TrapDataAsset->bAffectsPlayer)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Trap] ReversePush ignored: bAffectsPlayer is false (%s)"), *GetNameSafe(this));
-			return;
+			return bAppliedAnyEffect;
 		}
 
 		if (ShouldRepeatReversePush())
 		{
 			AddRepeatingReversePushTarget_ServerOnly(TargetActor);
-			ApplyReversePushEffect_ServerOnly(TargetActor, false);
-			return;
+			return ApplyReversePushEffect_ServerOnly(TargetActor, false) || bAppliedAnyEffect;
 		}
 
-		ApplyReversePushEffect_ServerOnly(TargetActor, false);
-		return;
+		return ApplyReversePushEffect_ServerOnly(TargetActor, false) || bAppliedAnyEffect;
 	}
 
 	if (IsInputInvertEffect())
@@ -755,11 +799,10 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		if (!TrapDataAsset->bAffectsPlayer)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Trap] InvertInput ignored: bAffectsPlayer is false (%s)"), *GetNameSafe(this));
-			return;
+			return bAppliedAnyEffect;
 		}
 
-		ApplyInputInvertEffect_ServerOnly(TargetActor);
-		return;
+		return ApplyInputInvertEffect_ServerOnly(TargetActor) || bAppliedAnyEffect;
 	}
 
 	UE_LOG(
@@ -768,32 +811,33 @@ void ADFTrapBase::ApplyTrapEffect_ServerOnly(AActor* TargetActor)
 		TEXT("[Trap] ApplyTrapEffect ignored: unknown EffectTypeTag (%s)"),
 		*TrapDataAsset->EffectTypeTag.ToString()
 	);
+	return bAppliedAnyEffect;
 }
 
-void ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
+bool ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 {
 	if (!HasAuthority())
 	{
-		return;
+		return false;
 	}
 
 	if (!TrapDataAsset)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] Damage failed: TrapDataAsset is null Trap=%s"), *GetNameSafe(this));
-		return;
+		return false;
 	}
 
 	if (!TrapDataAsset->bApplyDamageOnOverlap)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] Damage disabled by DataAsset"));
-		return;
+		return false;
 	}
 
 	const float DamageAmount = TrapDataAsset->DamageAmount;
 	if (DamageAmount <= 0.0f)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] DamageAmount is zero or negative Trap=%s"), *GetNameSafe(this));
-		return;
+		return false;
 	}
 
 	ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor);
@@ -805,7 +849,7 @@ void ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 			TEXT("[Trap] Damage target is not a Character Target=%s"),
 			*GetNameSafe(TargetActor)
 		);
-		return;
+		return false;
 	}
 
 	if (!CanApplyDamageToActor(TargetCharacter))
@@ -816,7 +860,7 @@ void ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 			TEXT("[Trap] Damage skipped by cooldown Target=%s"),
 			*GetNameSafe(TargetCharacter)
 		);
-		return;
+		return false;
 	}
 
 	if (UHealthComponent* HealthComponent = TargetCharacter->FindComponentByClass<UHealthComponent>())
@@ -852,13 +896,13 @@ void ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 	if (TrapDataAsset->bDamageOnlyOncePerActivation)
 	{
 		DamagedActorsThisActivation.Add(TargetKey);
-		return;
+		return true;
 	}
 
 	const float DamageCooldown = FMath::Max(0.0f, TrapDataAsset->DamageCooldownPerActor);
 	if (DamageCooldown <= 0.0f)
 	{
-		return;
+		return true;
 	}
 
 	ActorsOnDamageCooldown.Add(TargetKey);
@@ -876,6 +920,8 @@ void ADFTrapBase::ApplyDamageOnce_ServerOnly(AActor* TargetActor)
 		DamageCooldown,
 		false
 	);
+
+	return true;
 }
 
 bool ADFTrapBase::CanApplyDamageToActor(AActor* TargetActor) const
@@ -915,24 +961,24 @@ void ADFTrapBase::ClearDamageCooldownForActor(AActor* TargetActor)
 	}
 }
 
-void ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
+bool ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
 {
 	if (!HasAuthority() || !TargetActor)
 	{
-		return;
+		return false;
 	}
 
 	UCharacterCarryComponent* CarryComponent = TargetActor->FindComponentByClass<UCharacterCarryComponent>();
 	if (!CarryComponent)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] No CarryComponent on %s"), *GetNameSafe(TargetActor));
-		return;
+		return false;
 	}
 
 	if (!CarryComponent->IsCarrying())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ForcedDrop ignored: target is not carrying (%s)"), *GetNameSafe(TargetActor));
-		return;
+		return false;
 	}
 
 	const float DamageAmount = TrapDataAsset ? TrapDataAsset->DamageAmount : 0.0f;
@@ -946,58 +992,59 @@ void ADFTrapBase::ApplyForcedDropEffect_ServerOnly(AActor* TargetActor)
 	);
 
 	CarryComponent->ForceDropByTrap(DamageAmount);
+	return true;
 }
 
-void ADFTrapBase::ApplyPushEffect_ServerOnly(AActor* TargetActor)
+bool ADFTrapBase::ApplyPushEffect_ServerOnly(AActor* TargetActor)
 {
 	if (!HasAuthority() || !TargetActor)
 	{
-		return;
+		return false;
 	}
 
 	ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor);
 	if (!TargetCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] Target is not Character: %s"), *GetNameSafe(TargetActor));
-		return;
+		return false;
 	}
 
 	const FVector Direction = TrapDataAsset && TrapDataAsset->bUseTrapForwardAsPushDirection
 		? GetActorForwardVector()
 		: TargetCharacter->GetActorForwardVector();
 
-	LaunchCharacterFromTrap_ServerOnly(TargetCharacter, Direction, TEXT("Push"), true, true);
+	return LaunchCharacterFromTrap_ServerOnly(TargetCharacter, Direction, TEXT("Push"), true, true);
 }
 
-void ADFTrapBase::ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated)
+bool ADFTrapBase::ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated)
 {
 	if (!HasAuthority() || !TargetActor)
 	{
-		return;
+		return false;
 	}
 
 	ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor);
 	if (!TargetCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] Target is not Character: %s"), *GetNameSafe(TargetActor));
-		return;
+		return false;
 	}
 
-	ApplyReverseGroundPushEffect_ServerOnly(TargetCharacter, bRepeated);
+	return ApplyReverseGroundPushEffect_ServerOnly(TargetCharacter, bRepeated);
 }
 
-void ADFTrapBase::ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetCharacter, bool bRepeated)
+bool ADFTrapBase::ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetCharacter, bool bRepeated)
 {
 	if (!HasAuthority() || !TargetCharacter)
 	{
-		return;
+		return false;
 	}
 
 	UCharacterMovementComponent* MovementComponent = TargetCharacter->GetCharacterMovement();
 	if (!MovementComponent)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] CharacterMovementComponent is null on %s"), *GetNameSafe(TargetCharacter));
-		return;
+		return false;
 	}
 
 	const FVector CurrentVelocity = MovementComponent->Velocity;
@@ -1019,7 +1066,7 @@ void ADFTrapBase::ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetChar
 	if (Direction.IsNearlyZero())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] ReverseGroundPush ignored: direction is zero (%s)"), *GetNameSafe(TargetCharacter));
-		return;
+		return false;
 	}
 
 	const float PushStrength = TrapDataAsset ? FMath::Max(0.0f, TrapDataAsset->PushStrength) : 0.0f;
@@ -1047,20 +1094,21 @@ void ADFTrapBase::ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetChar
 	);
 
 	TargetCharacter->ForceNetUpdate();
+	return true;
 }
 
-void ADFTrapBase::ApplyInputInvertEffect_ServerOnly(AActor* TargetActor)
+bool ADFTrapBase::ApplyInputInvertEffect_ServerOnly(AActor* TargetActor)
 {
 	if (!HasAuthority() || !TargetActor)
 	{
-		return;
+		return false;
 	}
 
 	UDFStatusEffectComponent* StatusEffectComponent = TargetActor->FindComponentByClass<UDFStatusEffectComponent>();
 	if (!StatusEffectComponent)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] InvertInput failed: target has no UDFStatusEffectComponent (%s)"), *GetNameSafe(TargetActor));
-		return;
+		return false;
 	}
 
 	const float Duration = TrapDataAsset ? FMath::Max(0.0f, TrapDataAsset->EffectDuration) : 0.0f;
@@ -1072,7 +1120,7 @@ void ADFTrapBase::ApplyInputInvertEffect_ServerOnly(AActor* TargetActor)
 			TEXT("[Trap] InvertInput ignored: EffectDuration must be greater than zero (%s)"),
 			*GetNameSafe(this)
 		);
-		return;
+		return false;
 	}
 
 	const FGameplayTag EffectTag = TrapDataAsset ? TrapDataAsset->EffectTypeTag : FGameplayTag();
@@ -1086,9 +1134,10 @@ void ADFTrapBase::ApplyInputInvertEffect_ServerOnly(AActor* TargetActor)
 	);
 
 	StatusEffectComponent->ApplyInputInvert(EffectTag, Duration);
+	return true;
 }
 
-void ADFTrapBase::LaunchCharacterFromTrap_ServerOnly(
+bool ADFTrapBase::LaunchCharacterFromTrap_ServerOnly(
 	ACharacter* TargetCharacter,
 	const FVector& Direction,
 	const TCHAR* EffectName,
@@ -1098,20 +1147,20 @@ void ADFTrapBase::LaunchCharacterFromTrap_ServerOnly(
 {
 	if (!HasAuthority() || !TargetCharacter)
 	{
-		return;
+		return false;
 	}
 
 	if (!TargetCharacter->GetCharacterMovement())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] CharacterMovementComponent is null on %s"), *GetNameSafe(TargetCharacter));
-		return;
+		return false;
 	}
 
 	const FVector LaunchDirection = Direction.GetSafeNormal();
 	if (LaunchDirection.IsNearlyZero())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Trap] %s ignored: launch direction is zero (%s)"), EffectName, *GetNameSafe(TargetCharacter));
-		return;
+		return false;
 	}
 
 	const float PushStrength = TrapDataAsset ? FMath::Max(0.0f, TrapDataAsset->PushStrength) : 0.0f;
@@ -1131,6 +1180,7 @@ void ADFTrapBase::LaunchCharacterFromTrap_ServerOnly(
 
 	TargetCharacter->LaunchCharacter(LaunchVelocity, bXYOverride, bZOverride);
 	TargetCharacter->ForceNetUpdate();
+	return true;
 }
 
 void ADFTrapBase::AddRepeatingReversePushTarget_ServerOnly(AActor* TargetActor)
