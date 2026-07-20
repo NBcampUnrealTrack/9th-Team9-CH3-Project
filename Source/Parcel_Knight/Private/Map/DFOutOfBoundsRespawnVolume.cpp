@@ -1,8 +1,11 @@
 #include "Map/DFOutOfBoundsRespawnVolume.h"
 
 #include "Camera/PlayerCameraManager.h"
+#include "Character/ParcelCharacter.h"
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -14,6 +17,11 @@
 #include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY(LogDFOutOfBoundsRespawn);
+
+namespace
+{
+	constexpr float ImmediateRespawnGuardDuration = 0.5f;
+}
 
 ADFOutOfBoundsRespawnVolume::ADFOutOfBoundsRespawnVolume()
 {
@@ -31,6 +39,7 @@ ADFOutOfBoundsRespawnVolume::ADFOutOfBoundsRespawnVolume()
 	RespawnTrigger->SetCollisionObjectType(ECC_WorldDynamic);
 	RespawnTrigger->SetCollisionResponseToAllChannels(ECR_Ignore);
 	RespawnTrigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	RespawnTrigger->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
 	RespawnTrigger->SetGenerateOverlapEvents(true);
 }
 
@@ -66,10 +75,20 @@ void ADFOutOfBoundsRespawnVolume::BeginPlay()
 	RespawnTrigger->SetCollisionObjectType(ECC_WorldDynamic);
 	RespawnTrigger->SetCollisionResponseToAllChannels(ECR_Ignore);
 	RespawnTrigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	RespawnTrigger->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
 	RespawnTrigger->SetGenerateOverlapEvents(true);
 	RespawnTrigger->OnComponentBeginOverlap.AddUniqueDynamic(
 		this,
 		&ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap
+	);
+
+	const float FallbackInterval = FMath::Max(0.1f, RagdollFallbackCheckInterval);
+	GetWorldTimerManager().SetTimer(
+		RagdollFallbackTimerHandle,
+		this,
+		&ADFOutOfBoundsRespawnVolume::CheckRagdollCharactersInVolume,
+		FallbackInterval,
+		true
 	);
 
 	UE_LOG(
@@ -84,6 +103,21 @@ void ADFOutOfBoundsRespawnVolume::BeginPlay()
 	);
 }
 
+void ADFOutOfBoundsRespawnVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorldTimerManager().ClearTimer(RagdollFallbackTimerHandle);
+
+	if (RespawnTrigger)
+	{
+		RespawnTrigger->OnComponentBeginOverlap.RemoveDynamic(
+			this,
+			&ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap
+		);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 void ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap(
 	UPrimitiveComponent* OverlappedComponent,
 	AActor* OtherActor,
@@ -96,8 +130,9 @@ void ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap(
 	UE_LOG(
 		LogDFOutOfBoundsRespawn,
 		Warning,
-		TEXT("OutOfBounds: Overlap detected Player=%s IsLobby=%d Authority=%d"),
+		TEXT("OutOfBounds: Overlap detected Actor=%s Component=%s IsLobby=%d Authority=%d"),
 		*GetNameSafe(OtherActor),
+		*GetNameSafe(OtherComp),
 		bIsLobby,
 		HasAuthority()
 	);
@@ -108,15 +143,29 @@ void ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap(
 		return;
 	}
 
-	ACharacter* Character = Cast<ACharacter>(OtherActor);
+	AParcelCharacter* Character = Cast<AParcelCharacter>(OtherActor);
 	if (!IsValid(Character))
 	{
 		UE_LOG(
 			LogDFOutOfBoundsRespawn,
-			Warning,
-			TEXT("OutOfBounds: Ignored non-character actor=%s"),
-			*GetNameSafe(OtherActor)
+			Verbose,
+			TEXT("OutOfBounds: Ignored non-ParcelCharacter actor=%s component=%s"),
+			*GetNameSafe(OtherActor),
+			*GetNameSafe(OtherComp)
 		);
+		return;
+	}
+
+	TryHandleParcelCharacter(Character, TEXT("Overlap"));
+}
+
+void ADFOutOfBoundsRespawnVolume::TryHandleParcelCharacter(
+	AParcelCharacter* Character,
+	const TCHAR* DetectionSource
+)
+{
+	if (!HasAuthority() || !IsValid(Character))
+	{
 		return;
 	}
 
@@ -125,8 +174,9 @@ void ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap(
 		UE_LOG(
 			LogDFOutOfBoundsRespawn,
 			Warning,
-			TEXT("OutOfBounds: Ignored non-player character=%s"),
-			*GetNameSafe(Character)
+			TEXT("OutOfBounds: Ignored non-player ParcelCharacter=%s Source=%s"),
+			*GetNameSafe(Character),
+			DetectionSource
 		);
 		return;
 	}
@@ -136,14 +186,71 @@ void ADFOutOfBoundsRespawnVolume::OnTriggerBeginOverlap(
 	{
 		UE_LOG(
 			LogDFOutOfBoundsRespawn,
-			Warning,
-			TEXT("OutOfBounds: Duplicate overlap ignored. Player=%s"),
-			*GetNameSafe(Character)
+			Verbose,
+			TEXT("OutOfBounds: Duplicate detection ignored. Player=%s Source=%s"),
+			*GetNameSafe(Character),
+			DetectionSource
 		);
 		return;
 	}
 
+	UE_LOG(
+		LogDFOutOfBoundsRespawn,
+		Warning,
+		TEXT("OutOfBounds: ParcelCharacter accepted. Player=%s Source=%s Ragdoll=%d"),
+		*GetNameSafe(Character),
+		DetectionSource,
+		Character->GetIsRagdoll()
+	);
+
 	HandleOutOfBounds(Character);
+}
+
+void ADFOutOfBoundsRespawnVolume::CheckRagdollCharactersInVolume()
+{
+	if (!HasAuthority() || !RespawnTrigger || !GetWorld())
+	{
+		return;
+	}
+
+	for (TActorIterator<AParcelCharacter> CharacterIt(GetWorld()); CharacterIt; ++CharacterIt)
+	{
+		AParcelCharacter* Character = *CharacterIt;
+		if (!IsValid(Character) || !Character->GetIsRagdoll())
+		{
+			continue;
+		}
+
+		USkeletalMeshComponent* Mesh = Character->GetMesh();
+		if (!IsValid(Mesh))
+		{
+			continue;
+		}
+
+		static const FName PelvisBoneName(TEXT("pelvis"));
+		const FVector PelvisLocation = Mesh->DoesSocketExist(PelvisBoneName)
+			? Mesh->GetSocketLocation(PelvisBoneName)
+			: Mesh->GetComponentLocation();
+
+		if (IsPointInsideRespawnTrigger(PelvisLocation))
+		{
+			TryHandleParcelCharacter(Character, TEXT("RagdollFallback"));
+		}
+	}
+}
+
+bool ADFOutOfBoundsRespawnVolume::IsPointInsideRespawnTrigger(const FVector& WorldLocation) const
+{
+	if (!RespawnTrigger)
+	{
+		return false;
+	}
+
+	const FVector LocalLocation = RespawnTrigger->GetComponentTransform().InverseTransformPosition(WorldLocation);
+	const FVector BoxExtent = RespawnTrigger->GetUnscaledBoxExtent();
+	return FMath::Abs(LocalLocation.X) <= BoxExtent.X
+		&& FMath::Abs(LocalLocation.Y) <= BoxExtent.Y
+		&& FMath::Abs(LocalLocation.Z) <= BoxExtent.Z;
 }
 
 void ADFOutOfBoundsRespawnVolume::HandleOutOfBounds(ACharacter* Character)
@@ -194,7 +301,20 @@ void ADFOutOfBoundsRespawnVolume::RespawnImmediately(ACharacter* Character)
 		TeleportCharacter(Character, RespawnTransform);
 	}
 
-	ClearPendingRespawn(Character);
+	FTimerDelegate ClearGuardDelegate;
+	ClearGuardDelegate.BindUObject(
+		this,
+		&ADFOutOfBoundsRespawnVolume::ClearImmediateRespawnGuard,
+		TWeakObjectPtr<AActor>(Character)
+	);
+
+	FTimerHandle ClearGuardTimerHandle;
+	GetWorldTimerManager().SetTimer(
+		ClearGuardTimerHandle,
+		ClearGuardDelegate,
+		ImmediateRespawnGuardDuration,
+		false
+	);
 }
 
 void ADFOutOfBoundsRespawnVolume::BeginDelayedRespawn(ACharacter* Character)
@@ -465,6 +585,11 @@ void ADFOutOfBoundsRespawnVolume::ClearPendingRespawn(AActor* Actor)
 			HiddenIt.RemoveCurrent();
 		}
 	}
+}
+
+void ADFOutOfBoundsRespawnVolume::ClearImmediateRespawnGuard(TWeakObjectPtr<AActor> ActorPtr)
+{
+	ClearPendingRespawn(ActorPtr.Get());
 }
 
 bool ADFOutOfBoundsRespawnVolume::TeleportCharacter(
