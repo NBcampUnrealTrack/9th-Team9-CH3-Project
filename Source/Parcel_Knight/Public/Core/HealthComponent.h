@@ -46,7 +46,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void InitializeHP(float InMaxHP);
 
-	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현d 
+	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_OnDeath();
 
