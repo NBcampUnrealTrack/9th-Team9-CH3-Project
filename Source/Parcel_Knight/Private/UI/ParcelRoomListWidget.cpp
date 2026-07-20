@@ -10,24 +10,83 @@ void UParcelRoomListWidget::NativeConstruct()
 	Super::NativeConstruct();
 	
 	if (Btn_RefreshRooms)
+	{
+		Btn_RefreshRooms->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleRefreshRoomsClicked);
 		Btn_RefreshRooms->OnClicked.AddDynamic(this, &UParcelRoomListWidget::HandleRefreshRoomsClicked);
+	}
 
 	if (Btn_BackToMenu)
+	{
+		Btn_BackToMenu->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleBackToMenuClicked);
 		Btn_BackToMenu->OnClicked.AddDynamic(this, &UParcelRoomListWidget::HandleBackToMenuClicked);
+	}
 
 	if (Btn_JoinRoom)
+	{
+		Btn_JoinRoom->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleJoinRoomClicked);
 		Btn_JoinRoom->OnClicked.AddDynamic(this, &UParcelRoomListWidget::HandleJoinRoomClicked);
+	}
 	
 	if (Btn_CreateRoom)
+	{
+		Btn_CreateRoom->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleCreateRoomClicked);
 		Btn_CreateRoom->OnClicked.AddDynamic(this, &UParcelRoomListWidget::HandleCreateRoomClicked);
+	}
+
+	if (USessionSubsystem* SS = GetGameInstance() ? GetGameInstance()->GetSubsystem<USessionSubsystem>() : nullptr)
+	{
+		SS->OnSessionSearchStarted.RemoveDynamic(this, &UParcelRoomListWidget::HandleSessionSearchStarted);
+		SS->OnSessionSearchStarted.AddDynamic(this, &UParcelRoomListWidget::HandleSessionSearchStarted);
+	}
+}
+
+void UParcelRoomListWidget::NativeDestruct()
+{
+	if (USessionSubsystem* SS = GetGameInstance() ? GetGameInstance()->GetSubsystem<USessionSubsystem>() : nullptr)
+	{
+		SS->OnSessionSearchStarted.RemoveDynamic(this, &UParcelRoomListWidget::HandleSessionSearchStarted);
+	}
+
+	if (Btn_RefreshRooms)
+	{
+		Btn_RefreshRooms->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleRefreshRoomsClicked);
+	}
+	if (Btn_BackToMenu)
+	{
+		Btn_BackToMenu->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleBackToMenuClicked);
+	}
+	if (Btn_JoinRoom)
+	{
+		Btn_JoinRoom->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleJoinRoomClicked);
+	}
+	if (Btn_CreateRoom)
+	{
+		Btn_CreateRoom->OnClicked.RemoveDynamic(this, &UParcelRoomListWidget::HandleCreateRoomClicked);
+	}
+
+	CurrentlySelectedEntry = nullptr;
+	Super::NativeDestruct();
+}
+
+void UParcelRoomListWidget::ClearRoomListEntries()
+{
+	if (ScrollBox_Rooms)
+	{
+		ScrollBox_Rooms->ClearChildren();
+	}
+	CurrentlySelectedEntry = nullptr;
+}
+
+void UParcelRoomListWidget::HandleSessionSearchStarted()
+{
+	ClearRoomListEntries();
 }
 
 void UParcelRoomListWidget::RefreshRoomList()
 {
 	if (!ScrollBox_Rooms) return;
 
-	ScrollBox_Rooms->ClearChildren();
-	CurrentlySelectedEntry = nullptr;
+	ClearRoomListEntries();
 
 	USessionSubsystem* SS = GetGameInstance() ? GetGameInstance()->GetSubsystem<USessionSubsystem>() : nullptr;
 	if (!SS || !RoomEntryClass) return;

@@ -98,19 +98,9 @@ void UParcelGameInstance::HandleSessionInviteAccepted(
 		TEXT("Steam session invite accepted by controller %d; forwarding GameSession result."),
 		ControllerId);
 
-	FOnlineSessionSearchResult SessionToJoin = InviteResult;
-
-	// AdvancedSessions 5.5의 UAdvancedFriendsGameInstance와 동일한 UE 5.5 Steam 보정입니다.
-	// listen session 초대 결과에 presence/lobby 플래그가 누락되는 엔진 케이스를 보완합니다.
-	if (!SessionToJoin.Session.SessionSettings.bIsDedicated)
-	{
-		SessionToJoin.Session.SessionSettings.bUsesPresence = true;
-		SessionToJoin.Session.SessionSettings.bUseLobbiesIfAvailable = true;
-	}
-
 	if (SessionSubsystem)
 	{
-		if (!SessionSubsystem->JoinSessionResult(SessionToJoin))
+		if (!SessionSubsystem->JoinSessionResult(InviteResult))
 		{
 			UE_LOG(LogParcelGameInstance, Error, TEXT("Steam invite was accepted, but JoinSession could not be started."));
 		}

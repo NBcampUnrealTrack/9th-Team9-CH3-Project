@@ -36,6 +36,13 @@ namespace ParcelSessionMaps
 	}
 }
 
+namespace ParcelSessionSettings
+{
+	const FName ParcelGameKey(TEXT("PARCEL_GAME"));
+	const FString ParcelGameValue(TEXT("ParcelKnight"));
+	constexpr int32 MaxSearchResults = 100;
+}
+
 void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -327,6 +334,8 @@ void USessionSubsystem::OnOperationTimeout()
 		}
 		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
 		ClearOperationState();
+		SessionSearch.Reset();
+		ReportSessionStatus(TEXT("FindSessions failed: the Steam session search timed out."), true);
 		OnSessionFindComplete.Broadcast(false);
 		return;
 	}
@@ -414,6 +423,10 @@ bool USessionSubsystem::BeginCreateSession(int32 NumPublicConnections)
 	SessionSettings.bUseLobbiesIfAvailable = true;
 	SessionSettings.bAllowJoinViaPresence = true;
 	SessionSettings.bAllowJoinInProgress = true;
+	SessionSettings.Set(
+		ParcelSessionSettings::ParcelGameKey,
+		ParcelSessionSettings::ParcelGameValue,
+		EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 
 	BeginOperation(ESessionOperation::Creating);
 	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Creating);
@@ -422,7 +435,12 @@ bool USessionSubsystem::BeginCreateSession(int32 NumPublicConnections)
 			this,
 			&USessionSubsystem::OnCreateSessionComplete));
 
-	UE_LOG(LogParcelSession, Log, TEXT("Creating Steam session GameSession for %d public connections."), NumPublicConnections);
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("Creating Steam GameSession for %d public connections with PARCEL_GAME=\"%s\"."),
+		NumPublicConnections,
+		*ParcelSessionSettings::ParcelGameValue);
 	const bool bStarted = Sessions->CreateSession(0, NAME_GameSession, SessionSettings);
 	if (!bStarted && CurrentOperation == ESessionOperation::Creating)
 	{
@@ -454,18 +472,29 @@ void USessionSubsystem::FindSessions()
 		return;
 	}
 
+	// The room list must never display or recreate entries from a previous request.
+	SessionSearch.Reset();
+	OnSessionSearchStarted.Broadcast();
+
 	IOnlineSessionPtr Sessions;
 	if (!GetSteamSessionInterface(Sessions, TEXT("FindSessions")))
 	{
+		ReportSessionStatus(
+			TEXT("FindSessions failed: Steam is unavailable or the local Steam user is not logged in."),
+			true);
 		OnSessionFindComplete.Broadcast(false);
 		return;
 	}
 
 	SessionSearch = MakeShared<FOnlineSessionSearch>();
-	SessionSearch->MaxSearchResults = 5000;
+	SessionSearch->MaxSearchResults = ParcelSessionSettings::MaxSearchResults;
 	SessionSearch->bIsLanQuery = false;
 	SessionSearch->TimeoutInSeconds = 10.0f;
 	SessionSearch->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
+	SessionSearch->QuerySettings.Set(
+		ParcelSessionSettings::ParcelGameKey,
+		ParcelSessionSettings::ParcelGameValue,
+		EOnlineComparisonOp::Equals);
 
 	BeginOperation(ESessionOperation::Finding);
 	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
@@ -479,7 +508,11 @@ void USessionSubsystem::FindSessions()
 	{
 		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
 		ClearOperationState();
+		SessionSearch.Reset();
 		UE_LOG(LogParcelSession, Error, TEXT("FindSessions returned false immediately."));
+		ReportSessionStatus(
+			TEXT("FindSessions failed: the online subsystem rejected the search request immediately."),
+			true);
 		OnSessionFindComplete.Broadcast(false);
 	}
 }
@@ -489,6 +522,7 @@ void USessionSubsystem::JoinSession(int32 SessionIndex)
 	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SessionIndex))
 	{
 		UE_LOG(LogParcelSession, Error, TEXT("JoinSession received invalid search-result index %d."), SessionIndex);
+		ReportJoinFailure(TEXT("the selected session index is no longer valid; refresh the room list"));
 		OnSessionJoinComplete.Broadcast(false);
 		return;
 	}
@@ -564,7 +598,8 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 		bHasPendingJoinResult = true;
 		PendingNumConnections = 0;
 		DestroyIntent = EDestroyIntent::JoinPending;
-		UE_LOG(LogParcelSession, Log, TEXT("Invite join queued behind the active session destroy."));
+		ReportSessionStatus(TEXT("Joining session..."), false);
+		UE_LOG(LogParcelSession, Log, TEXT("Session join queued behind the active GameSession destroy."));
 		if (bCancelledActiveFind)
 		{
 			OnSessionFindComplete.Broadcast(false);
@@ -579,6 +614,8 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 		OnSessionJoinComplete.Broadcast(false);
 		return false;
 	}
+
+	ReportSessionStatus(TEXT("Joining session..."), false);
 
 	bool bJoinStarted = false;
 	if (Sessions->GetNamedSession(NAME_GameSession))
@@ -621,8 +658,22 @@ bool USessionSubsystem::BeginJoinSession(const FOnlineSessionSearchResult& Sessi
 			this,
 			&USessionSubsystem::OnJoinSessionComplete));
 
-	UE_LOG(LogParcelSession, Log, TEXT("Joining Steam session as GameSession."));
-	const bool bStarted = Sessions->JoinSession(0, NAME_GameSession, SessionResult);
+	const bool bUsesPresenceBefore = SessionResult.Session.SessionSettings.bUsesPresence;
+	const bool bUsesLobbiesBefore = SessionResult.Session.SessionSettings.bUseLobbiesIfAvailable;
+	FOnlineSessionSearchResult SessionToJoin = SessionResult;
+	SessionToJoin.Session.SessionSettings.bUsesPresence = true;
+	SessionToJoin.Session.SessionSettings.bUseLobbiesIfAvailable = true;
+
+	UE_LOG(
+		LogParcelSession,
+		Log,
+		TEXT("Joining Steam GameSession: SessionId=%s bUsesPresence=%d->%d bUseLobbiesIfAvailable=%d->%d."),
+		*SessionToJoin.GetSessionIdStr(),
+		bUsesPresenceBefore,
+		SessionToJoin.Session.SessionSettings.bUsesPresence,
+		bUsesLobbiesBefore,
+		SessionToJoin.Session.SessionSettings.bUseLobbiesIfAvailable);
+	const bool bStarted = Sessions->JoinSession(0, NAME_GameSession, SessionToJoin);
 	if (!bStarted && CurrentOperation == ESessionOperation::Joining)
 	{
 		ClearDelegateHandleForOperation(Sessions, ESessionOperation::Joining);
@@ -735,7 +786,7 @@ void USessionSubsystem::CompleteDestroyIntent(EDestroyIntent Intent, bool bWasSu
 		}
 		else
 		{
-			UE_LOG(LogParcelSession, Error, TEXT("Invite join aborted because the previous session could not be destroyed."));
+			UE_LOG(LogParcelSession, Error, TEXT("Pending join aborted because the previous GameSession could not be destroyed."));
 			ReportJoinFailure(TEXT("the previous GameSession could not be destroyed"));
 			OnSessionJoinComplete.Broadcast(false);
 		}
@@ -1136,12 +1187,91 @@ void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 	ClearDelegateHandleForOperation(Sessions, ESessionOperation::Finding);
 	ClearOperationState();
 	const bool bCompletedSuccessfully = bWasSuccessful && Sessions.IsValid();
+
+	if (SessionSearch.IsValid())
+	{
+		TArray<FOnlineSessionSearchResult> FilteredResults;
+		if (bCompletedSuccessfully)
+		{
+			FilteredResults.Reserve(SessionSearch->SearchResults.Num());
+			for (const FOnlineSessionSearchResult& SearchResult : SessionSearch->SearchResults)
+			{
+				FString ParcelGameValue;
+				const bool bHasParcelGameValue = SearchResult.Session.SessionSettings.Get(
+					ParcelSessionSettings::ParcelGameKey,
+					ParcelGameValue);
+				const bool bIsParcelSession = bHasParcelGameValue
+					&& ParcelGameValue == ParcelSessionSettings::ParcelGameValue;
+				const bool bHasOpenPublicSlot = SearchResult.Session.NumOpenPublicConnections > 0;
+
+				if (!SearchResult.IsValid() || !bIsParcelSession || !bHasOpenPublicSlot)
+				{
+					UE_LOG(
+						LogParcelSession,
+						Verbose,
+						TEXT("Filtered session result: Valid=%d SessionId=%s ParcelGameValue=\"%s\" OpenPublicConnections=%d."),
+						SearchResult.IsValid(),
+						*SearchResult.GetSessionIdStr(),
+						*ParcelGameValue,
+						SearchResult.Session.NumOpenPublicConnections);
+					continue;
+				}
+
+				FilteredResults.Add(SearchResult);
+			}
+		}
+
+		SessionSearch->SearchResults = MoveTemp(FilteredResults);
+	}
+
+	const int32 FilteredResultCount = GetSearchResultCount();
 	UE_LOG(
 		LogParcelSession,
 		Log,
-		TEXT("FindSessions completed: success=%d results=%d."),
+		TEXT("FindSessions completed: success=%d filteredResults=%d."),
 		bCompletedSuccessfully,
-		GetSearchResultCount());
+		FilteredResultCount);
+
+	if (bCompletedSuccessfully && SessionSearch.IsValid())
+	{
+		for (int32 Index = 0; Index < SessionSearch->SearchResults.Num(); ++Index)
+		{
+			const FOnlineSessionSearchResult& SearchResult = SessionSearch->SearchResults[Index];
+			FString ParcelGameValue;
+			SearchResult.Session.SessionSettings.Get(
+				ParcelSessionSettings::ParcelGameKey,
+				ParcelGameValue);
+			UE_LOG(
+				LogParcelSession,
+				Log,
+				TEXT("Parcel session result: Index=%d OwnerName=\"%s\" SessionId=%s NumOpenPublicConnections=%d PARCEL_GAME=\"%s\" bUsesPresence=%d bUseLobbiesIfAvailable=%d."),
+				Index,
+				*SearchResult.Session.OwningUserName,
+				*SearchResult.GetSessionIdStr(),
+				SearchResult.Session.NumOpenPublicConnections,
+				*ParcelGameValue,
+				SearchResult.Session.SessionSettings.bUsesPresence,
+				SearchResult.Session.SessionSettings.bUseLobbiesIfAvailable);
+		}
+
+		if (FilteredResultCount == 0)
+		{
+			ReportSessionStatus(TEXT("No Parcel_Knight sessions found."), false);
+		}
+		else
+		{
+			ReportSessionStatus(
+				FString::Printf(TEXT("Found %d Parcel_Knight session(s)."), FilteredResultCount),
+				false);
+		}
+	}
+	else
+	{
+		ReportSessionStatus(
+			TEXT("FindSessions failed: Steam session search did not complete successfully."),
+			true);
+	}
+
 	OnSessionFindComplete.Broadcast(bCompletedSuccessfully);
 }
 
