@@ -2,10 +2,6 @@
 
 #include "Core/HealthComponent.h"
 #include "Net/UnrealNetwork.h"
-#include "GameFramework/Character.h"
-#include "Character/CharacterCarryComponent.h"
-#include "Delivery/PhysicsJudgeManager.h"
-#include "Delivery/DeliveryBox.h"
 
 UHealthComponent::UHealthComponent()
 {
@@ -64,27 +60,6 @@ void UHealthComponent::TakeDamage(float Amount)
 	{
 		HP = FMath::Clamp((HP-Amount), 0.0f, MaxHP);
 		OnHPChanged.Broadcast(HP, MaxHP);
-
-		// 플레이어가 데미지를 입었을 때, 손에 운반 중인 상자(CarriedBox)가 있다면 동일하게 데미지를 전파합니다.
-		if (Amount > 0.0f)
-		{
-			if (ACharacter* OwnerChar = Cast<ACharacter>(GetOwner()))
-			{
-				if (UCharacterCarryComponent* CarryComponent = OwnerChar->FindComponentByClass<UCharacterCarryComponent>())
-				{
-					if (CarryComponent->IsCarrying() && CarryComponent->GetCarriedBox())
-					{
-						if (UWorld* World = GetWorld())
-						{
-							if (UPhysicsJudgeManager* JudgeManager = World->GetSubsystem<UPhysicsJudgeManager>())
-							{
-								JudgeManager->EvaluateTrapImpact(CarryComponent->GetCarriedBox(), Amount);
-							}
-						}
-					}
-				}
-			}
-		}
 
 		if (!bIsDead && HP <= 0.0f)
 			OnDeath();
