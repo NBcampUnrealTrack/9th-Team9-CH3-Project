@@ -17,6 +17,9 @@ void UParcelRoomListWidget::NativeConstruct()
 
 	if (Btn_JoinRoom)
 		Btn_JoinRoom->OnClicked.AddDynamic(this, &UParcelRoomListWidget::HandleJoinRoomClicked);
+	
+	if (Btn_CreateRoom)
+		Btn_CreateRoom->OnClicked.AddDynamic(this, &UParcelRoomListWidget::HandleCreateRoomClicked);
 }
 
 void UParcelRoomListWidget::RefreshRoomList()
@@ -86,4 +89,13 @@ void UParcelRoomListWidget::HandleJoinRoomClicked()
 	{
 		INGAMEHUD_LOG(Warning, TEXT("[Room List] 선택된 방이 없어 입장 버튼이 작동하지 않습니다."));
 	}
+}
+
+void UParcelRoomListWidget::HandleCreateRoomClicked()
+{
+	INGAMEHUD_LOG(Log, TEXT("[Room List] 멀티플레이 방 만들기 버튼 클릭 -> 세션 생성 시퀀스 개시"));
+	
+	SetMapPath(TEXT("/Game/Maps/LV_DF_Lobby_Stage00"));
+	
+	CreateSession(4);
 }
