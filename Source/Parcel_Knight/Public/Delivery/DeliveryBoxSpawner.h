@@ -7,6 +7,9 @@
 class UBoxComponent;
 class UArrowComponent;
 class UStaticMeshComponent;
+class UAudioComponent;
+class USoundBase;
+class USoundAttenuation;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBoxSpawner : public AActor
@@ -25,6 +28,10 @@ private:
 	void TriggerRandomSpawn();
 	
 	FTimerHandle SpawnTimerHandle;
+
+	// 모든 클라이언트에서 상자 스폰 3D 효과음을 재생하기 위한 멀티캐스트 RPC
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlaySpawnSound();
 
 protected:
 	virtual void BeginPlay() override;
@@ -58,5 +65,18 @@ protected:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UArrowComponent> ForwardArrowVisualizer;
-	
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UAudioComponent> ConveyorSoundComponent;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Spawner | Sound")
+	TObjectPtr<USoundBase> ConveyorSoundAsset;
+
+	// 컨베이어 벨트 작동음 및 스폰음용 거리 감쇄 설정
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Spawner | Sound")
+	TObjectPtr<USoundAttenuation> ConveyorSoundAttenuation;
+
+	// 상자 스폰 시 재생할 효과음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Spawner | Sound")
+	TObjectPtr<USoundBase> BoxSpawnSound;
 };

@@ -12,6 +12,9 @@
 #include "Character/ParcelCharacter.h"
 #include "Components/DFKnockbackComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Sound/SoundAttenuation.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -46,10 +49,17 @@ ADeliveryBox::ADeliveryBox()
 	// 체력 표시용 3D Text Component 생성 및 기본 옵션 할당
 	HPTextVisualizer = CreateDefaultSubobject<UTextRenderComponent>(TEXT("HPTextVisualizer"));
 	HPTextVisualizer->SetupAttachment(RootComponent);
-	HPTextVisualizer->SetRelativeLocation(FVector(0.f, 0.f, 80.f)); // 상자 윗부분
+	HPTextVisualizer->SetRelativeLocation(FVector(0.f, 0.f, 50.f)); // 상자 윗부분 (80.f에서 조금 하향 조정)
 	HPTextVisualizer->SetHorizontalAlignment(EHTA_Center);
 	HPTextVisualizer->SetWorldSize(20.f); // 컴팩트하게 크기 축소 (기존 30.f)
 	HPTextVisualizer->TextRenderColor = FColor::Green;
+
+	// 상자 파쇄 소멸 소리용 기본 감쇄 설정 (ATT_Conveyor) 경로 자동 연결
+	static ConstructorHelpers::FObjectFinder<USoundAttenuation> DefaultConveyorAttenuation(TEXT("/Script/Engine.SoundAttenuation'/Game/Delivery/sounds/ATT_Conveyor.ATT_Conveyor'"));
+	if (DefaultConveyorAttenuation.Succeeded())
+	{
+		DestroySoundAttenuation = DefaultConveyorAttenuation.Object;
+	}
 }
 
 void ADeliveryBox::BeginPlay()
@@ -275,6 +285,9 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")))) return;
 	if (IsInvulnerable()) return;
 
+	// 상자끼리 충돌하거나 포개져 깔아뭉갤 때 서로 대미지를 주거나 연쇄 파손되는 현상 예외 처리
+	if (OtherActor && OtherActor->IsA(ADeliveryBox::StaticClass())) return;
+
 	// 언리얼의 NormalImpulse를 그대로 사용하면 상자가 너무 쉽게 부서짐. 따라서 순간 속도 변화량을 역계산하여 사용.
 	float ImpactImpulse = NormalImpulse.Size();
 	float BoxMass = (BoxData.Weight > 0.0f) ? BoxData.Weight : 1.0f;
@@ -412,12 +425,26 @@ void ADeliveryBox::HandleOnDeath()
 
 bool ADeliveryBox::IsInvulnerable() const
 {
-	// 플레이어가 상자를 최소 한 번 집어 올리기 전까지는 월드 물리/함정 충격 대미지에 대해 100% 무적 처리
-	if (!bHasBeenPickedUp) return true;
-
 	if (UWorld* World = GetWorld())
 	{
-		return (World->GetTimeSeconds() - SpawnTime) < 0.5f;
+		float CurrentTime = World->GetTimeSeconds();
+
+		// 0) 연속 피격 쿨타임 (0.3초 이내에 연속으로 발생하는 다중 충돌 충격 차단)
+		if ((CurrentTime - LastDamageTime) < 0.3f)
+		{
+			return true;
+		}
+
+		float ElapsedTime = CurrentTime - SpawnTime;
+
+		// 1) 이미 플레이어가 한 번 집어 들었다면, 스폰 후 0.5초 경과 시 무적 해제 (던져진 후 충돌 대미지 허용)
+		if (bHasBeenPickedUp)
+		{
+			return ElapsedTime < 0.5f;
+		}
+
+		// 2) 주운 적이 없더라도, 스폰된 지 10초가 지나면 무적 자동 해제 (컨베이어 작동 중 가속 충돌 등 파손 가능하게 처리)
+		return ElapsedTime < 10.0f;
 	}
 	return false;
 }
@@ -431,7 +458,22 @@ void ADeliveryBox::Multicast_PlayDestroyEffect_Implementation()
 			DestroyEffect,
 			GetActorLocation(),
 			GetActorRotation(),
-			FVector(1.0f) // 이펙트 크기 스케일 (필요 시 조절 가능)
+			FVector(3.0f) // 이펙트 크기 3배 스케일 업 (기존 1.0f)
+		);
+	}
+
+	if (DestroySound)
+	{
+		// 파손 소멸 시 지정한 감쇄 에셋(ATT_Conveyor)을 사용하여 3D 공간음향 재생
+		UGameplayStatics::PlaySoundAtLocation(
+			this, 
+			DestroySound, 
+			GetActorLocation(), 
+			FRotator::ZeroRotator, 
+			1.0f, 
+			1.0f, 
+			0.0f, 
+			DestroySoundAttenuation
 		);
 	}
 }
@@ -440,17 +482,21 @@ void ADeliveryBox::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 클라이언트에서 텍스트가 항상 로컬 플레이어 카메라를 똑바로 바라보도록 빌보드 회전 처리
 	if (HPTextVisualizer && GetWorld())
 	{
+		// 상자가 뒹굴거나 회전해도 텍스트의 위치는 언제나 상자 중심 기준 세계 좌표(World) Z축 방향으로 고정
+		FVector BoxLocation = GetActorLocation();
+		FVector TargetTextLocation = BoxLocation + FVector(0.f, 0.f, 50.f); // Z축 50.f 높이로 하향 조정
+		HPTextVisualizer->SetWorldLocation(TargetTextLocation);
+
+		// 클라이언트에서 텍스트가 항상 로컬 플레이어 카메라를 똑바로 바라보도록 빌보드 회전 처리
 		APlayerController* PC = GetWorld()->GetFirstPlayerController();
 		if (PC && PC->PlayerCameraManager)
 		{
 			FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
-			FVector TextLocation = HPTextVisualizer->GetComponentLocation();
-			FRotator LookAtRot = (CameraLocation - TextLocation).Rotation();
+			FRotator LookAtRot = (CameraLocation - TargetTextLocation).Rotation();
 
-			// 텍스트가 기우뚱해지지 않도록 Pitch와 Roll은 0으로 제한
+			// 텍스트가 기우뚱해지지 않도록 Pitch와 Roll은 0으로 제한 (항상 서 있는 형태)
 			LookAtRot.Pitch = 0.f;
 			LookAtRot.Roll = 0.f;
 
@@ -510,4 +556,25 @@ void ADeliveryBox::UpdateHPText(float CurrentHP, float MaxHP)
 	{
 		HPTextVisualizer->SetTextRenderColor(FColor::Red);
 	}
+}
+
+void ADeliveryBox::IgnoreThrowerForDuration(AActor* Thrower, float Duration)
+{
+	if (!Thrower || !CollisionComponent) return;
+
+	CollisionComponent->IgnoreActorWhenMoving(Thrower, true);
+
+	FTimerHandle TempTimerHandle;
+	GetWorldTimerManager().SetTimer(
+		TempTimerHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this, Thrower]()
+		{
+			if (Thrower && CollisionComponent)
+			{
+				CollisionComponent->IgnoreActorWhenMoving(Thrower, false);
+			}
+		}),
+		Duration,
+		false
+	);
 }
