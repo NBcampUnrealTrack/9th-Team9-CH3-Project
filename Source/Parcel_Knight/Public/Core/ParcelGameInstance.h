@@ -22,6 +22,7 @@ class PARCEL_KNIGHT_API UParcelGameInstance : public UGameInstance
 public:
 	virtual void Init() override;
 	virtual void Shutdown() override;
+	virtual void ReturnToMainMenu() override;
 
 	// ========================= 저장 / 불러오기 =========================
 
@@ -107,6 +108,7 @@ private:
 	static const FString SaveSlotName;
 
 	FDelegateHandle SessionInviteAcceptedHandle;
+	IOnlineSessionPtr SessionInviteSessionInterface;
 
 	// 런타임 캐시 — SaveGame 데이터를 메모리에 올려둔 복사본
 	int32 Money = 0;
@@ -120,8 +122,8 @@ private:
 	// 중복 장착 허용 플래그 — 저장하지 않고 디버그 전용으로 런타임에만 유지
 	bool bAllowDuplicateLoadout = false;
 
-	// 세션 생성 완료 후 이동할 스테이지 맵 경로 — 기본값은 Stage01
-	FString PendingMapPath = TEXT("/Game/Maps/LV_DF_Stage01");
+	// 세션 생성은 항상 Lobby에서 시작하고, 실제 Stage 이동은 SessionSubsystem::StartGame이 담당합니다.
+	FString PendingMapPath = TEXT("/Game/Maps/LV_DF_Lobby_Stage00");
 
 	// 장착 중인 코스메틱 캐시 — 태그가 유효하지 않으면 미장착
 	FGameplayTag EquippedSkin;

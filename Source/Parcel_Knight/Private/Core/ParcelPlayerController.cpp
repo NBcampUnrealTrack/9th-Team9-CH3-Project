@@ -8,6 +8,13 @@
 #include "GameFramework/PlayerState.h"
 #include "UI/ParcelLobbyHUDWidget.h"
 #include "Core/ParcelGameState.h"
+#include "Kismet/GameplayStatics.h"
+
+namespace ParcelFrontendMaps
+{
+	const FString Lobby = TEXT("LV_DF_Lobby_Stage00");
+	const FString MainMenuBootstrap = TEXT("Testing_DF_Stage01");
+}
 
 DEFINE_LOG_CATEGORY(LogParcelPlayerController);
 
@@ -22,21 +29,30 @@ void AParcelPlayerController::BeginPlay()
 	
 	if (IsLocalController())
 	{
+		const FString CurrentLevelName = UGameplayStatics::GetCurrentLevelName(this, true);
+		const bool bUsesLevelBlueprintUI =
+			CurrentLevelName == ParcelFrontendMaps::Lobby ||
+			CurrentLevelName == ParcelFrontendMaps::MainMenuBootstrap;
+
+		// Both front-end maps create their own UI and input mode in their Level
+		// Blueprint. Avoid adding WBP_InGameHUD or overriding that input state.
+		if (bUsesLevelBlueprintUI)
+		{
+			return;
+		}
+
 		FInputModeGameOnly InputMode;
 		SetInputMode(InputMode);
 		bShowMouseCursor = false;
 		
 		// HUD
-		if (IsLocalController())
+		if (HUDWidgetClass)
 		{
-			if (HUDWidgetClass)
-			{
-				HUDWidgetInstance = CreateWidget<UUserWidget>(this, HUDWidgetClass);
+			HUDWidgetInstance = CreateWidget<UUserWidget>(this, HUDWidgetClass);
 				
-				if (HUDWidgetInstance)
-				{
-					HUDWidgetInstance->AddToViewport();
-				}
+			if (HUDWidgetInstance)
+			{
+				HUDWidgetInstance->AddToViewport();
 			}
 		}
 	}

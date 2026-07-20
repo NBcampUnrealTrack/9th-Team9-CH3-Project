@@ -28,6 +28,12 @@ void UParcelFriendListEntryWidget::InitializeFriend(
 	TryLoadAvatar();
 }
 
+void UParcelFriendListEntryWidget::SetInviteEnabled(bool bInCanInvite)
+{
+	bCanInvite = bInCanInvite && FriendInfo.UniqueNetId.IsValid();
+	RefreshVisualData();
+}
+
 void UParcelFriendListEntryWidget::NativeConstruct()
 {
 	Super::NativeConstruct();

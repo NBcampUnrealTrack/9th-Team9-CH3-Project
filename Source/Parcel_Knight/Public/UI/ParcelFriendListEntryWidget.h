@@ -24,6 +24,8 @@ public:
 		const FBPFriendInfo& InFriendInfo,
 		bool bInCanInvite);
 
+	void SetInviteEnabled(bool bInCanInvite);
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
