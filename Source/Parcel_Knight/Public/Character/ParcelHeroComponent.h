@@ -47,7 +47,7 @@ public:
 	
 	// [UI] 마우스 감도
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetMouseSensitivity(float NewSensitivity) { MouseSensitivity = NewSensitivity; }
+	void SetMouseSensitivity(float NewSensitivity) { MouseSensitivity = FMath::Clamp(NewSensitivity, 0.1f, 3.0f); }
 
 	UFUNCTION(BlueprintPure, Category = "Input")
 	float GetMouseSensitivity() const { return MouseSensitivity; }
