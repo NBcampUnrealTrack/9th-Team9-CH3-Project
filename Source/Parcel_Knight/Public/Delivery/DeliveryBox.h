@@ -13,6 +13,8 @@ class UStaticMeshComponent;
 class UMaterialInterface;
 class UHealthComponent;
 class UNiagaraSystem;
+class USoundBase;
+class USoundAttenuation;
 class UTextRenderComponent;
 
 UCLASS()
@@ -24,6 +26,9 @@ public:
 	ADeliveryBox();
 	virtual void Tick(float DeltaTime) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	// 던진 플레이어 캐릭터와 일시적으로 물리 충돌을 무시하는 헬퍼 함수
+	void IgnoreThrowerForDuration(AActor* Thrower, float Duration);
 
 protected:
     virtual void BeginPlay() override;
@@ -55,7 +60,10 @@ public:
     FORCEINLINE FBoxData GetBoxData() const { return BoxData; }
     FORCEINLINE float GetDamageThreshold() const { return BoxData.DamageThreshold; }
 	
-	// 스폰 초기 무적 상태 여부 확인 (0.5초 무적)
+	FORCEINLINE void SetLastDamageTime(float InTime) { LastDamageTime = InTime; }
+	FORCEINLINE float GetLastDamageTime() const { return LastDamageTime; }
+
+	// 스폰 초기 무적 상태 여부 확인 (0.5초 무적 또는 스폰 후 10초까지 무적)
 	UFUNCTION(BlueprintCallable, Category = "Delivery")
 	bool IsInvulnerable() const;
 	
@@ -115,8 +123,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
 	TObjectPtr<UNiagaraSystem> DestroyEffect;
 
-	// 모든 클라이언트에서 나이아가라 이펙트 재생을 위한 멀티캐스트 RPC
-	UFUNCTION(NetMulticast, Unreliable)
+	// 상자 파손 소멸 시 재생할 3D 사운드
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
+	TObjectPtr<USoundBase> DestroySound;
+
+	// 상자 파손 소멸 사운드용 거리 감쇄 설정
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
+	TObjectPtr<USoundAttenuation> DestroySoundAttenuation;
+
+	// 모든 클라이언트에서 나이아가라 이펙트 및 사운드 재생을 위한 멀티캐스트 RPC
+	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDestroyEffect();
 
 	// 상자 위에 표시할 실시간 3D 체력 텍스트 컴포넌트
@@ -135,6 +151,9 @@ private:
 
 	// 상자 스폰 시점의 게임 시간 (초 단위)
 	float SpawnTime = 0.0f;
+
+	// 최근 충격 피해를 입은 게임 시간 (연속 피격 쿨타임용)
+	float LastDamageTime = 0.0f;
 
 	// 상자가 한 번이라도 플레이어에게 주워졌는지 여부 (주워지기 전까지 무적 처리용)
 	bool bHasBeenPickedUp = false;
