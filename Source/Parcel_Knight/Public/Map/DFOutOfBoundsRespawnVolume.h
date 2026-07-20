@@ -6,6 +6,7 @@
 
 class ACharacter;
 class AController;
+class AParcelCharacter;
 class APlayerController;
 class UBoxComponent;
 class UPrimitiveComponent;
@@ -23,6 +24,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION()
 	void OnTriggerBeginOverlap(
@@ -67,7 +69,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Respawn", meta = (ClampMin = "0.0"))
 	float RespawnZOffset = 5.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Respawn|Ragdoll", meta = (ClampMin = "0.1", UIMin = "0.1"))
+	float RagdollFallbackCheckInterval = 0.25f;
+
 private:
+	void TryHandleParcelCharacter(AParcelCharacter* Character, const TCHAR* DetectionSource);
+	void CheckRagdollCharactersInVolume();
+	bool IsPointInsideRespawnTrigger(const FVector& WorldLocation) const;
 	void HandleOutOfBounds(ACharacter* Character);
 	void RespawnImmediately(ACharacter* Character);
 	void BeginDelayedRespawn(ACharacter* Character);
@@ -79,9 +87,11 @@ private:
 	void ApplyOverviewCamera(APlayerController* PlayerController);
 	void RestorePlayerCamera(APlayerController* PlayerController, ACharacter* Character);
 	void SetCharacterWaitingState(ACharacter* Character, bool bWaiting);
+	void ClearImmediateRespawnGuard(TWeakObjectPtr<AActor> ActorPtr);
 	void ClearPendingRespawn(AActor* Actor);
 	bool TeleportCharacter(ACharacter* Character, const FTransform& RespawnTransform);
 
 	TSet<TWeakObjectPtr<AActor>> PendingRespawnActors;
 	TMap<TWeakObjectPtr<AActor>, bool> PreviousHiddenStates;
+	FTimerHandle RagdollFallbackTimerHandle;
 };
