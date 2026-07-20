@@ -102,7 +102,7 @@ private:
 	void EnterCooldownState_ServerOnly();
 	void ApplyTrapEffectToOverlappingActors_ServerOnly();
 	void ApplyTrapEffect_ServerOnly(AActor* TargetActor);
-	void ApplyTrapDamage(AActor* TargetActor);
+	void ApplyDamageOnce_ServerOnly(AActor* TargetActor);
 	bool CanApplyDamageToActor(AActor* TargetActor) const;
 	void ClearDamageCooldownForActor(AActor* TargetActor);
 	void ApplyForcedDropEffect_ServerOnly(AActor* TargetActor);
@@ -110,7 +110,6 @@ private:
 	void ApplyReversePushEffect_ServerOnly(AActor* TargetActor, bool bRepeated);
 	void ApplyReverseGroundPushEffect_ServerOnly(ACharacter* TargetCharacter, bool bRepeated);
 	void ApplyInputInvertEffect_ServerOnly(AActor* TargetActor);
-	void ClearInputInvertEffect_ServerOnly(AActor* TargetActor);
 	void LaunchCharacterFromTrap_ServerOnly(
 		ACharacter* TargetCharacter,
 		const FVector& Direction,
@@ -131,12 +130,13 @@ private:
 	bool IsInputInvertEffect() const;
 	bool IsKnownEffect() const;
 	bool ShouldRepeatReversePush() const;
-	bool ShouldClearInputInvertOnEndOverlap() const;
 
 	UPROPERTY()
 	TObjectPtr<AActor> PendingActivator;
 
 	TArray<TWeakObjectPtr<ACharacter>> RepeatingReversePushTargets;
+	TSet<TWeakObjectPtr<AActor>> ActorsInsideTrigger;
+	TSet<TWeakObjectPtr<AActor>> AffectedActorsThisActivation;
 	TSet<TWeakObjectPtr<AActor>> DamagedActorsThisActivation;
 	TSet<TWeakObjectPtr<AActor>> ActorsOnDamageCooldown;
 
