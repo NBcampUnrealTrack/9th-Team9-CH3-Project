@@ -39,6 +39,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Btn_JoinRoom;
 	
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> Btn_CreateRoom;
+	
 	// 데이터 및 팩토리
 	UPROPERTY(EditDefaultsOnly, Category = "RoomList|UI")
 	TSubclassOf<UParcelRoomListEntry> RoomEntryClass;
@@ -52,6 +55,7 @@ private:
 	UFUNCTION() void HandleRefreshRoomsClicked();
 	UFUNCTION() void HandleBackToMenuClicked();
 	UFUNCTION() void HandleJoinRoomClicked();
+	UFUNCTION() void HandleCreateRoomClicked();
 	
 	UPROPERTY(Transient)
 	TObjectPtr<UParcelRoomListEntry> CurrentlySelectedEntry = nullptr;	
