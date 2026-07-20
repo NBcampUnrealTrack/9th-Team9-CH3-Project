@@ -54,6 +54,10 @@ public:
 	UFUNCTION(Exec) void DebugToggleDuplicateLoadout();
 
 	// ─── 아이템 ───
+	// 총 아이템 인벤토리에 지급 — 왼쪽 클릭 즉사 테스트용
+	UFUNCTION(Exec) void DebugGiveGun();
+	// HP 증가 아이템 인벤토리에 지급 — 패시브 HP 보너스 테스트용
+	UFUNCTION(Exec) void DebugGiveHPBoost();
 	// 소모품 직접 지급 — 구매 없이 보유 목록에 추가
 	UFUNCTION(Exec) void DebugAddConsumable(FString ItemTagStr);
 	// 코스메틱 직접 지급 — 구매 없이 보유 목록에 추가

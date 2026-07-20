@@ -51,6 +51,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Health")
 	float GetBaseMaxHP() const;
 
+	// MaxHP 증가 — 현재 HP도 같은 양만큼 증가 (패시브 아이템용)
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void IncreaseMaxHP(float Amount);
+
 	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_OnDeath();

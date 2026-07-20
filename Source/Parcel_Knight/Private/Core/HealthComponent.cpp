@@ -115,6 +115,14 @@ bool UHealthComponent::IsDead() const
 	return bIsDead;
 }
 
+void UHealthComponent::IncreaseMaxHP(float Amount)
+{
+	if (!GetOwner()->HasAuthority()) return;
+	MaxHP += Amount;
+	HP = FMath::Clamp(HP + Amount, 0.f, MaxHP);
+	OnHPChanged.Broadcast(HP, MaxHP);
+}
+
 void UHealthComponent::InitializeHP(float InMaxHP)
 {
 	if (GetOwner()->HasAuthority())

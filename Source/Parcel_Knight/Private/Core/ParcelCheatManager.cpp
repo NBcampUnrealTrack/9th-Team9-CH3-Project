@@ -203,3 +203,29 @@ void UParcelCheatManager::DebugPrintInventory()
 	GAMERULE_LOG(Log, TEXT("[콘솔] %s"), *Msg);
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Purple, Msg);
 }
+
+// ========================= 아이템 테스트 =========================
+
+void UParcelCheatManager::DebugGiveGun()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Gun")));
+	GAMERULE_LOG(Log, TEXT("[치트] 총 아이템 지급 완료"));
+}
+
+void UParcelCheatManager::DebugGiveHPBoost()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.HPBoost")));
+	GAMERULE_LOG(Log, TEXT("[치트] HP 증가 아이템 지급 완료"));
+}

@@ -126,6 +126,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InGameMenuAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
+	TObjectPtr<UInputAction> UseSlotAction1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
+	TObjectPtr<UInputAction> UseSlotAction2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
+	TObjectPtr<UInputAction> UseSlotAction3;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
 
@@ -133,6 +142,10 @@ protected:
 	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
 	
 	void ToggleInGameMenu();
+	void UseSlot1(const FInputActionValue& Value);
+	void UseSlot2(const FInputActionValue& Value);
+	void UseSlot3(const FInputActionValue& Value);
+	void UseSlot(int32 SlotIndex);
 	
 private:
 	// 달리기 기능을 위한 Server RPC

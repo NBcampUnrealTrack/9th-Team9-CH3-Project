@@ -86,9 +86,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPlayerStatComponent> PlayerStatComp;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInventoryComponent> InventoryComp;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCustomizationComponent> CustomizationComp;
 };
