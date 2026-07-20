@@ -16,7 +16,9 @@
 #include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "Core/CustomizationComponent.h"
 #include "UI/ParcelNameplateWidget.h"
+#include "Data/ItemData.h"
 
 
 DEFINE_LOG_CATEGORY(LogCharacter);
@@ -233,9 +235,11 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 	{
 		if (UInventoryComponent* InvComp = PS->GetInventoryComponent())
 			InvComp->ApplyPassiveEffects(this);
+
+		if (UCustomizationComponent* CustComp = PS->GetCustomizationComponent())
+			ApplyTitle(CustComp->GetEquippedTitle());
 	}
 
-	
 	UpdateOverheadNameplate();
 }
 
@@ -400,6 +404,33 @@ void AParcelCharacter::DoGunLineTrace()
 				HC->TakeDamage(99999.f);
 		}
 	}
+}
+
+void AParcelCharacter::ApplyTitle(FGameplayTag TitleTag)
+{
+	UParcelNameplateWidget* NameWidget = nullptr;
+	if (NameplateWidgetComp)
+		NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject());
+	if (!NameWidget) return;
+
+	if (!TitleTag.IsValid() || !CosmeticDataTable)
+	{
+		NameWidget->SetTitle(nullptr);
+		return;
+	}
+
+	TArray<FItemData*> AllRows;
+	CosmeticDataTable->GetAllRows<FItemData>(TEXT("ApplyTitle"), AllRows);
+	for (FItemData* Row : AllRows)
+	{
+		if (Row && Row->ItemTag == TitleTag)
+		{
+			NameWidget->SetTitle(Row);
+			return;
+		}
+	}
+
+	NameWidget->SetTitle(nullptr);
 }
 
 void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

@@ -14,6 +14,13 @@ enum class EItemActivationType : uint8
 	Active,    // 1/2/3 키로 발동
 };
 
+UENUM(BlueprintType)
+enum class ETitleType : uint8
+{
+	TextOnly,  // 기본 색상 칭호 텍스트만 표시
+	Colored,   // 칭호 텍스트에 커스텀 색상 적용
+};
+
 /**
  * 아이템 효과 하나를 표현하는 구조체
  * DataTable의 Effects 배열 원소 — 에디터에서 + 버튼으로 필요한 만큼만 추가한다.
@@ -88,4 +95,12 @@ struct PARCEL_KNIGHT_API FItemData : public FTableRowBase
 	// 사용 시 재생할 사운드
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "FX")
 	TSoftObjectPtr<USoundBase> UseSound;
+
+	// Item.Cosmetic.Title.* 전용 — 칭호 표시 방식
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Title")
+	ETitleType TitleType = ETitleType::TextOnly;
+
+	// Colored 타입일 때 칭호 텍스트에 적용할 색상
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Title")
+	FLinearColor TitleColor = FLinearColor::White;
 };

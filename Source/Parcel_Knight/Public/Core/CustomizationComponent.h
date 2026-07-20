@@ -46,15 +46,17 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// TODO: ApplySkin(ACharacter*)   — 캐릭터 메시·머티리얼 교체 (캐릭터 메시 구조 확정 후 구현)
-	// TODO: ApplyTitle(AHUD*)        — HUD 칭호 위젯 갱신 (WBP_HUD 구현 후)
 	// TODO: ApplyEffect(ACharacter*) — 나이아가라 이펙트 스폰 (에셋 제작 후)
 
 private:
+	UFUNCTION()
+	void OnRep_CurrentTitle();
+
 	// 현재 장착 중인 코스메틱 태그 — 다른 클라이언트에 복제되어 비주얼 적용에 사용
 	UPROPERTY(Replicated)
 	FGameplayTag CurrentSkin;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentTitle)
 	FGameplayTag CurrentTitle;
 
 	UPROPERTY(Replicated)

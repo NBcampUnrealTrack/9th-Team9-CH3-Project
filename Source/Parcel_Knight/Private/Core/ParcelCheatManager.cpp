@@ -232,6 +232,31 @@ void UParcelCheatManager::DebugGiveHPBoost()
 	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.HPBoost")));
 	GAMERULE_LOG(Log, TEXT("[치트] HP 증가 아이템 지급 완료"));
 }
+
+// ========================= 칭호 테스트 =========================
+
+void UParcelCheatManager::DebugEquipTitle(FString TitleTagStr)
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*TitleTagStr), false);
+	if (!Tag.IsValid()) { GAMERULE_LOG(Warning, TEXT("[치트] 유효하지 않은 태그: %s"), *TitleTagStr); return; }
+	PS->EquipTitle(Tag);
+	GAMERULE_LOG(Log, TEXT("[치트] 칭호 장착: %s"), *TitleTagStr);
+}
+
+void UParcelCheatManager::DebugClearTitle()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	PS->EquipTitle(FGameplayTag());
+	GAMERULE_LOG(Log, TEXT("[치트] 칭호 해제"));
+}
+
 void UParcelCheatManager::DebugSuicide()
 {
 	// 현재 치트를 발동한 로컬 플레이어 Controller 확보

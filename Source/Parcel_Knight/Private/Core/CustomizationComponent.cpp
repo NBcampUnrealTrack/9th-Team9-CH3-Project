@@ -1,6 +1,9 @@
 #include "Core/CustomizationComponent.h"
 #include "Core/ParcelGameInstance.h"
 #include "Net/UnrealNetwork.h"
+#include "GameFramework/PlayerState.h"
+#include "GameFramework/Pawn.h"
+#include "Character/ParcelCharacter.h"
 
 UCustomizationComponent::UCustomizationComponent()
 {
@@ -14,6 +17,15 @@ void UCustomizationComponent::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 	DOREPLIFETIME(UCustomizationComponent, CurrentSkin);
 	DOREPLIFETIME(UCustomizationComponent, CurrentTitle);
 	DOREPLIFETIME(UCustomizationComponent, CurrentEffect);
+}
+
+void UCustomizationComponent::OnRep_CurrentTitle()
+{
+	APlayerState* PS = Cast<APlayerState>(GetOwner());
+	if (!PS) return;
+	AParcelCharacter* Character = Cast<AParcelCharacter>(PS->GetPawn());
+	if (!Character) return;
+	Character->ApplyTitle(CurrentTitle);
 }
 
 // ========================= 초기화 =========================
