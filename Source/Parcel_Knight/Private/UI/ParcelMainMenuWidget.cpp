@@ -1,6 +1,8 @@
 #include "UI/ParcelMainMenuWidget.h"
 #include "Components/Button.h"
 #include "UI/ParcelOptionsWidget.h"
+#include "UI/ParcelShopInventoryWidget.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "ParcelLog.h"
 
@@ -41,6 +43,15 @@ void UParcelMainMenuWidget::NativeConstruct()
 
 void UParcelMainMenuWidget::NativeDestruct()
 {
+	if (ShopInventoryWidgetInstance)
+	{
+		ShopInventoryWidgetInstance->OnCloseRequested.RemoveDynamic(
+			this,
+			&UParcelMainMenuWidget::HandleShopCloseRequested);
+		ShopInventoryWidgetInstance->RemoveFromParent();
+		ShopInventoryWidgetInstance = nullptr;
+	}
+
 	if (Btn_SinglePlay)
 	{
 		Btn_SinglePlay->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleSinglePlayClicked);
@@ -103,19 +114,60 @@ void UParcelMainMenuWidget::HandleOptionsClicked()
 
 void UParcelMainMenuWidget::HandleShopClicked()
 {
-	// Todo : 상점 추가시 열어주세요.
-	/**
-	if (!ShopWidgetClass)
+	if (!ShopInventoryWidgetClass)
 	{
-	   INGAMEHUD_LOG(Error, TEXT("[Main Menu] ShopWidgetClass가 할당되지 않았습니다."));
-	   return;
+		INGAMEHUD_LOG(Error, TEXT("[Main Menu] ShopInventoryWidgetClass is not assigned."));
+		return;
 	}
 
-	if (UUserWidget* ShopMenu = CreateWidget<UUserWidget>(GetOwningPlayer(), ShopWidgetClass))
+	if (!ShopInventoryWidgetInstance)
 	{
-	   ShopMenu->AddToViewport(100);
+		ShopInventoryWidgetInstance = CreateWidget<UParcelShopInventoryWidget>(
+			GetOwningPlayer(),
+			ShopInventoryWidgetClass);
+		if (!ShopInventoryWidgetInstance)
+		{
+			INGAMEHUD_LOG(Error, TEXT("[Main Menu] Failed to create the shop inventory widget."));
+			return;
+		}
+
+		ShopInventoryWidgetInstance->OnCloseRequested.RemoveDynamic(
+			this,
+			&UParcelMainMenuWidget::HandleShopCloseRequested);
+		ShopInventoryWidgetInstance->OnCloseRequested.AddDynamic(
+			this,
+			&UParcelMainMenuWidget::HandleShopCloseRequested);
+		ShopInventoryWidgetInstance->AddToViewport(120);
 	}
-	*/
+
+	ShopInventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	ShopInventoryWidgetInstance->RefreshShopUI();
+	SetVisibility(ESlateVisibility::Collapsed);
+
+	if (APlayerController* PlayerController = GetOwningPlayer())
+	{
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(ShopInventoryWidgetInstance->TakeWidget());
+		PlayerController->SetInputMode(InputMode);
+		PlayerController->bShowMouseCursor = true;
+	}
+}
+
+void UParcelMainMenuWidget::HandleShopCloseRequested()
+{
+	if (ShopInventoryWidgetInstance)
+	{
+		ShopInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	SetVisibility(ESlateVisibility::Visible);
+	if (APlayerController* PlayerController = GetOwningPlayer())
+	{
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(TakeWidget());
+		PlayerController->SetInputMode(InputMode);
+		PlayerController->bShowMouseCursor = true;
+	}
 }
 
 void UParcelMainMenuWidget::HandleExitGameClicked()

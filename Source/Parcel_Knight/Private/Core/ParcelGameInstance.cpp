@@ -2,6 +2,8 @@
 #include "Core/ParcelGameUserSettings.h"
 #include "Core/ParcelSaveGame.h"
 #include "Core/SessionSubsystem.h"
+#include "Data/ItemData.h"
+#include "Engine/DataTable.h"
 #include "Kismet/GameplayStatics.h"
 #include "OnlineSubsystem.h"
 #include "UObject/UObjectGlobals.h"
@@ -243,6 +245,85 @@ const TArray<FGameplayTag>& UParcelGameInstance::GetOwnedCosmetics() const
 	return OwnedCosmetics;
 }
 
+bool UParcelGameInstance::TryPurchaseConsumable(
+	UDataTable* ItemTable,
+	FGameplayTag ItemTag,
+	FText& OutStatusMessage)
+{
+	OutStatusMessage = FText::GetEmpty();
+
+	if (!ItemTable || ItemTable->GetRowStruct() != FItemData::StaticStruct())
+	{
+		OutStatusMessage = FText::FromString(TEXT("아이템 데이터 테이블이 올바르지 않습니다."));
+		return false;
+	}
+
+	if (!ItemTag.IsValid())
+	{
+		OutStatusMessage = FText::FromString(TEXT("유효하지 않은 아이템입니다."));
+		return false;
+	}
+
+	const FItemData* ItemData = nullptr;
+	for (const FName RowName : ItemTable->GetRowNames())
+	{
+		const FItemData* Candidate = ItemTable->FindRow<FItemData>(RowName, TEXT("TryPurchaseConsumable"));
+		if (Candidate && Candidate->ItemTag == ItemTag)
+		{
+			ItemData = Candidate;
+			break;
+		}
+	}
+
+	if (!ItemData)
+	{
+		OutStatusMessage = FText::FromString(TEXT("상점에 등록되지 않은 아이템입니다."));
+		return false;
+	}
+
+	static const FGameplayTag ConsumableRoot =
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
+	if (!ItemTag.MatchesTag(ConsumableRoot))
+	{
+		OutStatusMessage = FText::FromString(TEXT("출전 아이템 상점에서 구매할 수 없는 아이템입니다."));
+		return false;
+	}
+
+	if (ItemData->Price < 0)
+	{
+		OutStatusMessage = FText::FromString(TEXT("아이템 가격 설정이 올바르지 않습니다."));
+		return false;
+	}
+
+	if (HasOwnedConsumable(ItemTag))
+	{
+		OutStatusMessage = FText::FromString(TEXT("이미 보유한 아이템입니다."));
+		return false;
+	}
+
+	if (Money < ItemData->Price)
+	{
+		OutStatusMessage = FText::FromString(TEXT("보유 재화가 부족합니다."));
+		return false;
+	}
+
+	Money -= ItemData->Price;
+	OwnedConsumables.Add(ItemTag);
+	SaveData();
+
+	OutStatusMessage = FText::Format(
+		FText::FromString(TEXT("{0} 구매가 완료되었습니다.")),
+		ItemData->DisplayName);
+	UE_LOG(
+		LogParcelGameInstance,
+		Log,
+		TEXT("Local profile purchase succeeded: Item=%s Price=%d Money=%d"),
+		*ItemTag.ToString(),
+		ItemData->Price,
+		Money);
+	return true;
+}
+
 // ========================= 로드아웃 =========================
 
 const TArray<FGameplayTag>& UParcelGameInstance::GetLoadout() const
@@ -295,6 +376,94 @@ void UParcelGameInstance::ToggleDuplicateLoadout()
 bool UParcelGameInstance::IsAllowDuplicateLoadout() const
 {
 	return bAllowDuplicateLoadout;
+}
+
+bool UParcelGameInstance::ToggleLoadoutItem(
+	FGameplayTag ItemTag,
+	int32 RequestedMaxItems,
+	FText& OutStatusMessage)
+{
+	OutStatusMessage = FText::GetEmpty();
+	const int32 EffectiveMaxItems = FMath::Clamp(RequestedMaxItems, 0, MaxLoadoutSlots);
+
+	if (!ItemTag.IsValid() || !OwnedConsumables.Contains(ItemTag))
+	{
+		OutStatusMessage = FText::FromString(TEXT("보유하지 않은 아이템은 선택할 수 없습니다."));
+		return false;
+	}
+
+	EquippedLoadout.RemoveAll([](const FGameplayTag& ExistingTag)
+	{
+		return !ExistingTag.IsValid();
+	});
+
+	if (EquippedLoadout.Contains(ItemTag))
+	{
+		EquippedLoadout.Remove(ItemTag);
+		SaveData();
+		return true;
+	}
+
+	if (EquippedLoadout.Num() >= EffectiveMaxItems)
+	{
+		OutStatusMessage = FText::Format(
+			FText::FromString(TEXT("게임에 가져갈 수 있는 아이템은 최대 {0}개입니다.")),
+			FText::AsNumber(EffectiveMaxItems));
+		return false;
+	}
+
+	EquippedLoadout.Add(ItemTag);
+	SaveData();
+	return true;
+}
+
+bool UParcelGameInstance::ValidateSavedLoadout(UDataTable* ItemTable, int32 RequestedMaxItems)
+{
+	if (!ItemTable || ItemTable->GetRowStruct() != FItemData::StaticStruct())
+	{
+		return false;
+	}
+
+	const int32 EffectiveMaxItems = FMath::Clamp(RequestedMaxItems, 0, MaxLoadoutSlots);
+	TSet<FGameplayTag> TableItems;
+	static const FGameplayTag ConsumableRoot =
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
+	for (const FName RowName : ItemTable->GetRowNames())
+	{
+		if (const FItemData* Row = ItemTable->FindRow<FItemData>(RowName, TEXT("ValidateSavedLoadout")))
+		{
+			if (Row->ItemTag.IsValid() && Row->ItemTag.MatchesTag(ConsumableRoot))
+			{
+				TableItems.Add(Row->ItemTag);
+			}
+		}
+	}
+
+	TArray<FGameplayTag> ValidatedLoadout;
+	for (const FGameplayTag& ExistingTag : EquippedLoadout)
+	{
+		if (ValidatedLoadout.Num() >= EffectiveMaxItems)
+		{
+			break;
+		}
+
+		if (ExistingTag.IsValid()
+			&& OwnedConsumables.Contains(ExistingTag)
+			&& TableItems.Contains(ExistingTag))
+		{
+			ValidatedLoadout.AddUnique(ExistingTag);
+		}
+	}
+
+	if (ValidatedLoadout == EquippedLoadout)
+	{
+		return true;
+	}
+
+	EquippedLoadout = MoveTemp(ValidatedLoadout);
+	SaveData();
+	UE_LOG(LogParcelGameInstance, Warning, TEXT("Removed invalid entries from the saved loadout."));
+	return true;
 }
 
 // ========================= 스테이지 진행도 =========================
