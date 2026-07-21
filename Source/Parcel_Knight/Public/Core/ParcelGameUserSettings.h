@@ -57,4 +57,5 @@ private:
 	TObjectPtr<USoundMix> CachedSettingsSoundMix;
 
 	bool bSettingsSoundMixPushed = false;
+	bool bIsValidating = false;
 };
