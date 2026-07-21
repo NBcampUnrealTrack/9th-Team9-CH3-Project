@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/DataTable.h"
+#include "Data/ItemData.h"
 #include "ParcelLobbyHUDWidget.generated.h"
 
 class UButton;
@@ -97,6 +98,12 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lobby|Data")
     TObjectPtr<UDataTable> MapDataTable;
     
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lobby|Data")
+    TObjectPtr<UDataTable> ItemTable;
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Inventory")
+    void K2_OnInventoryChanged(const TArray<FGameplayTag>& ItemTags);
+    
 private:
     int32 LocalCurrentMapIndex = 0;
     
@@ -131,6 +138,8 @@ private:
     
     UFUNCTION() void HandleNativeCarriedBoxChanged(ADeliveryBox* NewCarriedBox);
     UFUNCTION() void HandleNativeCarriedBoxHPChanged(float CurrentHP, float MaxHP);
+    
+    UFUNCTION() void HandleNativeInventoryChanged();
 
     UPROPERTY()
     TWeakObjectPtr<ADeliveryBox> CachedCarriedBox;
@@ -164,8 +173,10 @@ protected:
     void K2_OnMapSelectMenuOpened();
 
 public:
-
     UFUNCTION(BlueprintCallable, Category = "Lobby")
     void SelectMapByIndex(int32 NewMapIndex);
+    
+    UFUNCTION(BlueprintPure, Category = "Lobby|Inventory")
+    bool GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItemData) const;
  
 };

@@ -25,6 +25,9 @@
 #include "Character/ParcelInteractionComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Delivery/DeliveryBox.h"
+#include "Core/InventoryComponent.h"
+#include "Data/ItemData.h"
+#include "Engine/DataTable.h"
 
 void UParcelLobbyHUDWidget::NativeConstruct()
 {
@@ -415,6 +418,18 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
                 
                 HandleNativeCarriedBoxChanged(CarryComp->GetCarriedBox());
             }
+            
+            // 6. 인벤토리 바인딩
+            if (APlayerState* PS = LocalPawn->GetPlayerState())
+            {
+                if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+                {
+                    InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
+                    InvComp->OnInventoryChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
+                    
+                    HandleNativeInventoryChanged();
+                }
+            }
 
             bStatDelegatesBound = true;
             UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 로컬 캐릭터의 스태미나/체력/상호작용/차징 게이지 인터셉트망 최종 완공!"));
@@ -579,4 +594,38 @@ void UParcelLobbyHUDWidget::SelectMapByIndex(int32 NewMapIndex)
             UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 로컬 화면 즉시 동기화 가동 ➔ %d번 맵 반영."), NewMapIndex);
         }
     }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeInventoryChanged()
+{
+    if (APawn* LocalPawn = GetOwningPlayerPawn())
+    {
+        if (APlayerState* PS = LocalPawn->GetPlayerState())
+        {
+            if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+            {
+                K2_OnInventoryChanged(InvComp->GetItems());
+            }
+        }
+    }
+}
+
+bool UParcelLobbyHUDWidget::GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItemData) const
+{
+    if (!ItemTable || !ItemTag.IsValid())
+    {
+        return false;
+    }
+
+    TArray<FItemData*> AllRows;
+    ItemTable->GetAllRows<FItemData>(TEXT("GetItemDataByTag"), AllRows);
+    for (const FItemData* Row : AllRows)
+    {
+        if (Row && Row->ItemTag == ItemTag)
+        {
+            OutItemData = *Row;
+            return true;
+        }
+    }
+    return false;
 }
