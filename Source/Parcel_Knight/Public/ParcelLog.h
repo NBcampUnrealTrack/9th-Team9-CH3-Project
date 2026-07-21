@@ -44,6 +44,9 @@ DECLARE_LOG_CATEGORY_EXTERN(LogInGameHUD, Log, All);
 //GameRule
 DECLARE_LOG_CATEGORY_EXTERN(LogGameRule, Log, All);
 
+// Item
+DECLARE_LOG_CATEGORY_EXTERN(LogItem, Log, All);
+
 // ==========================================================================
 // [define] 파트별 전용 로그 매크로 정의
 // ==========================================================================
@@ -69,3 +72,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogGameRule, Log, All);
 
 // GameRule
 #define GAMERULE_LOG(Verbosity, Format, ...) UE_LOG(LogGameRule, Verbosity, Format, ##__VA_ARGS__)
+
+// Item
+#define ITEM_LOG(Verbosity, Format, ...) UE_LOG(LogItem, Verbosity, Format, ##__VA_ARGS__)

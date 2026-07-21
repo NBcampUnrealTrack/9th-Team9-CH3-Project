@@ -12,16 +12,22 @@
 #include "GameFramework/GameStateBase.h"
 #include "Core/ParcelPlayerController.h"
 #include "Core/ParcelGameState.h"
-#include "Components/TextBlock.h"
 #include "Engine/Texture2D.h"
 #include "UI/ParcelFriendListWidget.h"
 #include "Core/SessionSubsystem.h"
+#include "Framework/Application/SlateApplication.h"
+#include "UI/ParcelMapSelectWidget.h"
+#include "Character/ParcelStaminaComponent.h"
+#include "Core/HealthComponent.h"
+#include "Character/ParcelStaminaComponent.h"
+#include "Core/HealthComponent.h" 
+#include "Character/ParcelHeroComponent.h"
+#include "Character/ParcelInteractionComponent.h"
 
 void UParcelLobbyHUDWidget::NativeConstruct()
 {
     Super::NativeConstruct();
     
-    // 1. 캔버스 및 초기 메뉴 상태 숨김 가드 세팅
     if (Canvas_MenuContainer)
     {
         Canvas_MenuContainer->SetVisibility(ESlateVisibility::Collapsed);
@@ -31,8 +37,8 @@ void UParcelLobbyHUDWidget::NativeConstruct()
         Txt_EscPrompt->SetVisibility(ESlateVisibility::HitTestInvisible);
     }
     bIsMenuOpen = false;
+    bStatDelegatesBound = false;
     
-    // 2. 초기 로비 인풋 모드 설정 (마우스 커서 숨기기)
     APlayerController* PC = GetOwningPlayer();
     if (PC)
     {
@@ -41,43 +47,45 @@ void UParcelLobbyHUDWidget::NativeConstruct()
         PC->bShowMouseCursor = false;
     }
     
-    // 3. 로비 레이아웃 (방장/손님 권한별 버튼 가시성) 초기 1회 설정
     SetupLobbyLayout();
     
-    // 4. 조작용 단추 클릭 이벤트 동적 연결
-    if (Btn_Options)   Btn_Options->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOptionsClicked);
-    if (Btn_Friends)   Btn_Friends->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleFriendsClicked);
+    if (Btn_Options)  Btn_Options->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOptionsClicked);
+    if (Btn_Friends)  Btn_Friends->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleFriendsClicked);
     if (Btn_Leave)     Btn_Leave->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleLeaveLobbyClicked);
     if (Btn_SelectMap) Btn_SelectMap->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleSelectMapClicked);
     if (Btn_Action)    Btn_Action->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleActionOrStartClicked);
 
-    // 5. 엔터키 감지 채팅 입력기 초기화
     if (EditableText_ChatInput)
     {
         EditableText_ChatInput->OnTextCommitted.AddDynamic(this, &UParcelLobbyHUDWidget::HandleChatTextCommitted);
         EditableText_ChatInput->SetVisibility(ESlateVisibility::Collapsed);
     }
 
-    // 6. 플레이어 컨트롤러에 내 HUD 위젯 주소 명함 건네기 (채팅 배달용)
     if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(GetOwningPlayer()))
     {
         ParcelPC->LobbyHUDWidgetInstance = this;
         UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 플레이어 컨트롤러 상에 HUD 인스턴스 주소 등록 완료."));
     }
     
-    // 7. GameState를 파싱하여 멀티플레이어 맵 레이턴시 동기화 랜선 직결
     if (GetWorld())
     {
         if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
         {
             ParcelGS->OnLobbyMapChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOnLobbyMapChanged);
-            
-            // 클라이언트를 위해 현재 서버 공인 맵 인덱스로 화면 동기화
             HandleOnLobbyMapChanged(ParcelGS->GetSelectedMapIndex());
         }
+        
+        RefreshLobbyPlayers();
+        
+        GetWorld()->GetTimerManager().SetTimer(
+            LobbyRefreshTimerHandle, 
+            this, 
+            &UParcelLobbyHUDWidget::RefreshLobbyPlayers, 
+            1.0f, 
+            true
+        );
     }
     
-    // 8. Destroy 세션 서브시스템 연결
     if (UGameInstance* GI = GetGameInstance())
     {
         if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
@@ -88,18 +96,25 @@ void UParcelLobbyHUDWidget::NativeConstruct()
     SetIsFocusable(true);
 }
 
+void UParcelLobbyHUDWidget::NativeDestruct()
+{
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
+    }
+    
+    Super::NativeDestruct();
+}
+
 FReply UParcelLobbyHUDWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
     FKey PressedKey = InKeyEvent.GetKey();
-
-    if (PressedKey == EKeys::Escape)
+    if (bIsMenuOpen && (PressedKey == EKeys::P || PressedKey == EKeys::Tab))
     {
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] ESC 키 감지. 현재 메뉴 상태: %s"), bIsMenuOpen ? TEXT("열림") : TEXT("닫힘"));
-        
-        SetMenuVisibleState(!bIsMenuOpen);
+        ToggleLobbyMenuExternal();
         return FReply::Handled();
     }
-    
+
     if (PressedKey == EKeys::Enter)
     {
         if (!bIsMenuOpen && EditableText_ChatInput)
@@ -119,22 +134,29 @@ void UParcelLobbyHUDWidget::SetupLobbyLayout()
     if (PC && PC->HasAuthority())
     {
         if (Btn_SelectMap) Btn_SelectMap->SetVisibility(ESlateVisibility::Visible);
-        if (Txt_ActionPrompt) Txt_ActionPrompt->SetText(FText::FromString(TEXT("게임 시작 (Host)")));
+        if (Btn_Action) Btn_Action->SetVisibility(ESlateVisibility::Visible);
+        if (Txt_ActionPrompt) Txt_ActionPrompt->SetText(FText::FromString(TEXT("게임 시작")));
     }
     else
     {
         if (Btn_SelectMap) Btn_SelectMap->SetVisibility(ESlateVisibility::Collapsed);
-        if (Txt_ActionPrompt) Txt_ActionPrompt->SetText(FText::FromString(TEXT("준비 완료 (Client)")));
+        if (Btn_Action) Btn_Action->SetVisibility(ESlateVisibility::Collapsed);
     }
     
     if (Txt_PlayerCount) Txt_PlayerCount->SetText(FText::FromString(TEXT("현재 인원: 1 / 4")));
-    if (Txt_MapName) Txt_MapName->SetText(FText::FromString(TEXT("컨베이어 창고 스테이지 01")));
+    if (Txt_MapName) Txt_MapName->SetText(FText::FromString(TEXT("레벨 선택 대기 중...")));
 }
 
 void UParcelLobbyHUDWidget::SetMenuVisibleState(bool bNewState)
 {
     bIsMenuOpen = bNewState;
-    APlayerController* PC = GetOwningPlayer();
+
+    APlayerController* PC = GetOwningPlayer(); 
+    
+    if (Canvas_MenuContainer)
+    {
+        Canvas_MenuContainer->SetVisibility(bIsMenuOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    }
     
     K2_OnMenuStateChanged(bIsMenuOpen);
 
@@ -142,12 +164,13 @@ void UParcelLobbyHUDWidget::SetMenuVisibleState(bool bNewState)
     {
         if (PC)
         {
-            FInputModeUIOnly InputMode;
+            FInputModeGameAndUI InputMode;
             InputMode.SetWidgetToFocus(TakeWidget());
+            InputMode.SetHideCursorDuringCapture(false);
             PC->SetInputMode(InputMode);
             PC->bShowMouseCursor = true;
         }
-        UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 메뉴판 오픈 가동: UI 포커스 구속 및 커서 활성화."));
+        UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 메뉴판 즉시 오픈: 커서 및 버튼 인터랙션 활성화."));
     }
     else
     {
@@ -158,7 +181,7 @@ void UParcelLobbyHUDWidget::SetMenuVisibleState(bool bNewState)
             PC->bShowMouseCursor = false;
             FSlateApplication::Get().SetAllUserFocusToGameViewport();
         }
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 메뉴판 폐쇄 가동: 시점 자유 조작 복구 복원 완료."));
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 메뉴판 즉시 폐쇄: 캐릭터 회전 및 전방 인풋 해제 완공."));
     }
 }
 
@@ -209,7 +232,6 @@ void UParcelLobbyHUDWidget::AddChatLog(const FString& SenderName, const FText& M
     {
         FString FormattedString = FString::Printf(TEXT("[%s] : %s"), *SenderName, *Message.ToString());
         NewLogBlock->SetText(FText::FromString(FormattedString));
-        
         NewLogBlock->SetAutoWrapText(true);
         
         ScrollBox_ChatLogs->AddChild(NewLogBlock);
@@ -292,45 +314,23 @@ void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
 void UParcelLobbyHUDWidget::HandleSelectMapClicked()
 {
     APlayerController* PC = GetOwningPlayer();
-    if (!PC || !PC->HasAuthority() || !MapDataTable) return;
-    
-    TArray<FParcelMapStageData*> AllMapRows;
-    MapDataTable->GetAllRows<FParcelMapStageData>(TEXT("MapParsingContext"), AllMapRows);
-    
-    if (AllMapRows.IsEmpty()) return;
 
-    int32 CurrentSyncedIndex = 0;
-    if (AParcelGameState* ParcelGS = GetWorld() ? GetWorld()->GetGameState<AParcelGameState>() : nullptr)
+    if (PC && PC->HasAuthority() && MapDataTable)
     {
-        CurrentSyncedIndex = ParcelGS->GetSelectedMapIndex();
-    }
-    
-    LocalCurrentMapIndex = (CurrentSyncedIndex + 1) % AllMapRows.Num();
-    
-    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
-    {
-        ParcelPC->Server_RequestChangeLobbyMap(LocalCurrentMapIndex);
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 조작 센서 터짐 -> 서버에 %d번 맵 인덱스 동기화 요청"), LocalCurrentMapIndex);
+        K2_OnMapSelectMenuOpened(); 
+        
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 맵 선택 버튼 정상 가동 -> 블루프린트 서브 창고에 스폰 위임 완료."));
     }
 }
 
 void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
 {
     APlayerController* PC = GetOwningPlayer();
+    
     if (PC && PC->HasAuthority())
     {
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 전용: 리슨서버 전원 인게임 배달 구역(/Game/Maps/LV_DF_Stage01)으로 강제 트래블 개시"));
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 확정 ➔ 인게임 배달 구역으로 강제 트래블(ServerTravel) 개시!"));
         GetWorld()->ServerTravel(TEXT("/Game/Maps/LV_DF_Stage01?listen"));
-    }
-    else
-    {
-        bIsReady = !bIsReady;
-        if (Txt_ActionPrompt)
-        {
-            FString PromptStr = bIsReady ? TEXT("준비 취소") : TEXT("준비 완료 (Client)");
-            Txt_ActionPrompt->SetText(FText::FromString(PromptStr));
-        }
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 클라이언트 준비 토글 변경: %s"), bIsReady ? TEXT("Ready") : TEXT("Not Ready"));
     }
 }
 
@@ -365,13 +365,96 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
         if (NewSlot)
         {
             bool bIsHost = (i == 0) || (PS->GetOwningController() && PS->GetOwningController()->HasAuthority());
-            
             NewSlot->InitializeSlot(PS, bIsHost);
             ScrollBox_LobbyPlayers->AddChild(NewSlot);
         }
     }
-    
     UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 서버 복제 배열 동기화 완료. 총 %d개의 플레이어 슬롯 재생성 완공."), CurrentCount);
+    
+    if (!bStatDelegatesBound)
+    {
+        APawn* LocalPawn = GetOwningPlayerPawn();
+        if (LocalPawn)
+        {
+            if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
+            {
+                StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
+                HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
+            }
+            
+            if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
+            {
+                HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
+                HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+            }
+
+            bStatDelegatesBound = true;
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 로컬 캐릭터의 실시간 스태미나/체력 비주얼 인터셉트 파이프라인"));
+        }
+    }
+    
+    if (!bStatDelegatesBound)
+    {
+        APawn* LocalPawn = GetOwningPlayerPawn();
+        if (LocalPawn)
+        {
+            if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
+            {
+                StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
+                HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
+            }
+            
+            if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
+            {
+                HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
+                HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+            }
+            
+            if (UParcelInteractionComponent* InteractComp = LocalPawn->FindComponentByClass<UParcelInteractionComponent>())
+            {
+                InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
+                InteractComp->OnFocusChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
+                
+                HandleNativeInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
+            }
+
+            if (UParcelHeroComponent* HeroComp = LocalPawn->FindComponentByClass<UParcelHeroComponent>())
+            {
+                HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
+            }
+
+            bStatDelegatesBound = true; // 안전 잠금
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 팀 규격 상호작용 및 차징 게이지 인터셉트망 최종 완공!"));
+        }
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged(AActor* NewFocusedActor)
+{
+    if (NewFocusedActor)
+    {
+        FText PromptText = FText::FromString(TEXT("E 키를 눌러 상호작용"));
+        K2_OnCrosshairStateChanged(true, PromptText);
+    }
+    else
+    {
+        K2_OnCrosshairStateChanged(false, FText::GetEmpty());
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged(bool bIsCharging, float ChargeRatio)
+{
+    K2_OnThrowChargeChanged(bIsCharging, ChargeRatio);
+}
+
+void UParcelLobbyHUDWidget::HandleNativeHPChanged(float CurrentHP, float MaxHP)
+{
+    K2_OnHPChanged(CurrentHP, MaxHP);
+}
+
+void UParcelLobbyHUDWidget::HandleNativeStaminaChanged(float CurrentStamina, float MaxStamina)
+{
+    K2_OnStaminaChanged(CurrentStamina, MaxStamina);
 }
 
 void UParcelLobbyHUDWidget::HandleOnLobbyMapChanged(int32 NewMapIndex)
@@ -405,6 +488,27 @@ void UParcelLobbyHUDWidget::HandleOnLobbyMapChanged(int32 NewMapIndex)
     }
     
     LocalCurrentMapIndex = NewMapIndex;
-    
     UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Synced] 전 클라이언트 화면에 %s 맵 비주얼 동기화 렌더링 완료"), *SelectedStageData->StageName);
+}
+
+void UParcelLobbyHUDWidget::ToggleLobbyMenuExternal()
+{
+    SetMenuVisibleState(!bIsMenuOpen);
+}
+
+void UParcelLobbyHUDWidget::SelectMapByIndex(int32 NewMapIndex)
+{
+    APlayerController* PC = GetOwningPlayer();
+    if (!PC || !PC->HasAuthority()) return;
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
+    {
+        ParcelPC->Server_RequestChangeLobbyMap(NewMapIndex);
+        
+        if (PC->HasAuthority())
+        {
+            HandleOnLobbyMapChanged(NewMapIndex);
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 로컬 화면 즉시 동기화 가동 ➔ %d번 맵 반영."), NewMapIndex);
+        }
+    }
 }

@@ -14,6 +14,9 @@
 #include "Character/ParcelPlayerStateComponent.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
+#include "Core/ParcelPlayerController.h"
+#include "UI/ParcelLobbyHUDWidget.h"
+#include "Core/ParcelGameUserSettings.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
@@ -21,21 +24,16 @@ UParcelHeroComponent::UParcelHeroComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
-    
-    // [Server] : 컴포넌트에서 Server RPC 가동
     SetIsReplicatedByDefault(true);
-    
     MouseSensitivity = 1.0f;
 
-    // 카메라
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
-    SpringArm->TargetArmLength = 350.f;
-    SpringArm->bDoCollisionTest = true;
+    SpringArm->TargetArmLength = 0.f;
+    SpringArm->bDoCollisionTest = false;
     SpringArm->ProbeChannel = ECC_Camera;
     SpringArm->ProbeSize = CameraCollisionProbeSize;
     SpringArm->bUsePawnControlRotation = true;
-    SpringArm->bEnableCameraLag = true;
-    SpringArm->CameraLagSpeed = 10.f;
+    SpringArm->bEnableCameraLag = false;
 
     FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     FollowCamera->bUsePawnControlRotation = false;
@@ -49,6 +47,7 @@ void UParcelHeroComponent::BeginPlay()
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
        SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+       SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
        FollowCamera->AttachToComponent(SpringArm, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
     
        HEROCOMP_LOG(Log, TEXT("[%s] 캐릭터에 카메라 컴포넌트 부착 완료."), *Character->GetName());
@@ -64,7 +63,7 @@ void UParcelHeroComponent::ResetCameraAttachment()
        if (SpringArm)
        {
           SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-          SpringArm->SetRelativeLocation(FVector::ZeroVector);
+          SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
        }
     }
 }
@@ -137,12 +136,16 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
 
     if (!CanProcessLocalInput()) return;
 
+	  if (const UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	  {
+		  SetMouseSensitivity(Settings->GetMouseSensitivity());
+	  }
+
     // IA 바인딩
     UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
     if (!EnhancedInputComponent) return;
     
     if (MoveAction) EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Move);
-    
     if (LookAction) EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Look);
     
     if (JumpAction)
@@ -159,11 +162,7 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
     }
     
     if (RagdollAction) EnhancedInputComponent->BindAction(RagdollAction, ETriggerEvent::Started, this, &UParcelHeroComponent::TestRagdoll);
-    
-    if (InteractAction) 
-    {
-       EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
-    }
+    if (InteractAction) EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
     
     if (ThrowAction)
     {
@@ -171,11 +170,19 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
        EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::ReleaseThrow);
     }
     
-    if (InGameMenuAction)
-    {
-        EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
-    }
+    if (InGameMenuAction) EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+    if (OpenChatAction) EnhancedInputComponent->BindAction(OpenChatAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_OpenChat);
     
+    if (LobbyMenuAction)
+    {
+        // [인풋 필터링] 무한 연사 토글 버그를 예방하기 위해 Triggered 대신 단 한 번 발동하는 Started로 엄격한 격상 완료!
+        EnhancedInputComponent->BindAction(LobbyMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_ToggleLobbyMenu);
+    }
+
+    if (UseSlotAction1) EnhancedInputComponent->BindAction(UseSlotAction1, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot1);
+    if (UseSlotAction2) EnhancedInputComponent->BindAction(UseSlotAction2, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot2);
+    if (UseSlotAction3) EnhancedInputComponent->BindAction(UseSlotAction3, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot3);
+
     HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
@@ -213,7 +220,8 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    const FVector2D LookValue = Value.Get<FVector2D>() * MouseSensitivity;
+	const FVector2D RawLookValue = Value.Get<FVector2D>();
+	const FVector2D LookValue = RawLookValue * MouseSensitivity;
     
     Character->AddControllerYawInput(LookValue.X);
     Character->AddControllerPitchInput(LookValue.Y);
@@ -300,20 +308,23 @@ void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 
     RagdollComp->ToggleRagdoll();
 
-    // 래그돌이 켜질 때만 컴포넌트 틱을 킴
     if (RagdollComp->IsRagdoll())
     {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 카메라 보정을 위한 컴포넌트 틱 활성화"));
+       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 3인칭 카메라 전환 및 틱 활성화"));
+       if (SpringArm) SpringArm->TargetArmLength = 350.f;
+       Character->GetMesh()->SetOwnerNoSee(false);
        PrimaryComponentTick.SetTickFunctionEnable(true);
     }
     else
     {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 카메라 위치 복구 및 컴포넌트 틱 비활성화"));
+       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 1인칭 카메라 복구 및 틱 비활성화"));
        PrimaryComponentTick.SetTickFunctionEnable(false);
+       Character->GetMesh()->SetOwnerNoSee(true);
        if (SpringArm)
        {
+          SpringArm->TargetArmLength = 0.f;
           SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-          SpringArm->SetRelativeLocation(FVector::ZeroVector);
+          SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
        }
     }
 }
@@ -453,12 +464,18 @@ bool UParcelHeroComponent::CanProcessLocalInput() const
 
 void UParcelHeroComponent::EnterRagdollCameraMode()
 {
+	if (SpringArm) SpringArm->TargetArmLength = 350.f;
+	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+		Character->GetMesh()->SetOwnerNoSee(false);
 	PrimaryComponentTick.SetTickFunctionEnable(true);
 	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 진입"));
 }
 
 void UParcelHeroComponent::ExitRagdollCameraMode()
 {
+	if (SpringArm) SpringArm->TargetArmLength = 0.f;
+	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+		Character->GetMesh()->SetOwnerNoSee(true);
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 	ResetCameraAttachment();
 	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
@@ -570,6 +587,38 @@ void UParcelHeroComponent::ApplyJumpTag(bool bNewIsJumping)
     }
 }
 
+void UParcelHeroComponent::UseSlot1(const FInputActionValue& Value) { UseSlot(0); }
+void UParcelHeroComponent::UseSlot2(const FInputActionValue& Value) { UseSlot(1); }
+void UParcelHeroComponent::UseSlot3(const FInputActionValue& Value) { UseSlot(2); }
+
+void UParcelHeroComponent::UseSlot(int32 SlotIndex)
+{
+    HEROCOMP_LOG(Log, TEXT("[Client] UseSlot(%d) 입력 감지"), SlotIndex);
+
+    if (!CanProcessLocalInput())
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 로컬 입력 불가 (컨트롤러/로컬 여부 확인)"), SlotIndex);
+        return;
+    }
+
+    AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner());
+    if (!ParcelChar)
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 오너가 ParcelCharacter 아님"), SlotIndex);
+        return;
+    }
+
+    URagdollComponent* RagdollComp = ParcelChar->FindComponentByClass<URagdollComponent>();
+    if (RagdollComp && RagdollComp->IsRagdoll())
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 래그돌 상태"), SlotIndex);
+        return;
+    }
+
+    HEROCOMP_LOG(Log, TEXT("[Client→Server] Server_UseSlot(%d) 전송"), SlotIndex);
+    ParcelChar->Server_UseSlot(SlotIndex);
+}
+
 void UParcelHeroComponent::ToggleInGameMenu()
 {
     UE_LOG(LogTemp, Warning, TEXT("[ESC Test] ToggleInGameMenu 함수가 정상적으로 호출되었습니다!"));
@@ -596,6 +645,38 @@ void UParcelHeroComponent::ToggleInGameMenu()
         {
             ESCMenuRef->AddToViewport();
             ESCMenuRef->SetupMenu();
+        }
+    }
+}
+
+void UParcelHeroComponent::Input_OpenChat()
+{
+    if (!CanProcessLocalInput()) return;
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(Character->GetController()))
+    {
+        if (ParcelPC->LobbyHUDWidgetInstance)
+        {
+            ParcelPC->LobbyHUDWidgetInstance->SetChatInputInputMode(true);
+        }
+    }
+}
+
+void UParcelHeroComponent::Input_ToggleLobbyMenu()
+{
+    if (!CanProcessLocalInput()) return;
+    
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+    
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(Character->GetController()))
+    {
+        if (ParcelPC->LobbyHUDWidgetInstance && ParcelPC->LobbyHUDWidgetInstance->IsValidLowLevel())
+        {
+            ParcelPC->LobbyHUDWidgetInstance->ToggleLobbyMenuExternal();
+            HEROCOMP_LOG(Log, TEXT("[Lobby Menu] 단발성 조작 트리거 ➔ 로비 HUD 토글 신호 직결 완료."));
         }
     }
 }

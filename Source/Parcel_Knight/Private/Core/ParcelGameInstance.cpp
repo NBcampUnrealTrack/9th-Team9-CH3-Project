@@ -1,8 +1,10 @@
 #include "Core/ParcelGameInstance.h"
+#include "Core/ParcelGameUserSettings.h"
 #include "Core/ParcelSaveGame.h"
 #include "Core/SessionSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "OnlineSubsystem.h"
+#include "UObject/UObjectGlobals.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogParcelGameInstance, Log, All);
 
@@ -14,6 +16,15 @@ void UParcelGameInstance::Init()
 {
 	Super::Init();
 	LoadData();
+
+	if (PostLoadMapWithWorldHandle.IsValid())
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapWithWorldHandle);
+	}
+	PostLoadMapWithWorldHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
+		this,
+		&UParcelGameInstance::HandlePostLoadMapWithWorld);
+	ApplyLocalUserSettings(this);
 
 	if (SessionInviteAcceptedHandle.IsValid() && SessionInviteSessionInterface.IsValid())
 	{
@@ -44,6 +55,12 @@ void UParcelGameInstance::Init()
 
 void UParcelGameInstance::Shutdown()
 {
+	if (PostLoadMapWithWorldHandle.IsValid())
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapWithWorldHandle);
+		PostLoadMapWithWorldHandle.Reset();
+	}
+
 	if (SessionInviteSessionInterface.IsValid() && SessionInviteAcceptedHandle.IsValid())
 	{
 		SessionInviteSessionInterface->ClearOnSessionUserInviteAcceptedDelegate_Handle(
@@ -53,6 +70,29 @@ void UParcelGameInstance::Shutdown()
 	SessionInviteSessionInterface.Reset();
 
 	Super::Shutdown();
+}
+
+void UParcelGameInstance::HandlePostLoadMapWithWorld(UWorld* LoadedWorld)
+{
+	if (LoadedWorld && LoadedWorld->GetGameInstance() == this)
+	{
+		ApplyLocalUserSettings(LoadedWorld);
+	}
+}
+
+void UParcelGameInstance::ApplyLocalUserSettings(const UObject* WorldContextObject)
+{
+	if (UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		Settings->ApplyMasterVolume(WorldContextObject);
+	}
+	else
+	{
+		UE_LOG(
+			LogParcelGameInstance,
+			Error,
+			TEXT("ParcelGameUserSettings is unavailable. Check GameUserSettingsClassName in DefaultEngine.ini."));
+	}
 }
 
 void UParcelGameInstance::ReturnToMainMenu()
@@ -118,6 +158,7 @@ void UParcelGameInstance::SaveData()
 	UParcelSaveGame* SaveGame = Cast<UParcelSaveGame>(
 		UGameplayStatics::CreateSaveGameObject(UParcelSaveGame::StaticClass()));
 
+	SaveGame->MaxClearedStage  = MaxClearedStage;
 	SaveGame->Money            = Money;
 	SaveGame->OwnedConsumables = OwnedConsumables;
 	SaveGame->OwnedCosmetics   = OwnedCosmetics;
@@ -137,6 +178,7 @@ void UParcelGameInstance::LoadData()
 	// 저장 파일이 없으면 기본값으로 초기화
 	if (!SaveGame) return;
 
+	MaxClearedStage  = SaveGame->MaxClearedStage;
 	Money            = SaveGame->Money;
 	OwnedConsumables = SaveGame->OwnedConsumables;
 	OwnedCosmetics   = SaveGame->OwnedCosmetics;
@@ -253,6 +295,29 @@ void UParcelGameInstance::ToggleDuplicateLoadout()
 bool UParcelGameInstance::IsAllowDuplicateLoadout() const
 {
 	return bAllowDuplicateLoadout;
+}
+
+// ========================= 스테이지 진행도 =========================
+
+int32 UParcelGameInstance::GetMaxClearedStage() const
+{
+	return MaxClearedStage;
+}
+
+void UParcelGameInstance::UpdateMaxClearedStage(int32 ClearedStageIndex)
+{
+	if (ClearedStageIndex > MaxClearedStage)
+	{
+		MaxClearedStage = ClearedStageIndex;
+		SaveData();
+		UE_LOG(LogParcelGameInstance, Log, TEXT("스테이지 %d 클리어 — 최고 기록 갱신 후 저장"), ClearedStageIndex);
+	}
+}
+
+bool UParcelGameInstance::IsStageUnlocked(int32 StageIndex) const
+{
+	// 1번은 항상 열려있고, N번은 N-1번을 클리어해야 진입 가능
+	return StageIndex == 1 || StageIndex <= MaxClearedStage + 1;
 }
 
 // ========================= 스테이지 맵 =========================

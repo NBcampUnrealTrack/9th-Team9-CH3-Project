@@ -28,22 +28,46 @@ void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, cons
 		// 물리 충격에 의한 대미지인 경우 데미지 스케일링 및 캡핑(상한선) 적용
 		if (SourceName.Contains(TEXT("impact")))
 		{
-			// 1) 최소 임계치(50)를 초과한 분량에 대해 대미지 환산 (계수 0.1f)
-			float BaseDamage = (Force - 50.0f) * 0.1f;
+			// 1) 상자 자체의 데이터 테이블 파손 임계치(DamageThreshold)를 동적으로 사용! (깨지기 쉬운 상자는 낮고, 무거운 상자는 높음)
+			float DamageThreshold = Box->GetDamageThreshold();
+			float DamageMultiplier = 0.15f;
+			float MaxDamageLimitPercent = 0.20f;
+
+			// 깨지기 쉬운 상자(Box.Type.Fragile)는 매우 약하므로 대미지 계수와 최대 한계를 별도로 강화 조율
+			if (Box->GetBoxData().BoxTypeTag.MatchesTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.Type.Fragile"))))
+			{
+				DamageMultiplier = 0.70f;       // 대미지 가중치 70%로 큰 대미지 유도
+				MaxDamageLimitPercent = 0.60f;  // 최대 60% 캡 설정 (확정 2회 충격에 파손 보장)
+			}
+
+			float BaseDamage = (Force - DamageThreshold) * DamageMultiplier;
+			float MaxDamageLimit = BoxHealth->GetMaxHP() * MaxDamageLimitPercent;
 			
-			// 2) 최대 파워로 던져도 한 번에 부서지지 않도록 단일 타격 최대 대미지를 최대 체력의 30%로 제한 (최소 3~4회 부딪혀야 깨짐)
-			float MaxDamageLimit = BoxHealth->GetMaxHP() * 0.3f;
-			
-			FinalDamage = FMath::Clamp(BaseDamage, 1.0f, MaxDamageLimit);
+			FinalDamage = FMath::Clamp(BaseDamage, 0.0f, MaxDamageLimit);
 		}
 		else if (SourceName.Contains(TEXT("Trap")))
 		{
-			// 함정 대미지의 경우도 단일 타격 최대 대미지를 최대 체력의 25%로 제한 (최소 4회 밟아야 깨짐)
-			float MaxTrapDamageLimit = BoxHealth->GetMaxHP() * 0.25f;
-			FinalDamage = FMath::Clamp(Force, 1.0f, MaxTrapDamageLimit);
+			float MaxTrapDamageLimitPercent = 0.20f;
+			if (Box->GetBoxData().BoxTypeTag.MatchesTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.Type.Fragile"))))
+			{
+				MaxTrapDamageLimitPercent = 0.60f;
+			}
+
+			// 함정 대미지의 경우도 깨지기 쉬운 상자는 60% 캡, 일반/무거운 상자는 20% 캡으로 조율
+			float MaxTrapDamageLimit = BoxHealth->GetMaxHP() * MaxTrapDamageLimitPercent;
+			FinalDamage = FMath::Clamp(Force, 0.0f, MaxTrapDamageLimit);
 		}
 
+		// 최종 대미지가 0 이하인 경우 연산하지 않고 스킵
+		if (FinalDamage <= 0.0f) return;
+
 		BoxHealth->TakeDamage(FinalDamage);
+
+		// 다중 피격으로 인한 폭사 방지를 위해 상자에 최근 피격 시간 기록 (0.3초 쿨타임용)
+		if (UWorld* World = GetWorld())
+		{
+			Box->SetLastDamageTime(World->GetTimeSeconds());
+		}
 
 		PHYSICSJUDGE_LOG(Warning, TEXT("[Server] Box ID %d received %f damage (Raw Force: %f) from %s. (Remaining HP: %f/%f)"), 
 			Box->GetBoxID(), FinalDamage, Force, *SourceName, BoxHealth->GetHP(), BoxHealth->GetMaxHP());
