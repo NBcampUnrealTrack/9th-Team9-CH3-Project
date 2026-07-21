@@ -40,6 +40,12 @@ public:
 	// [All] 현재 보유 아이템 목록 반환 — UI 표시용
 	const TArray<FGameplayTag>& GetItems() const;
 
+	/**
+	 * Server-only bridge from a client's persistent frontend selection to the replicated stage inventory.
+	 * Only unique entries present in ConsumableDataTable are accepted.
+	 */
+	bool SetValidatedLoadout(const TArray<FGameplayTag>& RequestedItems, int32 MaxItems = 3);
+
 	// [Server] 쿨타임·보유 여부를 모두 검사 — 사용 가능하면 true
 	bool CanUseItem(FGameplayTag ItemTag) const;
 

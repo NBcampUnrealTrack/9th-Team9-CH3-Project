@@ -40,6 +40,64 @@ const TArray<FGameplayTag>& UInventoryComponent::GetItems() const
 	return Items;
 }
 
+bool UInventoryComponent::SetValidatedLoadout(
+	const TArray<FGameplayTag>& RequestedItems,
+	int32 MaxItems)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !ConsumableDataTable)
+	{
+		ITEM_LOG(
+			Warning,
+			TEXT("[Inv] Loadout rejected: Authority=%d DataTable=%s"),
+			GetOwner() && GetOwner()->HasAuthority(),
+			*GetNameSafe(ConsumableDataTable));
+		return false;
+	}
+
+	const int32 SafeMaxItems = FMath::Clamp(MaxItems, 0, 3);
+	if (RequestedItems.Num() > SafeMaxItems)
+	{
+		ITEM_LOG(Warning, TEXT("[Inv] Loadout rejected: requested=%d max=%d"), RequestedItems.Num(), SafeMaxItems);
+		return false;
+	}
+
+	TArray<FGameplayTag> ValidatedItems;
+	static const FGameplayTag ConsumableRoot =
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
+	for (const FGameplayTag& RequestedItem : RequestedItems)
+	{
+		if (!RequestedItem.IsValid()
+			|| !RequestedItem.MatchesTag(ConsumableRoot)
+			|| ValidatedItems.Contains(RequestedItem)
+			|| !FindItemData(RequestedItem))
+		{
+			ITEM_LOG(
+				Warning,
+				TEXT("[Inv] Loadout rejected: invalid, duplicate, or missing table item=%s"),
+				*RequestedItem.ToString());
+			return false;
+		}
+
+		ValidatedItems.Add(RequestedItem);
+	}
+
+	if (Items == ValidatedItems)
+	{
+		return true;
+	}
+
+	Items = MoveTemp(ValidatedItems);
+	OnInventoryChanged.Broadcast();
+
+	if (const APlayerState* PlayerState = Cast<APlayerState>(GetOwner()))
+	{
+		ApplyPassiveEffects(PlayerState->GetPawn());
+	}
+
+	ITEM_LOG(Log, TEXT("[Inv] Server accepted %d loadout item(s)."), Items.Num());
+	return true;
+}
+
 // ========================= 추가·사용 =========================
 
 void UInventoryComponent::AddItem(FGameplayTag ItemTag)

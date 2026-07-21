@@ -6,6 +6,7 @@
 
 class UButton;
 class UParcelOptionsWidget;
+class UParcelShopInventoryWidget;
 
 /**
  * UParcelMainMenuWidget
@@ -41,6 +42,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|UI")
 	TSubclassOf<UParcelOptionsWidget> OptionsWidgetClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|UI")
+	TSubclassOf<UParcelShopInventoryWidget> ShopInventoryWidgetClass;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "MainMenu|UI")
+	TObjectPtr<UParcelShopInventoryWidget> ShopInventoryWidgetInstance;
+
 	// 블루프린트 UI 연출용 이벤트
 	/** 멀티플레이 버튼 클릭 시 RoomList 위젯 슬라이드 다운 애니메이션 재생을 요청 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "MainMenu|Events")
@@ -59,6 +66,9 @@ private:
 
 	UFUNCTION()
 	void HandleShopClicked();
+
+	UFUNCTION()
+	void HandleShopCloseRequested();
 
 	UFUNCTION()
 	void HandleExitGameClicked();
