@@ -53,6 +53,16 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "MainMenu|Events")
 	void K2_OnMultiPlayMenuOpened();
 
+	// Todo : 상점 추가 후 열어주세요. 
+	/**
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|UI")
+	TSubclassOf<UParcelOptionsWidget> OptionsWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|UI")
+	TSubclassOf<UUserWidget> ShopWidgetClass; // 상점 클래스를 따로 만들었다면 TSubclassOf<U상점Widget>으로 교체
+	*/
+	
+	
 private:
 	// 버튼 클릭 핸들러 함수
 	UFUNCTION()

@@ -633,7 +633,12 @@ void UParcelHeroComponent::ToggleInGameMenu()
     
     if (ESCMenuRef && ESCMenuRef->IsValidLowLevel() && ESCMenuRef->IsInViewport())
     {
-        ESCMenuRef->K2_OnMenuCloseStarted(); 
+        if (ESCMenuRef->CloseSubMenuIfOpen())
+        {
+            return;
+        }
+        
+        ESCMenuRef->K2_OnMenuCloseStarted();
         ESCMenuRef = nullptr;
         return;
     }
