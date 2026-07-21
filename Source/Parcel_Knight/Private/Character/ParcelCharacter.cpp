@@ -39,11 +39,10 @@ AParcelCharacter::AParcelCharacter()
     SetMinNetUpdateFrequency(33.f);
 
     bUseControllerRotationPitch = false;
-    bUseControllerRotationYaw = false;
+    bUseControllerRotationYaw = true;
     bUseControllerRotationRoll = false;
 
-    // 이동 입력 방향을 바라보도록 캐릭터를 자동 회전
-    GetCharacterMovement()->bOrientRotationToMovement = true;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
 
     // 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
     GetCharacterMovement()->AirControl = 0.35f;
@@ -78,6 +77,8 @@ AParcelCharacter::AParcelCharacter()
 void AParcelCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    GetMesh()->SetOwnerNoSee(true);
 	
 	if (PlayerStateComp)
 	{
