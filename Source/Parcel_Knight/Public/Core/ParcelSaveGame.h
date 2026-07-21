@@ -17,6 +17,10 @@ class PARCEL_KNIGHT_API UParcelSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
+	// 클리어한 최고 스테이지 번호 (0 = 아무것도 클리어 안 함)
+	UPROPERTY(SaveGame)
+	int32 MaxClearedStage = 0;
+
 	// 보유 재화
 	UPROPERTY(SaveGame)
 	int32 Money = 0;

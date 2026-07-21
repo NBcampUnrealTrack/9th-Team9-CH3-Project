@@ -7,6 +7,7 @@
 
 class UDamageType;
 class UParticleSystem;
+class USoundAttenuation;
 class USoundBase;
 
 UCLASS(BlueprintType)
@@ -53,6 +54,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (ClampMin = "0.0"))
 	float DamageAmount = 0.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage|Held Box", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float HeldBoxDamageMultiplier = 3.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Damage", meta = (EditCondition = "bApplyDamageOnOverlap"))
 	TSubclassOf<UDamageType> DamageTypeClass;
 
@@ -98,6 +102,28 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|FX")
 	TObjectPtr<UParticleSystem> ActivateVFX;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio")
+	TObjectPtr<USoundBase> ActivationSound;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float ActivationSoundVolume = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio", meta = (ClampMin = "0.01", UIMin = "0.01"))
+	float ActivationSoundPitch = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|Feedback|Audio")
+	TObjectPtr<USoundAttenuation> ActivationSoundAttenuation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Feedback|Screen")
+	bool bShowScreenEdgeEffect = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Feedback|Screen")
+	FLinearColor ScreenEdgeColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.65f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Feedback|Screen", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float ScreenEdgeDuration = 0.75f;
+
+	// Legacy field kept for serialized compatibility. Common activation playback uses ActivationSound.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trap|FX")
 	TObjectPtr<USoundBase> ActivateSFX;
 

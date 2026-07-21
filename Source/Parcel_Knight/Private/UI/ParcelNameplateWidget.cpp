@@ -4,9 +4,26 @@
 void UParcelNameplateWidget::SetPlayerName(const FString& InName)
 {
 	if (Txt_PlayerName)
-	{
 		Txt_PlayerName->SetText(FText::FromString(InName));
+}
+
+void UParcelNameplateWidget::SetTitle(const FItemData* TitleData)
+{
+	if (!Txt_Title) return;
+
+	if (!TitleData)
+	{
+		Txt_Title->SetVisibility(ESlateVisibility::Collapsed);
+		return;
 	}
+
+	Txt_Title->SetText(TitleData->DisplayName);
+	Txt_Title->SetVisibility(ESlateVisibility::Visible);
+
+	if (TitleData->TitleType == ETitleType::Colored)
+		Txt_Title->SetColorAndOpacity(FSlateColor(TitleData->TitleColor));
+	else
+		Txt_Title->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 }
 
 void UParcelNameplateWidget::UpdateStatusEffects(const FGameplayTagContainer& ActiveTags)

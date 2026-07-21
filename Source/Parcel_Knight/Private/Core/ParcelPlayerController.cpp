@@ -3,8 +3,11 @@
 #include "UI/ParcelInGameDeadHUDWidget.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "UI/ParcelHUDWidget.h"
+#include "UI/ParcelTrapStatusOverlayWidget.h"
 #include "Core/ParcelCheatManager.h"
+#include "Core/HealthComponent.h"
 #include "Blueprint/UserWidget.h"
+#include "GameFramework/GameState.h"
 #include "GameFramework/PlayerState.h"
 #include "UI/ParcelLobbyHUDWidget.h"
 #include "Core/ParcelGameState.h"
@@ -25,8 +28,8 @@ AParcelPlayerController::AParcelPlayerController()
 
 void AParcelPlayerController::BeginPlay()
 {
-	Super::BeginPlay();
-    
+	Super::BeginPlay();   
+
 	if (IsLocalController())
 	{
 		const FString CurrentLevelName = UGameplayStatics::GetCurrentLevelName(this, true);
@@ -69,7 +72,20 @@ void AParcelPlayerController::BeginPlay()
 				HUDWidgetInstance->AddToViewport();
 			}
 		}
+
+		CreateTrapStatusOverlayIfNeeded();
 	}
+}
+
+void AParcelPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (TrapStatusOverlayWidgetInstance)
+	{
+		TrapStatusOverlayWidgetInstance->RemoveFromParent();
+		TrapStatusOverlayWidgetInstance = nullptr;
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void AParcelPlayerController::SetupInputComponent()
@@ -174,6 +190,143 @@ void AParcelPlayerController::Client_NotifyRespawn_Implementation()
 	FInputModeGameOnly InputMode;
 	SetInputMode(InputMode);
 	bShowMouseCursor = false;
+}
+
+void AParcelPlayerController::Client_PlayTrapActivationSound_Implementation(
+	USoundBase* ActivationSound,
+	float VolumeMultiplier,
+	float PitchMultiplier
+)
+{
+	if (!IsLocalController() || !ActivationSound)
+	{
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(
+		this,
+		ActivationSound,
+		FMath::Max(0.0f, VolumeMultiplier),
+		FMath::Max(0.01f, PitchMultiplier)
+	);
+}
+
+void AParcelPlayerController::Client_ShowTrapStatus_Implementation(FLinearColor Color, float Duration)
+{
+	UE_LOG(
+		LogParcelPlayerController,
+		Warning,
+		TEXT("[Trap UI] Client RPC received: PC=%s IsLocalController=%d OverlayValid=%d Color RGBA=(%.3f, %.3f, %.3f, %.3f) Duration=%.3f"),
+		*GetNameSafe(this),
+		IsLocalController(),
+		IsValid(TrapStatusOverlayWidgetInstance),
+		Color.R,
+		Color.G,
+		Color.B,
+		Color.A,
+		Duration
+	);
+
+	if (!IsLocalController() || Duration <= 0.0f)
+	{
+		UE_LOG(
+			LogParcelPlayerController,
+			Warning,
+			TEXT("[Trap UI] Client RPC ignored: PC=%s IsLocalController=%d Duration=%.3f"),
+			*GetNameSafe(this),
+			IsLocalController(),
+			Duration
+		);
+		return;
+	}
+
+	CreateTrapStatusOverlayIfNeeded();
+	if (IsValid(TrapStatusOverlayWidgetInstance))
+	{
+		TrapStatusOverlayWidgetInstance->ShowTrapStatus(Color, Duration);
+	}
+	else
+	{
+		UE_LOG(
+			LogParcelPlayerController,
+			Error,
+			TEXT("[Trap UI] Client RPC could not show status: overlay widget reference is invalid. PC=%s Class=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(TrapStatusOverlayWidgetClass)
+		);
+	}
+}
+
+void AParcelPlayerController::CreateTrapStatusOverlayIfNeeded()
+{
+	const bool bIsLocalController = IsLocalController();
+	if (!bIsLocalController)
+	{
+		UE_LOG(
+			LogParcelPlayerController,
+			Warning,
+			TEXT("[Trap UI] Overlay widget creation skipped: PC=%s IsLocalController=0"),
+			*GetNameSafe(this)
+		);
+		return;
+	}
+
+	if (IsValid(TrapStatusOverlayWidgetInstance))
+	{
+		if (!TrapStatusOverlayWidgetInstance->IsInViewport())
+		{
+			TrapStatusOverlayWidgetInstance->AddToViewport(100);
+			UE_LOG(
+				LogParcelPlayerController,
+				Warning,
+				TEXT("[Trap UI] Existing overlay widget restored to viewport: PC=%s Instance=%s"),
+				*GetNameSafe(this),
+				*GetNameSafe(TrapStatusOverlayWidgetInstance)
+			);
+		}
+		return;
+	}
+
+	if (!TrapStatusOverlayWidgetClass)
+	{
+		UE_LOG(
+			LogParcelPlayerController,
+			Error,
+			TEXT("[Trap UI] Overlay widget creation failed: TrapStatusOverlayWidgetClass is None. PC=%s IsLocalController=%d HUDValid=%d"),
+			*GetNameSafe(this),
+			bIsLocalController,
+			IsValid(HUDWidgetInstance)
+		);
+		return;
+	}
+
+	TrapStatusOverlayWidgetInstance = CreateWidget<UParcelTrapStatusOverlayWidget>(this, TrapStatusOverlayWidgetClass);
+	if (TrapStatusOverlayWidgetInstance)
+	{
+		TrapStatusOverlayWidgetInstance->AddToViewport(100);
+		UE_LOG(
+			LogParcelPlayerController,
+			Warning,
+			TEXT("[Trap UI] Overlay widget created: PC=%s IsLocalController=%d HUDValid=%d Class=%s Instance=%s IsInViewport=%d"),
+			*GetNameSafe(this),
+			bIsLocalController,
+			IsValid(HUDWidgetInstance),
+			*GetNameSafe(TrapStatusOverlayWidgetClass),
+			*GetNameSafe(TrapStatusOverlayWidgetInstance),
+			TrapStatusOverlayWidgetInstance->IsInViewport()
+		);
+	}
+	else
+	{
+		UE_LOG(
+			LogParcelPlayerController,
+			Error,
+			TEXT("[Trap UI] Overlay widget creation failed: CreateWidget returned null. PC=%s IsLocalController=%d Class=%s"),
+			*GetNameSafe(this),
+			bIsLocalController,
+			*GetNameSafe(TrapStatusOverlayWidgetClass)
+		);
+	}
 }
 
 void AParcelPlayerController::ToggleInGameMenu()

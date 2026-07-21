@@ -31,6 +31,7 @@ public:
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
+	virtual bool AllowCheats(APlayerController* P) override { return true; }
 
 	void StartRound(UStageData* InStageData);
 	void EndRound();

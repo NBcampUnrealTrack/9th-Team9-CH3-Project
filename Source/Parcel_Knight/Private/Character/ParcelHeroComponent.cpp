@@ -16,6 +16,7 @@
 #include "Components/DFStatusEffectComponent.h"
 #include "Core/ParcelPlayerController.h"
 #include "UI/ParcelLobbyHUDWidget.h"
+#include "Core/ParcelGameUserSettings.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
@@ -135,6 +136,12 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
 
     if (!CanProcessLocalInput()) return;
 
+	  if (const UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	  {
+		  SetMouseSensitivity(Settings->GetMouseSensitivity());
+	  }
+
+    // IA 바인딩
     UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
     if (!EnhancedInputComponent) return;
     
@@ -171,7 +178,11 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
         // [인풋 필터링] 무한 연사 토글 버그를 예방하기 위해 Triggered 대신 단 한 번 발동하는 Started로 엄격한 격상 완료!
         EnhancedInputComponent->BindAction(LobbyMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_ToggleLobbyMenu);
     }
-    
+
+    if (UseSlotAction1) EnhancedInputComponent->BindAction(UseSlotAction1, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot1);
+    if (UseSlotAction2) EnhancedInputComponent->BindAction(UseSlotAction2, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot2);
+    if (UseSlotAction3) EnhancedInputComponent->BindAction(UseSlotAction3, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot3);
+
     HEROCOMP_LOG(Log, TEXT("Enhanced Input 바인딩 완료."));
 }
 
@@ -209,7 +220,8 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    const FVector2D LookValue = Value.Get<FVector2D>() * MouseSensitivity;
+	const FVector2D RawLookValue = Value.Get<FVector2D>();
+	const FVector2D LookValue = RawLookValue * MouseSensitivity;
     
     Character->AddControllerYawInput(LookValue.X);
     Character->AddControllerPitchInput(LookValue.Y);
@@ -564,6 +576,38 @@ void UParcelHeroComponent::ApplyJumpTag(bool bNewIsJumping)
             }
         }
     }
+}
+
+void UParcelHeroComponent::UseSlot1(const FInputActionValue& Value) { UseSlot(0); }
+void UParcelHeroComponent::UseSlot2(const FInputActionValue& Value) { UseSlot(1); }
+void UParcelHeroComponent::UseSlot3(const FInputActionValue& Value) { UseSlot(2); }
+
+void UParcelHeroComponent::UseSlot(int32 SlotIndex)
+{
+    HEROCOMP_LOG(Log, TEXT("[Client] UseSlot(%d) 입력 감지"), SlotIndex);
+
+    if (!CanProcessLocalInput())
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 로컬 입력 불가 (컨트롤러/로컬 여부 확인)"), SlotIndex);
+        return;
+    }
+
+    AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner());
+    if (!ParcelChar)
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 오너가 ParcelCharacter 아님"), SlotIndex);
+        return;
+    }
+
+    URagdollComponent* RagdollComp = ParcelChar->FindComponentByClass<URagdollComponent>();
+    if (RagdollComp && RagdollComp->IsRagdoll())
+    {
+        HEROCOMP_LOG(Warning, TEXT("[Client] UseSlot(%d) 중단: 래그돌 상태"), SlotIndex);
+        return;
+    }
+
+    HEROCOMP_LOG(Log, TEXT("[Client→Server] Server_UseSlot(%d) 전송"), SlotIndex);
+    ParcelChar->Server_UseSlot(SlotIndex);
 }
 
 void UParcelHeroComponent::ToggleInGameMenu()

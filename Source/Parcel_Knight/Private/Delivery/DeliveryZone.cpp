@@ -12,6 +12,7 @@
 #include "GameFramework/Character.h"
 #include "Core/ParcelGameMode.h"
 #include "Character/CharacterCarryComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryZone);
 
@@ -146,6 +147,9 @@ void ADeliveryZone::ProcessDelivery(ADeliveryBox* Box)
 		}
 	}
 
+	// 모든 클라이언트에서 동일하게 들리도록 성공/실패 사운드 멀티캐스트 재생
+	Multicast_PlayDeliverySound(bIsCorrectZone);
+
 	// 갱신된 최신 팀 총점을 가져옵니다.
 	if (AParcelGameState* GameState = GetWorld()->GetGameState<AParcelGameState>())
 	{
@@ -224,5 +228,24 @@ void ADeliveryZone::OnConstruction(const FTransform& Transform)
 			ZoneTextVisualizer->SetText(FText::FromString(TEXT("No Zone Tag Specified")));
 			ZoneTextVisualizer->SetTextRenderColor(FColor::White);
 		}
+	}
+}
+
+void ADeliveryZone::Multicast_PlayDeliverySound_Implementation(bool bSuccess)
+{
+	USoundBase* SoundToPlay = bSuccess ? SuccessSound : FailureSound;
+	if (SoundToPlay)
+	{
+		// 3D 위치 기반으로 사운드 재생 (지정한 감쇄 설정을 적용하여 가까운 유저만 들리도록 처리)
+		UGameplayStatics::PlaySoundAtLocation(
+			this, 
+			SoundToPlay, 
+			GetActorLocation(), 
+			FRotator::ZeroRotator, 
+			1.0f, 
+			1.0f, 
+			0.0f, 
+			DeliverySoundAttenuation
+		);
 	}
 }

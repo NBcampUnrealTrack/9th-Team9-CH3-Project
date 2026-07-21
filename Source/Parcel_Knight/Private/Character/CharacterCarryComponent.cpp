@@ -116,6 +116,14 @@ void UCharacterCarryComponent::Throw(FVector Force)
     OnRep_CarriedBox();
     SyncWeightToMovement();
 
+    // OnRep_CarriedBox()를 통해 분리가 완료되었으므로 안전하게 오프셋 이동 및 물리 추진 적용
+    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+    if (OwnerCharacter)
+    {
+        FVector ThrowOffset = OwnerCharacter->GetActorForwardVector() * 60.f; // 던진 방향으로 60cm 전방 배치
+        BoxToThrow->SetActorLocation(BoxToThrow->GetActorLocation() + ThrowOffset, false, nullptr, ETeleportType::TeleportPhysics);
+    }
+
     // 지연 분리 시점에 월드 임펄스 물리 적용
     if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(BoxToThrow->GetRootComponent()))
     {
@@ -179,7 +187,11 @@ void UCharacterCarryComponent::OnRep_CarriedBox()
           {
              RootPrim->SetSimulatePhysics(true);
              RootPrim->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+             RootPrim->SetNotifyRigidBodyCollision(true); // 강제 활성화 (충돌 대미지 감지 보장)
           }
+
+          // 던진 플레이어 본인과는 0.5초 동안 충돌을 임시 무시하여 걸림 현상 예외 방지
+          PreviousCarriedBox->IgnoreThrowerForDuration(OwnerCharacter, 0.5f);
 
           // 캐시 초기화
           PreviousCarriedBox = nullptr;

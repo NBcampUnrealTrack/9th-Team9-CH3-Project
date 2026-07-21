@@ -9,6 +9,10 @@ UDFTrapDataAsset::UDFTrapDataAsset()
 	TrapDamage_DEPRECATED = 0.0f;
 	bApplyDamageOnOverlap = false;
 	DamageAmount = 0.0f;
+	HeldBoxDamageMultiplier = 3.0f;
 	bDamageOnlyOncePerActivation = true;
 	DamageCooldownPerActor = 0.5f;
+	bShowScreenEdgeEffect = true;
+	ScreenEdgeColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.65f);
+	ScreenEdgeDuration = 0.75f;
 }

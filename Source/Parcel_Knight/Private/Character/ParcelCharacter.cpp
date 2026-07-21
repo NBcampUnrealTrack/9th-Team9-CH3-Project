@@ -15,7 +15,10 @@
 #include "Components/WidgetComponent.h"
 #include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerState.h"
+#include "Core/InventoryComponent.h"
+#include "Core/CustomizationComponent.h"
 #include "UI/ParcelNameplateWidget.h"
+#include "Data/ItemData.h"
 
 AParcelCharacter::AParcelCharacter()
 {
@@ -162,8 +165,32 @@ void AParcelCharacter::FinishGetUp()
 void AParcelCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
-    if (HeroComp) HeroComp->AddInputMappingContext();
-    UpdateOverheadNameplate();
+
+    // 서버 Possessed 시점에 HeroComponent에 이벤트를 넘김
+    if (HeroComp)
+    {
+       HeroComp->AddInputMappingContext();
+    }
+
+	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+    {
+        if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
+        {
+            HealthComp->OnDeathDelegate.AddUniqueDynamic(PS, &AParcelPlayerState::HandleDeath);
+        }
+        HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterDeath);
+    }
+
+	if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
+	{
+		if (UInventoryComponent* InvComp = PS->GetInventoryComponent())
+			InvComp->ApplyPassiveEffects(this);
+
+		if (UCustomizationComponent* CustComp = PS->GetCustomizationComponent())
+			ApplyTitle(CustComp->GetEquippedTitle());
+	}
+
+	UpdateOverheadNameplate();
 }
 
 void AParcelCharacter::OnRep_PlayerState()
@@ -218,6 +245,116 @@ void AParcelCharacter::OnRep_Controller()
 {
     Super::OnRep_Controller();
     if (HeroComp) HeroComp->AddInputMappingContext();
+}
+
+void AParcelCharacter::OnCharacterDeath()
+{
+	if (RagdollComp)
+		RagdollComp->StartRagdoll();
+}
+
+void AParcelCharacter::Server_UseSlot_Implementation(int32 SlotIndex)
+{
+	PLAYER_LOG(Log, TEXT("[Server] Server_UseSlot(%d) 수신"), SlotIndex);
+
+	AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>();
+	if (!PS)
+	{
+		PLAYER_LOG(Warning, TEXT("[Server] UseSlot(%d) 중단: PlayerState null"), SlotIndex);
+		return;
+	}
+
+	UInventoryComponent* InvComp = PS->GetInventoryComponent();
+	if (!InvComp)
+	{
+		PLAYER_LOG(Warning, TEXT("[Server] UseSlot(%d) 중단: InventoryComponent null"), SlotIndex);
+		return;
+	}
+
+	const TArray<FGameplayTag>& Items = InvComp->GetItems();
+	PLAYER_LOG(Log, TEXT("[Server] 인벤토리 크기=%d, 요청 슬롯=%d"), Items.Num(), SlotIndex);
+
+	if (!Items.IsValidIndex(SlotIndex))
+	{
+		PLAYER_LOG(Warning, TEXT("[Server] UseSlot(%d) 중단: 유효하지 않은 슬롯 인덱스"), SlotIndex);
+		return;
+	}
+
+	FGameplayTag ItemTag = Items[SlotIndex];
+	PLAYER_LOG(Log, TEXT("[Server] 슬롯[%d] = %s"), SlotIndex, *ItemTag.ToString());
+
+	static const FGameplayTag TAG_Consumable = FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
+	static const FGameplayTag TAG_Gun        = FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Gun"));
+
+	if (ItemTag.MatchesTag(TAG_Consumable))
+	{
+		if (!InvComp->UseItem(ItemTag))
+		{
+			PLAYER_LOG(Warning, TEXT("[Server] UseItem(%s) 실패 — 자세한 원인은 LogItem 확인"), *ItemTag.ToString());
+			return;
+		}
+		if (ItemTag == TAG_Gun)
+		{
+			PLAYER_LOG(Log, TEXT("[Server] Gun 라인트레이스 실행"));
+			DoGunLineTrace();
+		}
+	}
+	else
+	{
+		PLAYER_LOG(Warning, TEXT("[Server] 슬롯[%d] 아이템 '%s'이 Item.Consumables 태그 계층에 속하지 않음"), SlotIndex, *ItemTag.ToString());
+	}
+	// Item.Cosmetic.* — CustomizationComponent 연동 추후 구현
+}
+
+void AParcelCharacter::DoGunLineTrace()
+{
+	AController* Ctrl = GetController();
+	if (!Ctrl) return;
+
+	FVector ViewLoc;
+	FRotator ViewRot;
+	Ctrl->GetPlayerViewPoint(ViewLoc, ViewRot);
+	FVector End = ViewLoc + ViewRot.Vector() * 10000.f;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLoc, End, ECC_Pawn, Params))
+	{
+		if (AActor* HitActor = Hit.GetActor())
+		{
+			if (UHealthComponent* HC = HitActor->FindComponentByClass<UHealthComponent>())
+				HC->TakeDamage(99999.f);
+		}
+	}
+}
+
+void AParcelCharacter::ApplyTitle(FGameplayTag TitleTag)
+{
+	UParcelNameplateWidget* NameWidget = nullptr;
+	if (NameplateWidgetComp)
+		NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject());
+	if (!NameWidget) return;
+
+	if (!TitleTag.IsValid() || !CosmeticDataTable)
+	{
+		NameWidget->SetTitle(nullptr);
+		return;
+	}
+
+	TArray<FItemData*> AllRows;
+	CosmeticDataTable->GetAllRows<FItemData>(TEXT("ApplyTitle"), AllRows);
+	for (FItemData* Row : AllRows)
+	{
+		if (Row && Row->ItemTag == TitleTag)
+		{
+			NameWidget->SetTitle(Row);
+			return;
+		}
+	}
+
+	NameWidget->SetTitle(nullptr);
 }
 
 void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

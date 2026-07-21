@@ -4,6 +4,7 @@
 #include "GameplayTagContainer.h"
 #include "GameFramework/Character.h"
 #include "TimerManager.h"
+#include "Engine/DataTable.h"
 #include "ParcelCharacter.generated.h"
 
 class UParcelPlayerStateComponent;
@@ -101,24 +102,51 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Input", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UInputAction> IA_OpenChat;
 
-public: 
-    virtual void OnRep_Controller() override;
-    virtual void OnJumped_Implementation() override;
-    virtual void Landed(const FHitResult& Hit) override;
-    
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UParcelPlayerStateComponent* GetParcelPlayerStateComponent() const { return PlayerStateComp; }
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UParcelInteractionComponent* GetParcelInteractionComponent() const { return InteractionComp; }
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
-    UFUNCTION(BlueprintPure, Category = "Character|Components")
-    FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
-    UFUNCTION(BlueprintPure, Category = "Components")
-    FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
-    UFUNCTION(BlueprintPure, Category = "Components")
-    FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
+	UFUNCTION()
+	void OnCharacterDeath();
 
+public:
+	// [Server] 슬롯 인덱스의 아이템 사용 — 소모품(Active)/코스메틱 분기 처리
+	UFUNCTION(Server, Reliable)
+	void Server_UseSlot(int32 SlotIndex);
+
+	// 칭호 태그로 DataTable 조회 후 네임플레이트에 반영 — CustomizationComponent OnRep 및 PossessedBy에서 호출
+	void ApplyTitle(FGameplayTag TitleTag);
+
+	// 에디터에서 할당 — DT_CosmeticItems 할당
+	UPROPERTY(EditDefaultsOnly, Category = "Title")
+	TObjectPtr<UDataTable> CosmeticDataTable;
+
+	// 컴포넌트 게터 — 외부 컴포넌트·AI·UI에서 접근용
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelPlayerStateComponent* GetParcelPlayerStateComponent() const { return PlayerStateComp; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelInteractionComponent* GetParcelInteractionComponent() const { return InteractionComp; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelMovementStatComponent* GetParcelMovementStatComponent() const { return MovementStatComp; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UCharacterCarryComponent* GetCharacterCarryComponent() const { return CarryComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE URagdollComponent* GetRagdollComponent() const { return RagdollComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UParcelHeroComponent* GetParcelHeroComponent() const { return HeroComp; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UDFStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
+	UFUNCTION(BlueprintPure, Category = "Components")
+	FORCEINLINE UDFKnockbackComponent* GetKnockbackComponent() const { return KnockbackComponent; }
+	UFUNCTION(BlueprintPure, Category = "Character|Components")
+	FORCEINLINE UParcelStaminaComponent* GetParcelStaminaComponent() const { return StaminaComp; }
+
+private:
+	// 총 히트스캔 — Server_UseSlot에서 Gun 아이템일 때 호출
+	void DoGunLineTrace();
+
+	// 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출
+	virtual void OnRep_Controller() override;
+
+	// 점프 시작 시점과 지면 착지 타이밍 이식
+	virtual void OnJumped_Implementation() override;
+	virtual void Landed(const FHitResult& Hit) override;
 protected:
     UFUNCTION() void HandleCharacterDeath();
 };

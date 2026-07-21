@@ -8,11 +8,37 @@
 #include "Core/ShopComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "Core/HealthComponent.h"
 #include "GameplayTagContainer.h"
 #include "Core/HealthComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "ParcelLog.h"
+
+// ========================= 사망 / 부활 =========================
+
+void UParcelCheatManager::DebugKillSelf()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) { GAMERULE_LOG(Warning, TEXT("[치트] PC null")); return; }
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn) { GAMERULE_LOG(Warning, TEXT("[치트] Pawn null")); return; }
+	UHealthComponent* HC = Pawn->FindComponentByClass<UHealthComponent>();
+	if (!HC) { GAMERULE_LOG(Warning, TEXT("[치트] HealthComponent 없음")); return; }
+	GAMERULE_LOG(Log, TEXT("[치트] HP=%.0f → TakeDamage(99999)"), HC->GetHP());
+	HC->TakeDamage(99999.f);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 강제 사망"));
+}
+
+void UParcelCheatManager::DebugForceRespawn()
+{
+	AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>();
+	if (!GM) return;
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	GM->RestartPlayer(PC);
+	GAMERULE_LOG(Log, TEXT("[콘솔] 강제 부활"));
+}
 
 // ========================= 배달 =========================
 
@@ -179,6 +205,56 @@ void UParcelCheatManager::DebugPrintInventory()
 	if (Inv->GetItems().IsEmpty()) Msg += TEXT("\n  (없음)");
 	GAMERULE_LOG(Log, TEXT("[콘솔] %s"), *Msg);
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Purple, Msg);
+}
+
+// ========================= 아이템 테스트 =========================
+
+void UParcelCheatManager::DebugGiveGun()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Gun")));
+	GAMERULE_LOG(Log, TEXT("[치트] 총 아이템 지급 완료"));
+}
+
+void UParcelCheatManager::DebugGiveHPBoost()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	UInventoryComponent* Inv = PS->GetInventoryComponent();
+	if (!Inv) return;
+	Inv->AddItem(FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.HPBoost")));
+	GAMERULE_LOG(Log, TEXT("[치트] HP 증가 아이템 지급 완료"));
+}
+
+// ========================= 칭호 테스트 =========================
+
+void UParcelCheatManager::DebugEquipTitle(FString TitleTagStr)
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*TitleTagStr), false);
+	if (!Tag.IsValid()) { GAMERULE_LOG(Warning, TEXT("[치트] 유효하지 않은 태그: %s"), *TitleTagStr); return; }
+	PS->EquipTitle(Tag);
+	GAMERULE_LOG(Log, TEXT("[치트] 칭호 장착: %s"), *TitleTagStr);
+}
+
+void UParcelCheatManager::DebugClearTitle()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>();
+	if (!PS) return;
+	PS->EquipTitle(FGameplayTag());
+	GAMERULE_LOG(Log, TEXT("[치트] 칭호 해제"));
 }
 
 void UParcelCheatManager::DebugSuicide()
