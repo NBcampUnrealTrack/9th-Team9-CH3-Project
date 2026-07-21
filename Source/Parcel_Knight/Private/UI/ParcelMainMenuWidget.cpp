@@ -103,8 +103,19 @@ void UParcelMainMenuWidget::HandleOptionsClicked()
 
 void UParcelMainMenuWidget::HandleShopClicked()
 {
-	// 추후 상점 필요 시 여기다 연동
-	INGAMEHUD_LOG(Warning, TEXT("[Main Menu] 상점 기능은 현재 프로토타입 단계에서 비활성화되어 있습니다."));
+	// Todo : 상점 추가시 열어주세요.
+	/**
+	if (!ShopWidgetClass)
+	{
+	   INGAMEHUD_LOG(Error, TEXT("[Main Menu] ShopWidgetClass가 할당되지 않았습니다."));
+	   return;
+	}
+
+	if (UUserWidget* ShopMenu = CreateWidget<UUserWidget>(GetOwningPlayer(), ShopWidgetClass))
+	{
+	   ShopMenu->AddToViewport(100);
+	}
+	*/
 }
 
 void UParcelMainMenuWidget::HandleExitGameClicked()

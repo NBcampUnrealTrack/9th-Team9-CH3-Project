@@ -10,6 +10,8 @@
 void UParcelOptionsWidget::NativeConstruct()
 {
     Super::NativeConstruct();
+	
+	SetIsFocusable(true);
 
     if (Slider_Volume)
 	{
@@ -325,7 +327,15 @@ void UParcelOptionsWidget::HandleApplyClicked()
 void UParcelOptionsWidget::HandleBackClicked()
 {
 	SaveLocalSettingsIfDirty();
-    RemoveFromParent();
+	
+	if (OnOptionsClosed.IsBound())
+	{
+		OnOptionsClosed.Broadcast();
+	}
+	else
+	{
+		RemoveFromParent();
+	}
 }
 
 void UParcelOptionsWidget::HandleSliderCaptureEnd()
@@ -356,4 +366,14 @@ void UParcelOptionsWidget::SaveLocalSettingsIfDirty()
 		Settings->SaveSettings();
 		bLocalSettingsDirty = false;
 	}
+}
+
+FReply UParcelOptionsWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (InKeyEvent.GetKey() == EKeys::Escape)
+	{
+		return FReply::Unhandled();
+	}
+
+	return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
 }
