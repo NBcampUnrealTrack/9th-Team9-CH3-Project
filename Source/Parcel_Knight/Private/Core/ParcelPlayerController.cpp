@@ -11,6 +11,9 @@
 #include "GameFramework/PlayerState.h"
 #include "UI/ParcelLobbyHUDWidget.h"
 #include "Core/ParcelGameState.h"
+#include "Core/ParcelGameInstance.h"
+#include "Core/ParcelPlayerState.h"
+#include "Core/InventoryComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace ParcelFrontendMaps
@@ -96,6 +99,7 @@ void AParcelPlayerController::SetupInputComponent()
 void AParcelPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
+	SubmitLocalLoadoutToServer();
 	
 	Client_NotifyRespawn();
 }
@@ -103,12 +107,52 @@ void AParcelPlayerController::OnPossess(APawn* InPawn)
 void AParcelPlayerController::AcknowledgePossession(APawn* InPawn)
 {
 	Super::AcknowledgePossession(InPawn);
+	SubmitLocalLoadoutToServer();
 
 	if (IsLocalController())
 	{
 		CONTROLLER_LOG(Log, TEXT("[클라이언트 빙의 확정] AcknowledgePossession 감지 - UI 최종 정렬을 실행합니다."));
 		Client_NotifyRespawn();
 	}
+}
+
+void AParcelPlayerController::SubmitLocalLoadoutToServer()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (const UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+	{
+		Server_SubmitLoadout(GI->GetLoadout());
+	}
+}
+
+void AParcelPlayerController::Server_SubmitLoadout_Implementation(
+	const TArray<FGameplayTag>& RequestedItems)
+{
+	AParcelPlayerState* ParcelPlayerState = GetPlayerState<AParcelPlayerState>();
+	UInventoryComponent* Inventory = ParcelPlayerState
+		? ParcelPlayerState->GetInventoryComponent()
+		: nullptr;
+
+	if (!Inventory)
+	{
+		CONTROLLER_LOG(Warning, TEXT("[Loadout] Server rejected submission: InventoryComponent unavailable."));
+		return;
+	}
+
+	if (!Inventory->SetValidatedLoadout(RequestedItems, 3))
+	{
+		CONTROLLER_LOG(
+			Warning,
+			TEXT("[Loadout] Server rejected %d submitted item(s)."),
+			RequestedItems.Num());
+		return;
+	}
+
+	CONTROLLER_LOG(Log, TEXT("[Loadout] Server accepted %d submitted item(s)."), RequestedItems.Num());
 }
 
 void AParcelPlayerController::Client_NotifyDeath_Implementation()

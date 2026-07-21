@@ -24,14 +24,20 @@ void AParcelPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 서버에서만 초기화 — Items는 복제되어 클라이언트에 자동 전달됨
-	// NOTE: 현재는 호스트(리슨서버) 전용. 원격 클라이언트의 로드아웃은
-	//       PlayerController의 Server RPC로 전달받아야 함 (TODO)
+	// The listen-server's local player may read this process's profile directly.
+	// Remote clients submit their profile through ParcelPlayerController so the server
+	// can validate every entry before it reaches the replicated inventory.
 	if (HasAuthority())
 	{
 		if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
 		{
-			InventoryComp->InitFromGameInstance(GI);
+			APlayerController* OwningController = Cast<APlayerController>(GetOwner());
+			if (OwningController && OwningController->IsLocalController())
+			{
+				InventoryComp->InitFromGameInstance(GI);
+			}
+
+			// Preserve the existing customization initialization path; this task changes loadout only.
 			CustomizationComp->InitFromGameInstance(GI);
 		}
 	}

@@ -11,7 +11,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Character/ParcelCharacter.h"
 #include "Components/DFKnockbackComponent.h"
-#include "Components/TextRenderComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Sound/SoundAttenuation.h"
@@ -46,13 +46,13 @@ ADeliveryBox::ADeliveryBox()
 
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 
-	// 체력 표시용 3D Text Component 생성 및 기본 옵션 할당
-	HPTextVisualizer = CreateDefaultSubobject<UTextRenderComponent>(TEXT("HPTextVisualizer"));
-	HPTextVisualizer->SetupAttachment(RootComponent);
-	HPTextVisualizer->SetRelativeLocation(FVector(0.f, 0.f, 50.f)); // 상자 윗부분 (80.f에서 조금 하향 조정)
-	HPTextVisualizer->SetHorizontalAlignment(EHTA_Center);
-	HPTextVisualizer->SetWorldSize(20.f); // 컴팩트하게 크기 축소 (기존 30.f)
-	HPTextVisualizer->TextRenderColor = FColor::Green;
+	// 체력 표시용 3D Widget Component 생성 및 기본 옵션 할당
+	HPWidgetVisualizer = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPWidgetVisualizer"));
+	HPWidgetVisualizer->SetupAttachment(RootComponent);
+	HPWidgetVisualizer->SetRelativeLocation(FVector(0.f, 0.f, 50.f)); // 상자 윗부분 Z축 50cm 높이
+	HPWidgetVisualizer->SetWidgetSpace(EWidgetSpace::Screen); // 화면 공간 위젯으로 렌더링 (가시성 최고, 글꼴 깨짐 해결)
+	HPWidgetVisualizer->SetDrawSize(FVector2D(150.f, 60.f)); // 그릴 위젯 해상도 크기 설정
+	HPWidgetVisualizer->SetPivot(FVector2D(0.5f, 0.5f)); // 중앙 정렬 피벗
 
 	// 상자 파쇄 소멸 소리용 기본 감쇄 설정 (ATT_Conveyor) 경로 자동 연결
 	static ConstructorHelpers::FObjectFinder<USoundAttenuation> DefaultConveyorAttenuation(TEXT("/Script/Engine.SoundAttenuation'/Game/Delivery/sounds/ATT_Conveyor.ATT_Conveyor'"));
@@ -161,6 +161,12 @@ void ADeliveryBox::OnRep_BoxData()
 		
 		// 목적지 구역에 맞는 색상 머티리얼 적용
 		ApplyZoneMaterial();
+	}
+
+	// 서버에서 동기화된 BoxData(구역 정보 등)를 받으면 3D 위젯 UI도 최신 구역 정보로 갱신
+	if (HealthComponent)
+	{
+		UpdateHPText(HealthComponent->GetHP(), HealthComponent->GetMaxHP());
 	}
 	
 	DELIVERYBOX_LOG(Log, TEXT("[Client] %d번 상자의 외형 데이터 동기화 완료. 상자 타입 태그: %s"), 
@@ -482,41 +488,40 @@ void ADeliveryBox::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (HPTextVisualizer && GetWorld())
+	if (HPWidgetVisualizer && GetWorld())
 	{
-		// 상자가 뒹굴거나 회전해도 텍스트의 위치는 언제나 상자 중심 기준 세계 좌표(World) Z축 방향으로 고정
-		FVector BoxLocation = GetActorLocation();
-		FVector TargetTextLocation = BoxLocation + FVector(0.f, 0.f, 50.f); // Z축 50.f 높이로 하향 조정
-		HPTextVisualizer->SetWorldLocation(TargetTextLocation);
-
-		// 클라이언트에서 텍스트가 항상 로컬 플레이어 카메라를 똑바로 바라보도록 빌보드 회전 처리
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC && PC->PlayerCameraManager)
+		// 들려있는 상자(HoldingCarrier가 있거나 Held 태그 보유)인 경우 3D 위젯을 보이지 않게 처리
+		bool bIsHeld = (HoldingCarrier != nullptr) || HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
+		
+		if (HealthComponent && HealthComponent->GetHP() <= 0.0f)
 		{
-			FVector CameraLocation = PC->PlayerCameraManager->GetCameraLocation();
-			FRotator LookAtRot = (CameraLocation - TargetTextLocation).Rotation();
-
-			// 텍스트가 기우뚱해지지 않도록 Pitch와 Roll은 0으로 제한 (항상 서 있는 형태)
-			LookAtRot.Pitch = 0.f;
-			LookAtRot.Roll = 0.f;
-
-			HPTextVisualizer->SetWorldRotation(LookAtRot);
+			HPWidgetVisualizer->SetVisibility(false);
 		}
+		else
+		{
+			HPWidgetVisualizer->SetVisibility(!bIsHeld);
+		}
+
+		// 상자가 뒹굴거나 회전해도 위젯의 위치는 언제나 상자 중심 기준 세계 좌표(World) Z축 방향으로 고정
+		FVector BoxLocation = GetActorLocation();
+		FVector TargetWidgetLocation = BoxLocation + FVector(0.f, 0.f, 50.f);
+		HPWidgetVisualizer->SetWorldLocation(TargetWidgetLocation);
 	}
 }
 
 void ADeliveryBox::UpdateHPText(float CurrentHP, float MaxHP)
 {
-	if (!HPTextVisualizer) return;
-
-	// 체력이 0 이하가 되면 텍스트를 숨기거나 표시 안 함
-	if (CurrentHP <= 0.0f)
+	// 체력이 0 이하가 되거나 들려있는 상태면 위젯을 숨김
+	if (HPWidgetVisualizer)
 	{
-		HPTextVisualizer->SetVisibility(false);
-		return;
+		bool bIsHeld = (HoldingCarrier != nullptr) || HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
+		if (CurrentHP <= 0.0f || bIsHeld)
+		{
+			HPWidgetVisualizer->SetVisibility(false);
+			return;
+		}
+		HPWidgetVisualizer->SetVisibility(true);
 	}
-
-	HPTextVisualizer->SetVisibility(true);
 
 	// 목적지 구역 태그 파싱 (예: "Zone.Type.A" ➔ "A")
 	FString ZoneName = TEXT("?");
@@ -538,24 +543,8 @@ void ADeliveryBox::UpdateHPText(float CurrentHP, float MaxHP)
 		}
 	}
 
-	// "현재체력 / 최대체력 [Zone X]" 형태로 포맷팅
-	FString HPStr = FString::Printf(TEXT("%.0f / %.0f [Zone %s]"), CurrentHP, MaxHP, *ZoneName);
-	HPTextVisualizer->SetText(FText::FromString(HPStr));
-
-	// 체력 잔여 비율에 맞춰 3색 피드백(초록 -> 노랑 -> 빨강) 변화
-	float Ratio = MaxHP > 0.0f ? (CurrentHP / MaxHP) : 0.0f;
-	if (Ratio >= 0.7f)
-	{
-		HPTextVisualizer->SetTextRenderColor(FColor::Green);
-	}
-	else if (Ratio >= 0.3f)
-	{
-		HPTextVisualizer->SetTextRenderColor(FColor::Yellow);
-	}
-	else
-	{
-		HPTextVisualizer->SetTextRenderColor(FColor::Red);
-	}
+	// 블루프린트 위젯(UMG) 업데이트용 구현 가능 이벤트 호출
+	BP_OnHPWidgetUpdated(CurrentHP, MaxHP, ZoneName);
 }
 
 void ADeliveryBox::IgnoreThrowerForDuration(AActor* Thrower, float Duration)

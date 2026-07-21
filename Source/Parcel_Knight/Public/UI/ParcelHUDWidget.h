@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "GameplayTagContainer.h"
+#include "Data/ItemData.h"
+#include "Engine/DataTable.h"
 #include "ParcelHUDWidget.generated.h"
 
 class AParcelGameState;
@@ -36,6 +38,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "ParcelUI|Friend")
 	void ToggleFriendList();
+	
+	UFUNCTION(BlueprintPure, Category = "ParcelUI|Inventory")
+	bool GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItemData) const;
 
 protected:
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -61,7 +66,7 @@ protected:
 	void K2_OnCrosshairStateChanged(bool bCanInteract, const FText& InteractionPrompt);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
-	void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag);
+	void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag, const FText& BoxHPText);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnComboChanged(int32 NewComboCount, const FText& DisplayText);
@@ -77,6 +82,13 @@ protected:
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI|Events")
 	void K2_OnDeliveryLogAdded(const FString& PlayerName, const FString& BoxName, bool bSuccess);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI|Inventory")
+	TObjectPtr<UDataTable> ItemTable;
+
+	// 블루프린트에 인벤토리 변경 알림 (GameplayTag 배열 전달)
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI|Inventory")
+	void K2_OnInventoryChanged(const TArray<FGameplayTag>& ItemTags);
 	
 private:
 	
@@ -108,12 +120,20 @@ private:
 	UFUNCTION()
 	void HandleOnDeliveryLogReceived(const FString& PlayerName, const FString& BoxName, bool bSuccess);
 	
+	UFUNCTION() 
+	void HandleCarriedBoxHPChanged(float CurrentHP, float MaxHP);
+	
+	UFUNCTION() void HandleOnInventoryChanged();
+	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
 	
 	// 안전한 접근을 위해 캐싱
 	UPROPERTY()
 	TWeakObjectPtr<AParcelGameState> CachedGameState;
+	
+	UPROPERTY()
+	TWeakObjectPtr<ADeliveryBox> CachedCarriedBox;
 	
 	// 안전장치용 타이머 핸들
 	FTimerHandle RetryBindTimerHandle;

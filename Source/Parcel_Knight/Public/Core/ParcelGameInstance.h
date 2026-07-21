@@ -7,6 +7,7 @@
 #include "ParcelGameInstance.generated.h"
 
 class UParcelSaveGame;
+class UDataTable;
 
 /**
  * 플레이어 영구 데이터를 런타임에 보관하는 GameInstance
@@ -55,6 +56,13 @@ public:
 	// [All] 보유 코스메틱 전체 목록 반환 — 디버그/UI용
 	const TArray<FGameplayTag>& GetOwnedCosmetics() const;
 
+	/**
+	 * Frontend local-profile purchase entry point.
+	 * The supplied table and ItemTag are validated before money or ownership is changed,
+	 * and the completed transaction is written to the existing ParcelSaveGame in one save.
+	 */
+	bool TryPurchaseConsumable(UDataTable* ItemTable, FGameplayTag ItemTag, FText& OutStatusMessage);
+
 	// ========================= 로드아웃 =========================
 
 	// [All] 현재 로드아웃 반환 — UI 표시 및 스테이지 초기화용
@@ -71,6 +79,12 @@ public:
 	void ToggleDuplicateLoadout();
 	// [Debug] 중복 허용 여부 반환
 	bool IsAllowDuplicateLoadout() const;
+
+	/** Toggle a locally owned consumable in the persistent frontend loadout. */
+	bool ToggleLoadoutItem(FGameplayTag ItemTag, int32 RequestedMaxItems, FText& OutStatusMessage);
+
+	/** Remove stale, duplicate, unowned, or no-longer-table-backed loadout entries. */
+	bool ValidateSavedLoadout(UDataTable* ItemTable, int32 RequestedMaxItems);
 
 	// ========================= 스테이지 진행도 =========================
 
