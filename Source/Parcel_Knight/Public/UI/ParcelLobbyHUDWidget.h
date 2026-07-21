@@ -44,13 +44,13 @@ class PARCEL_KNIGHT_API UParcelLobbyHUDWidget : public UUserWidget
 protected:
     virtual void NativeConstruct() override;
     
+    virtual void NativeDestruct() override;
+    
     virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
     
     void SetupLobbyLayout();
     
     void SetMenuVisibleState(bool bNewState);
-    
-    void SetChatInputInputMode(bool bFocusChat);
     
     UFUNCTION() void HandleOptionsClicked();
     UFUNCTION() void HandleFriendsClicked();
@@ -59,6 +59,7 @@ protected:
     UFUNCTION() void HandleActionOrStartClicked();
     UFUNCTION() void HandleChatTextCommitted(const FText& Text, ETextCommit::Type CommitMethod);
     UFUNCTION() void HandleOnSessionDestroyComplete(bool bWasSuccessful);
+    UFUNCTION() void HandleOnLobbyMapChanged(int32 NewMapIndex);
 
 protected:
     UPROPERTY(BlueprintReadOnly, meta = (BindWidget)) TObjectPtr<UCanvasPanel> Canvas_MenuContainer;
@@ -89,32 +90,24 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Lobby|UI")
     TSubclassOf<UParcelLobbyPlayerSlotWidget> PlayerSlotClass;
     
-    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|UI")
-    void K2_OnMenuStateChanged(bool bIsOpen);
-
-public:
-    UFUNCTION(BlueprintCallable, Category = "Lobby")
-    void RefreshLobbyPlayers();
-    
-public:
-    void AddChatLog(const FString& SenderName, const FText& Message);
-    
-protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lobby|Data")
     TObjectPtr<UDataTable> MapDataTable;
     
-    void HandleOnLobbyMapChanged(int32 NewMapIndex);
-
 private:
     int32 LocalCurrentMapIndex = 0;
     
 protected:
-    
     UPROPERTY(EditDefaultsOnly, Category = "Lobby|Subsystem")
     TSubclassOf<UUserWidget> OptionsWidgetClass;
 
     UPROPERTY(EditDefaultsOnly, Category = "Lobby|Subsystem")
     TSubclassOf<class UParcelFriendListWidget> FriendListWidgetClass;
+    
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Stats")
+    void K2_OnHPChanged(float CurrentHP, float MaxHP);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Stats")
+    void K2_OnStaminaChanged(float CurrentStamina, float MaxStamina);
 
 private:
     UPROPERTY(Transient)
@@ -122,4 +115,47 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<class UParcelFriendListWidget> FriendListWidgetInstance = nullptr;
+    
+    FTimerHandle LobbyRefreshTimerHandle;
+    
+    bool bStatDelegatesBound = false;
+
+    UFUNCTION() void HandleNativeHPChanged(float CurrentHP, float MaxHP);
+    UFUNCTION() void HandleNativeStaminaChanged(float CurrentStamina, float MaxStamina);
+    UFUNCTION() void HandleNativeInteractionFocusChanged(AActor* NewFocusedActor);
+    UFUNCTION() void HandleNativeThrowChargeChanged(bool bIsCharging, float ChargeRatio);
+
+protected:
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|UI")
+    void K2_OnMenuStateChanged(bool bIsOpen);
+    
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Interaction")
+    void K2_OnCrosshairStateChanged(bool bIsAimingInteractable, const FText& PromptText);
+    
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Throw")
+    void K2_OnThrowChargeChanged(bool bIsCharging, float ChargeRatio);
+    
+public:
+    UFUNCTION(BlueprintCallable, Category = "Lobby")
+    void RefreshLobbyPlayers();
+    
+public:
+    void AddChatLog(const FString& SenderName, const FText& Message);
+    
+    void SetChatInputInputMode(bool bFocusChat);
+    
+public:
+    UFUNCTION(BlueprintCallable, Category = "Lobby")
+    void ToggleLobbyMenuExternal();
+    
+protected:
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|UI")
+    void K2_OnMapSelectMenuOpened();
+
+public:
+
+    UFUNCTION(BlueprintCallable, Category = "Lobby")
+    void SelectMapByIndex(int32 NewMapIndex);
+ 
 };

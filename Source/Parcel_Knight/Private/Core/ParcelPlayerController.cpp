@@ -28,31 +28,45 @@ AParcelPlayerController::AParcelPlayerController()
 
 void AParcelPlayerController::BeginPlay()
 {
-	Super::BeginPlay();
+	Super::BeginPlay();   
 
 	if (IsLocalController())
 	{
 		const FString CurrentLevelName = UGameplayStatics::GetCurrentLevelName(this, true);
-		const bool bUsesLevelBlueprintUI =
-			CurrentLevelName == ParcelFrontendMaps::Lobby ||
-			CurrentLevelName == ParcelFrontendMaps::MainMenuBootstrap;
-
-		// Both front-end maps create their own UI and input mode in their Level
-		// Blueprint. Avoid adding WBP_InGameHUD or overriding that input state.
-		if (bUsesLevelBlueprintUI)
+		
+		if (CurrentLevelName == ParcelFrontendMaps::Lobby)
 		{
+			if (LobbyHUDWidgetClass)
+			{
+				LobbyHUDWidgetInstance = CreateWidget<UParcelLobbyHUDWidget>(this, LobbyHUDWidgetClass);
+				if (LobbyHUDWidgetInstance)
+				{
+					LobbyHUDWidgetInstance->AddToViewport();
+					
+					FInputModeGameAndUI InputMode;
+					InputMode.SetWidgetToFocus(LobbyHUDWidgetInstance->TakeWidget());
+					SetInputMode(InputMode);
+					bShowMouseCursor = true;
+                
+					UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] C++ 컨트롤러가 타이밍 렉 없이 %s 화면에 로비 HUD 최종 안착 완료!"), 
+						HasAuthority() ? TEXT("호스트") : TEXT("클라이언트"));
+				}
+			}
 			return;
 		}
 
+		if (CurrentLevelName == ParcelFrontendMaps::MainMenuBootstrap)
+		{
+			return;
+		}
+		
 		FInputModeGameOnly InputMode;
 		SetInputMode(InputMode);
 		bShowMouseCursor = false;
-		
-		// HUD
+       
 		if (HUDWidgetClass)
 		{
 			HUDWidgetInstance = CreateWidget<UUserWidget>(this, HUDWidgetClass);
-				
 			if (HUDWidgetInstance)
 			{
 				HUDWidgetInstance->AddToViewport();

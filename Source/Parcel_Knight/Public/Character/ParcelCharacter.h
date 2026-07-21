@@ -18,106 +18,89 @@ class UDFKnockbackComponent;
 class UAnimMontage;
 class UWidgetComponent;
 class UParcelStaminaComponent;
+class UInputAction;
 
-// 플레이어가 조종하는 기본 캐릭터 클래스
-// 이동, 시점 회전, 점프, 래그돌 테스트 입력을 처리하고 멀티플레이 복제를 지원
-//
-// 담당자: 김로운
 UCLASS()
 class PARCEL_KNIGHT_API AParcelCharacter : public ACharacter
 {
     GENERATED_BODY()
 
 public:
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	
-	AParcelCharacter();
-    virtual void BeginPlay() override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode) override;
     
-    // 플레이어 입력 컴포넌트에 Enhanced Input 액션들을 바인딩
+    AParcelCharacter();
+    virtual void BeginPlay() override;
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+    virtual void PossessedBy(AController* NewController) override;
+    virtual void OnRep_PlayerState() override;
 
-    // 서버에서 이 캐릭터가 컨트롤러에 빙의될 때 호출, Listen Server의 로컬 플레이어 입력 매핑 등록을 보강
-	virtual void PossessedBy(AController* NewController) override;
-	
-	// [UI] 3D 아이디 위젯
-	virtual void OnRep_PlayerState() override;
+    void SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp);
+    
+    UFUNCTION(BlueprintCallable, Category = "Ragdoll")
+    void FinishGetUp();
 
-	void SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp);
+    UFUNCTION(BlueprintPure, Category = "Ragdoll")
+    bool GetIsRagdoll() const { return bIsRagdoll; }
 
-	UFUNCTION(BlueprintCallable, Category = "Ragdoll")
-	void FinishGetUp();
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ragdoll")
+    TObjectPtr<UAnimMontage> GetUpMontage;
 
-	UFUNCTION(BlueprintPure, Category = "Ragdoll")
-	bool GetIsRagdoll() const { return bIsRagdoll; }
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+    TObjectPtr<UAnimMontage> GetUpBackMontage;
 
-	UFUNCTION(BlueprintPure, Category = "Ragdoll")
-	bool GetIsGettingUp() const { return bIsGettingUp; }
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ragdoll")
-	TObjectPtr<UAnimMontage> GetUpMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
-	TObjectPtr<UAnimMontage> GetUpBackMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
-	TObjectPtr<UAnimMontage> GetUpFrontMontage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+    TObjectPtr<UAnimMontage> GetUpFrontMontage;
 
 protected:
-	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode) override;
-	
-	// Player State Component
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<UParcelPlayerStateComponent> PlayerStateComp;
     
-	// Ragdoll Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
-	TObjectPtr<URagdollComponent> RagdollComp;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+    TObjectPtr<URagdollComponent> RagdollComp;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UDFStatusEffectComponent> StatusEffectComponent;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UDFStatusEffectComponent> StatusEffectComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UDFKnockbackComponent> KnockbackComponent;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UDFKnockbackComponent> KnockbackComponent;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
-	bool bIsRagdoll = false;
+    UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
+    bool bIsRagdoll = false;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
-	bool bIsGettingUp = false;
+    UPROPERTY(BlueprintReadOnly, Category = "Ragdoll")
+    bool bIsGettingUp = false;
 
-	FTimerHandle GetUpTimerHandle;
-	
-	// Hero Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
-	TObjectPtr<UParcelHeroComponent> HeroComp;
-	
-	// Interaction Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
-	TObjectPtr<UParcelInteractionComponent> InteractionComp;
-	
-	// MovementStat Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
-	TObjectPtr<UParcelMovementStatComponent> MovementStatComp;
-	
-	// CharacterCarry Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCharacterCarryComponent> CarryComp;
-	
-	// Nameplate Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UWidgetComponent> NameplateWidgetComp;
-	
-	// Stamina Component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
-	TObjectPtr<UParcelStaminaComponent> StaminaComp;
-	
-	void UpdateOverheadNameplate();
-	
-	FTimerHandle NameplateRetryTimerHandle;
-	
-	UFUNCTION()
-	void OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags);
+    FTimerHandle GetUpTimerHandle;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+    TObjectPtr<UParcelHeroComponent> HeroComp;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+    TObjectPtr<UParcelInteractionComponent> InteractionComp;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+    TObjectPtr<UParcelMovementStatComponent> MovementStatComp;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UCharacterCarryComponent> CarryComp;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UWidgetComponent> NameplateWidgetComp;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+    TObjectPtr<UParcelStaminaComponent> StaminaComp;
+    
+    void UpdateOverheadNameplate();
+    FTimerHandle NameplateRetryTimerHandle;
+    
+    UFUNCTION()
+    void OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags);
+    
+protected:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Input", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UInputAction> IA_OpenChat;
 
 	UFUNCTION()
 	void OnCharacterDeath();
@@ -165,7 +148,5 @@ private:
 	virtual void OnJumped_Implementation() override;
 	virtual void Landed(const FHitResult& Hit) override;
 protected:
-	// 사망 로직 보완
-	UFUNCTION()
-	void HandleCharacterDeath();
+    UFUNCTION() void HandleCharacterDeath();
 };

@@ -159,4 +159,14 @@ private:
 	void ServerSetJumping(bool bNewIsJumping);
 
 	void ApplyJumpTag(bool bNewIsJumping);
+	
+protected:
+	void Input_OpenChat();
+	void Input_ToggleLobbyMenu();
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OpenChatAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> LobbyMenuAction;
 };
