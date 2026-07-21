@@ -44,11 +44,16 @@ public:
 
 	// [Server Only] 사망 시 호출 — DeathCount 증가 + 리스폰 타이머 시작
 	// 캐릭터의 HealthComponent OnDeathDelegate에서 호출할 것
+	UFUNCTION()
 	void HandleDeath();
 
 	// [Client] 라운드 종료 보상 수령 — GameMode에서 각 플레이어에게 호출
 	UFUNCTION(Client, Reliable)
 	void Client_GrantReward(int32 RewardAmount);
+
+	// [Client] 관전 모드 시작 — HandleDeath에서 호출됨
+	UFUNCTION(Client, Reliable)
+	void Client_StartSpectating();
 
 	// [All] 인벤토리 컴포넌트 반환 — 캐릭터의 아이템 사용 시 참조
 	UInventoryComponent* GetInventoryComponent() const;
@@ -81,9 +86,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPlayerStatComponent> PlayerStatComp;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInventoryComponent> InventoryComp;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCustomizationComponent> CustomizationComp;
 };

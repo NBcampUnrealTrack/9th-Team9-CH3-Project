@@ -5,6 +5,9 @@
 #include "TimerManager.h"
 #include "Delivery/DeliverySubsystem.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundAttenuation.h"
+#include "Kismet/GameplayStatics.h"
 
 ADeliveryBoxSpawner::ADeliveryBoxSpawner()
 {
@@ -45,6 +48,18 @@ ADeliveryBoxSpawner::ADeliveryBoxSpawner()
 	ForwardArrowVisualizer->ArrowColor = FColor::Cyan;
 	ForwardArrowVisualizer->ArrowSize = 1.0f;
 	ForwardArrowVisualizer->bHiddenInGame = true;
+
+	// 컨베이어 벨트 구동 소리 오디오 컴포넌트 초기화
+	ConveyorSoundComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("ConveyorSoundComponent"));
+	ConveyorSoundComponent->SetupAttachment(RootComp);
+	ConveyorSoundComponent->bAutoActivate = false;
+
+	// 컨베이어 기본 3D 소리 감쇄 에셋 (ATT_Conveyor) 경로 자동 연결
+	static ConstructorHelpers::FObjectFinder<USoundAttenuation> DefaultConveyorAttenuation(TEXT("/Script/Engine.SoundAttenuation'/Game/Delivery/sounds/ATT_Conveyor.ATT_Conveyor'"));
+	if (DefaultConveyorAttenuation.Succeeded())
+	{
+		ConveyorSoundAttenuation = DefaultConveyorAttenuation.Object;
+	}
 }
 
 void ADeliveryBoxSpawner::BeginPlay()
@@ -55,6 +70,17 @@ void ADeliveryBoxSpawner::BeginPlay()
 	if (HasAuthority())
 	{
 		ActivateSpawner(SpawnInterval);
+	}
+
+	// 로컬 클라이언트 및 서버(리스너)에서 컨베이어 루핑 소리가 흘러나오도록 3D 재생 설정
+	if (ConveyorSoundComponent && ConveyorSoundAsset)
+	{
+		ConveyorSoundComponent->SetSound(ConveyorSoundAsset);
+		if (ConveyorSoundAttenuation)
+		{
+			ConveyorSoundComponent->AttenuationSettings = ConveyorSoundAttenuation;
+		}
+		ConveyorSoundComponent->Play();
 	}
 }
 
@@ -113,5 +139,26 @@ void ADeliveryBoxSpawner::TriggerRandomSpawn()
 	{
 		// 스포너 머리/내부에 있는 SpawnBoundsVisualizer의 실시간 좌표에서 소환
 		DeliverySubsystem->SpawnRandomBox(SpawnBoundsVisualizer->GetComponentLocation(), SpawnBoundsVisualizer->GetComponentRotation());
+
+		// 모든 유저 화면에서 소환 소리가 나도록 멀티캐스트 재생
+		Multicast_PlaySpawnSound();
+	}
+}
+
+void ADeliveryBoxSpawner::Multicast_PlaySpawnSound_Implementation()
+{
+	if (BoxSpawnSound && SpawnBoundsVisualizer)
+	{
+		// 상자 생성 지점(기계 안쪽)에서 지정한 감쇄 에셋(ATT_Conveyor)을 사용하여 재생
+		UGameplayStatics::PlaySoundAtLocation(
+			this, 
+			BoxSpawnSound, 
+			SpawnBoundsVisualizer->GetComponentLocation(), 
+			FRotator::ZeroRotator, 
+			1.0f, 
+			1.0f, 
+			0.0f, 
+			ConveyorSoundAttenuation
+		);
 	}
 }

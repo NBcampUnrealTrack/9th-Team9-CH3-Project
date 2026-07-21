@@ -9,6 +9,7 @@
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Components/DFStatusEffectComponent.h"
+#include "Core/HealthComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Engine/World.h"
 
@@ -142,6 +143,12 @@ void URagdollComponent::AttemptAutoRecovery()
 {
     if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter) return;
 
+    // 사망 상태면 자동 기상 스킵 — 부활 타이머가 대신 처리
+    if (UHealthComponent* HC = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+    {
+        if (HC->IsDead()) return;
+    }
+
     // 상태이상이 활성화 중이면 2초 후 재시도
     if (UDFStatusEffectComponent* StatusComp = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
     {
@@ -242,6 +249,12 @@ void URagdollComponent::ApplyStartRagdoll()
 void URagdollComponent::ApplyStopRagdoll()
 {
     if (!OwnerCharacter) return;
+
+    // 사망 상태면 래그돌 해제 불가 — 부활이 대신 처리
+    if (UHealthComponent* HC = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+    {
+        if (HC->IsDead()) return;
+    }
 
     USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
     UCapsuleComponent* Capsule = OwnerCharacter->GetCapsuleComponent();

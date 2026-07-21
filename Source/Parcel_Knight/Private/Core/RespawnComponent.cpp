@@ -2,6 +2,7 @@
 
 #include "Core/RespawnComponent.h"
 #include "GameFramework/GameMode.h"
+#include "ParcelLog.h"
 
 URespawnComponent::URespawnComponent()
 {
@@ -18,15 +19,14 @@ void URespawnComponent::RespawnPlayerAfterDelay(AController* Controller, float D
 
 void URespawnComponent::DoRespawnPlayer(AController* Controller)
 {
-	if (Controller)
-	{
-		// 죽은 캐릭터를 제거
-		if (APawn* OldPawn = Controller->GetPawn())
-		{
-			OldPawn->Destroy();
-		}
-		
-		if (AGameMode* GM = GetOwner<AGameMode>())
-			GM->RestartPlayer(Controller);
-	}
+	if (!Controller) return;
+
+	AGameMode* GM = GetOwner<AGameMode>();
+	if (!GM) return;
+
+	if (APawn* OldPawn = Controller->GetPawn())
+		OldPawn->Destroy();
+
+	GM->RestartPlayer(Controller);
+	GAMERULE_LOG(Log, TEXT("[부활] RestartPlayer 호출 완료"));
 }

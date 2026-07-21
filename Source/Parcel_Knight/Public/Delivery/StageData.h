@@ -26,6 +26,10 @@ class PARCEL_KNIGHT_API UStageData : public UPrimaryDataAsset
 
 public:
 
+	// 이 스테이지의 순서 번호 (1, 2, 3 ...) — 잠금 해제 판정에 사용
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stage Rules", meta = (ClampMin = "1"))
+	int32 StageIndex = 1;
+
 	// 스테이지 제한 시간 (초 단위). 일단 300초로 했습니다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stage Rules", meta = (ClampMin = "10.0"))
 	float TimeLimit = 300.0f;

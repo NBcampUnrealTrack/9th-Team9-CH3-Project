@@ -47,7 +47,7 @@ public:
 	
 	// [UI] 마우스 감도
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetMouseSensitivity(float NewSensitivity) { MouseSensitivity = NewSensitivity; }
+	void SetMouseSensitivity(float NewSensitivity) { MouseSensitivity = FMath::Clamp(NewSensitivity, 0.1f, 3.0f); }
 
 	UFUNCTION(BlueprintPure, Category = "Input")
 	float GetMouseSensitivity() const { return MouseSensitivity; }
@@ -126,6 +126,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InGameMenuAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
+	TObjectPtr<UInputAction> UseSlotAction1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
+	TObjectPtr<UInputAction> UseSlotAction2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
+	TObjectPtr<UInputAction> UseSlotAction3;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
 
@@ -133,6 +142,10 @@ protected:
 	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
 	
 	void ToggleInGameMenu();
+	void UseSlot1(const FInputActionValue& Value);
+	void UseSlot2(const FInputActionValue& Value);
+	void UseSlot3(const FInputActionValue& Value);
+	void UseSlot(int32 SlotIndex);
 	
 private:
 	// 달리기 기능을 위한 Server RPC
@@ -146,4 +159,14 @@ private:
 	void ServerSetJumping(bool bNewIsJumping);
 
 	void ApplyJumpTag(bool bNewIsJumping);
+	
+protected:
+	void Input_OpenChat();
+	void Input_ToggleLobbyMenu();
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OpenChatAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> LobbyMenuAction;
 };

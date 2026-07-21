@@ -19,6 +19,12 @@ class PARCEL_KNIGHT_API UParcelCheatManager : public UCheatManager
 	GENERATED_BODY()
 
 public:
+	// ─── 사망 / 부활 ───
+	// 즉시 사망 — 관전 모드 진입 테스트용
+	UFUNCTION(Exec) void DebugKillSelf();
+	// 즉시 부활 — 타이머 없이 바로 리스폰
+	UFUNCTION(Exec) void DebugForceRespawn();
+
 	// ─── 배달 ───
 	// 배달 성공 시뮬레이션 — 콤보+1, 팀/개인 점수 +100
 	UFUNCTION(Exec) void DebugDeliverySuccess();
@@ -48,6 +54,10 @@ public:
 	UFUNCTION(Exec) void DebugToggleDuplicateLoadout();
 
 	// ─── 아이템 ───
+	// 총 아이템 인벤토리에 지급 — 왼쪽 클릭 즉사 테스트용
+	UFUNCTION(Exec) void DebugGiveGun();
+	// HP 증가 아이템 인벤토리에 지급 — 패시브 HP 보너스 테스트용
+	UFUNCTION(Exec) void DebugGiveHPBoost();
 	// 소모품 직접 지급 — 구매 없이 보유 목록에 추가
 	UFUNCTION(Exec) void DebugAddConsumable(FString ItemTagStr);
 	// 코스메틱 직접 지급 — 구매 없이 보유 목록에 추가
@@ -59,6 +69,12 @@ public:
 	// 현재 스테이지 인벤토리(InventoryComponent) 출력
 	UFUNCTION(Exec) void DebugPrintInventory();
 	
+	// ─── 칭호 ───
+	// 칭호 장착 테스트 — 태그 문자열로 입력 (예: Item.Cosmetic.Title.Ace)
+	UFUNCTION(Exec) void DebugEquipTitle(FString TitleTagStr);
+	// 칭호 해제
+	UFUNCTION(Exec) void DebugClearTitle();
+
 	// ─── UI ───
 	// 사망 및 리스폰 Suicide 명령어
 	UFUNCTION(Exec) void DebugSuicide();
