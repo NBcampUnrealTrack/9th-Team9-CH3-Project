@@ -14,6 +14,7 @@
 #include "Character/ParcelPlayerStateComponent.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
+#include "Core/ParcelGameUserSettings.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
@@ -137,6 +138,11 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
 
     if (!CanProcessLocalInput()) return;
 
+	if (const UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		SetMouseSensitivity(Settings->GetMouseSensitivity());
+	}
+
     // IA 바인딩
     UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
     if (!EnhancedInputComponent) return;
@@ -217,7 +223,8 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    const FVector2D LookValue = Value.Get<FVector2D>() * MouseSensitivity;
+	const FVector2D RawLookValue = Value.Get<FVector2D>();
+	const FVector2D LookValue = RawLookValue * MouseSensitivity;
     
     Character->AddControllerYawInput(LookValue.X);
     Character->AddControllerPitchInput(LookValue.Y);

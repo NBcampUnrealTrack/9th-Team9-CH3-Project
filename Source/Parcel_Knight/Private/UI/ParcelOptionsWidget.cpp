@@ -1,5 +1,6 @@
 #include "UI/ParcelOptionsWidget.h"
 #include "Character/ParcelHeroComponent.h"
+#include "Core/ParcelGameUserSettings.h"
 #include "Components/Slider.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Button.h"
@@ -11,58 +12,136 @@ void UParcelOptionsWidget::NativeConstruct()
     Super::NativeConstruct();
 
     if (Slider_Volume)
+	{
+		Slider_Volume->OnValueChanged.RemoveDynamic(this, &UParcelOptionsWidget::HandleVolumeChanged);
+		Slider_Volume->OnMouseCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+		Slider_Volume->OnControllerCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
         Slider_Volume->OnValueChanged.AddDynamic(this, &UParcelOptionsWidget::HandleVolumeChanged);
+		Slider_Volume->OnMouseCaptureEnd.AddDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+		Slider_Volume->OnControllerCaptureEnd.AddDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+	}
     
     if (Slider_Sensitivity)
+	{
+		Slider_Sensitivity->OnValueChanged.RemoveDynamic(this, &UParcelOptionsWidget::HandleSensitivityChanged);
+		Slider_Sensitivity->OnMouseCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+		Slider_Sensitivity->OnControllerCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
         Slider_Sensitivity->OnValueChanged.AddDynamic(this, &UParcelOptionsWidget::HandleSensitivityChanged);
+		Slider_Sensitivity->OnMouseCaptureEnd.AddDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+		Slider_Sensitivity->OnControllerCaptureEnd.AddDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+	}
     
     if (Edit_Volume)
+	{
+		Edit_Volume->OnTextCommitted.RemoveDynamic(this, &UParcelOptionsWidget::HandleVolumeTextCommitted);
         Edit_Volume->OnTextCommitted.AddDynamic(this, &UParcelOptionsWidget::HandleVolumeTextCommitted);
+	}
 
     if (Edit_Sensitivity)
+	{
+		Edit_Sensitivity->OnTextCommitted.RemoveDynamic(this, &UParcelOptionsWidget::HandleSensitivityTextCommitted);
         Edit_Sensitivity->OnTextCommitted.AddDynamic(this, &UParcelOptionsWidget::HandleSensitivityTextCommitted);
+	}
     
     if (Btn_Apply)
+	{
+		Btn_Apply->OnClicked.RemoveDynamic(this, &UParcelOptionsWidget::HandleApplyClicked);
         Btn_Apply->OnClicked.AddDynamic(this, &UParcelOptionsWidget::HandleApplyClicked);
+	}
     
     if (Btn_Back)
+	{
+		Btn_Back->OnClicked.RemoveDynamic(this, &UParcelOptionsWidget::HandleBackClicked);
         Btn_Back->OnClicked.AddDynamic(this, &UParcelOptionsWidget::HandleBackClicked);
+	}
 
     InitializeSettings();
 }
 
+void UParcelOptionsWidget::NativeDestruct()
+{
+	SaveLocalSettingsIfDirty();
+
+	if (Slider_Volume)
+	{
+		Slider_Volume->OnValueChanged.RemoveDynamic(this, &UParcelOptionsWidget::HandleVolumeChanged);
+		Slider_Volume->OnMouseCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+		Slider_Volume->OnControllerCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+	}
+
+	if (Slider_Sensitivity)
+	{
+		Slider_Sensitivity->OnValueChanged.RemoveDynamic(this, &UParcelOptionsWidget::HandleSensitivityChanged);
+		Slider_Sensitivity->OnMouseCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+		Slider_Sensitivity->OnControllerCaptureEnd.RemoveDynamic(this, &UParcelOptionsWidget::HandleSliderCaptureEnd);
+	}
+
+	if (Edit_Volume)
+	{
+		Edit_Volume->OnTextCommitted.RemoveDynamic(this, &UParcelOptionsWidget::HandleVolumeTextCommitted);
+	}
+
+	if (Edit_Sensitivity)
+	{
+		Edit_Sensitivity->OnTextCommitted.RemoveDynamic(this, &UParcelOptionsWidget::HandleSensitivityTextCommitted);
+	}
+
+	if (Btn_Apply)
+	{
+		Btn_Apply->OnClicked.RemoveDynamic(this, &UParcelOptionsWidget::HandleApplyClicked);
+	}
+
+	if (Btn_Back)
+	{
+		Btn_Back->OnClicked.RemoveDynamic(this, &UParcelOptionsWidget::HandleBackClicked);
+	}
+
+	Super::NativeDestruct();
+}
+
 void UParcelOptionsWidget::InitializeSettings()
 {
-    float DefaultVolume = 0.8f;
+	bInitializingSettings = true;
+
+	float InitialVolume = 1.0f;
+	float InitialSensitivity = 1.0f;
+	if (const UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		InitialVolume = Settings->GetMasterVolume();
+		InitialSensitivity = Settings->GetMouseSensitivity();
+	}
+
     if (Slider_Volume)
     {
-        Slider_Volume->SetValue(DefaultVolume);
+		Slider_Volume->SetMinValue(0.0f);
+		Slider_Volume->SetMaxValue(1.0f);
+		Slider_Volume->SetValue(InitialVolume);
     }
     if (Edit_Volume)
     {
-        Edit_Volume->SetText(FText::AsNumber(DefaultVolume));
-    }
-    
-    float InitialSensitivity = 1.0f;
-    
-    if (APawn* OwningPawn = GetOwningPlayerPawn())
-    {
-        if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
-        {
-            InitialSensitivity = HeroComp->GetMouseSensitivity();
-        }
+		FNumberFormattingOptions FormatOptions;
+		FormatOptions.MinimumFractionalDigits = 2;
+		FormatOptions.MaximumFractionalDigits = 2;
+		Edit_Volume->SetText(FText::AsNumber(InitialVolume, &FormatOptions));
     }
 
     if (Slider_Sensitivity)
     {
+		Slider_Sensitivity->SetMinValue(0.1f);
+		Slider_Sensitivity->SetMaxValue(3.0f);
         Slider_Sensitivity->SetValue(InitialSensitivity);
     }
     if (Edit_Sensitivity)
     {
         FNumberFormattingOptions FormatOptions;
-        FormatOptions.MaximumFractionalDigits = 2;
+		FormatOptions.MinimumFractionalDigits = 1;
+		FormatOptions.MaximumFractionalDigits = 1;
         Edit_Sensitivity->SetText(FText::AsNumber(InitialSensitivity, &FormatOptions));
     }
+
+	ApplySensitivityToOwningPawn(InitialSensitivity);
+	bInitializingSettings = false;
+	bLocalSettingsDirty = false;
 
     PopulateScreenModeOptions();
     PopulateResolutionOptions();
@@ -132,32 +211,41 @@ void UParcelOptionsWidget::PopulateResolutionOptions()
 
 void UParcelOptionsWidget::HandleVolumeChanged(float Value)
 {
+	const float ClampedVolume = FMath::Clamp(Value, 0.0f, 1.0f);
     if (Edit_Volume)
     {
         FNumberFormattingOptions FormatOptions;
         FormatOptions.MaximumFractionalDigits = 2;
-        Edit_Volume->SetText(FText::AsNumber(Value, &FormatOptions));
+		FormatOptions.MinimumFractionalDigits = 2;
+		Edit_Volume->SetText(FText::AsNumber(ClampedVolume, &FormatOptions));
     }
 
-    // TODO: SoundMix 연동 로직
+	if (UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		Settings->SetMasterVolume(ClampedVolume);
+		Settings->ApplyMasterVolume(this);
+		bLocalSettingsDirty |= !bInitializingSettings;
+	}
 }
 
 void UParcelOptionsWidget::HandleSensitivityChanged(float Value)
 {
+	const float ClampedSensitivity = FMath::Clamp(Value, 0.1f, 3.0f);
     if (Edit_Sensitivity)
     {
         FNumberFormattingOptions FormatOptions;
-        FormatOptions.MaximumFractionalDigits = 2;
-        Edit_Sensitivity->SetText(FText::AsNumber(Value, &FormatOptions));
+		FormatOptions.MinimumFractionalDigits = 1;
+		FormatOptions.MaximumFractionalDigits = 1;
+		Edit_Sensitivity->SetText(FText::AsNumber(ClampedSensitivity, &FormatOptions));
     }
 
-    if (APawn* OwningPawn = GetOwningPlayerPawn())
-    {
-        if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
-        {
-            HeroComp->SetMouseSensitivity(Value);
-        }
-    }
+	if (UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		Settings->SetMouseSensitivity(ClampedSensitivity);
+		bLocalSettingsDirty |= !bInitializingSettings;
+	}
+
+	ApplySensitivityToOwningPawn(ClampedSensitivity);
 }
 
 void UParcelOptionsWidget::HandleVolumeTextCommitted(const FText& Text, ETextCommit::Type CommitMethod)
@@ -177,6 +265,7 @@ void UParcelOptionsWidget::HandleVolumeTextCommitted(const FText& Text, ETextCom
 
         // 최종 확정된 수치로 텍스트 칸을 깨끗이 정리 (예: 999 입력 시 1.00으로 정정됨)
         HandleVolumeChanged(NewValue);
+		SaveLocalSettingsIfDirty();
     }
 }
 
@@ -186,8 +275,8 @@ void UParcelOptionsWidget::HandleSensitivityTextCommitted(const FText& Text, ETe
     {
         float NewValue = FCString::Atof(*Text.ToString());
         
-        // 마우스 감도는 0이 될 수 없고 적정 최소/최대값 제한 (예: 0.05 ~ 10.0)
-        NewValue = FMath::Clamp(NewValue, 0.05f, 10.f);
+		// 마우스 감도는 프로젝트 설정 범위인 0.1 ~ 3.0으로 제한
+		NewValue = FMath::Clamp(NewValue, 0.1f, 3.0f);
 
         if (Slider_Sensitivity)
         {
@@ -195,6 +284,7 @@ void UParcelOptionsWidget::HandleSensitivityTextCommitted(const FText& Text, ETe
         }
 
         HandleSensitivityChanged(NewValue);
+		SaveLocalSettingsIfDirty();
     }
 }
 
@@ -226,10 +316,44 @@ void UParcelOptionsWidget::HandleApplyClicked()
         }
     
         Settings->ApplySettings(false);
+		bLocalSettingsDirty = false;
     }
+
+	SaveLocalSettingsIfDirty();
 }
 
 void UParcelOptionsWidget::HandleBackClicked()
 {
+	SaveLocalSettingsIfDirty();
     RemoveFromParent();
+}
+
+void UParcelOptionsWidget::HandleSliderCaptureEnd()
+{
+	SaveLocalSettingsIfDirty();
+}
+
+void UParcelOptionsWidget::ApplySensitivityToOwningPawn(float Sensitivity)
+{
+	if (APawn* OwningPawn = GetOwningPlayerPawn())
+	{
+		if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
+		{
+			HeroComp->SetMouseSensitivity(Sensitivity);
+		}
+	}
+}
+
+void UParcelOptionsWidget::SaveLocalSettingsIfDirty()
+{
+	if (!bLocalSettingsDirty)
+	{
+		return;
+	}
+
+	if (UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		Settings->SaveSettings();
+		bLocalSettingsDirty = false;
+	}
 }
