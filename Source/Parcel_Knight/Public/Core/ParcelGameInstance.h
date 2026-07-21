@@ -113,6 +113,9 @@ public:
 	FGameplayTag GetEquippedEffect() const;
 
 private:
+	void HandlePostLoadMapWithWorld(UWorld* LoadedWorld);
+	void ApplyLocalUserSettings(const UObject* WorldContextObject);
+
 	void HandleSessionInviteAccepted(
 		bool bWasSuccessful,
 		int32 ControllerId,
@@ -123,6 +126,7 @@ private:
 
 	FDelegateHandle SessionInviteAcceptedHandle;
 	IOnlineSessionPtr SessionInviteSessionInterface;
+	FDelegateHandle PostLoadMapWithWorldHandle;
 
 	// 런타임 캐시 — SaveGame 데이터를 메모리에 올려둔 복사본
 	int32 MaxClearedStage = 0;

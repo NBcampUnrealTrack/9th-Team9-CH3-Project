@@ -14,6 +14,9 @@
 #include "Character/ParcelPlayerStateComponent.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
+#include "Core/ParcelPlayerController.h"
+#include "UI/ParcelLobbyHUDWidget.h"
+#include "Core/ParcelGameUserSettings.h"
 
 DEFINE_LOG_CATEGORY(LogHeroComp);
 
@@ -21,13 +24,9 @@ UParcelHeroComponent::UParcelHeroComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
-    
-    // [Server] : 컴포넌트에서 Server RPC 가동
     SetIsReplicatedByDefault(true);
-    
     MouseSensitivity = 1.0f;
 
-    // 카메라
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
     SpringArm->TargetArmLength = 0.f;
     SpringArm->bDoCollisionTest = false;
@@ -137,12 +136,16 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
 
     if (!CanProcessLocalInput()) return;
 
+	  if (const UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	  {
+		  SetMouseSensitivity(Settings->GetMouseSensitivity());
+	  }
+
     // IA 바인딩
     UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
     if (!EnhancedInputComponent) return;
     
     if (MoveAction) EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Move);
-    
     if (LookAction) EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Look);
     
     if (JumpAction)
@@ -159,11 +162,7 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
     }
     
     if (RagdollAction) EnhancedInputComponent->BindAction(RagdollAction, ETriggerEvent::Started, this, &UParcelHeroComponent::TestRagdoll);
-    
-    if (InteractAction) 
-    {
-       EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
-    }
+    if (InteractAction) EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Interact);
     
     if (ThrowAction)
     {
@@ -171,9 +170,13 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
        EnhancedInputComponent->BindAction(ThrowAction, ETriggerEvent::Completed, this, &UParcelHeroComponent::ReleaseThrow);
     }
     
-    if (InGameMenuAction)
+    if (InGameMenuAction) EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+    if (OpenChatAction) EnhancedInputComponent->BindAction(OpenChatAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_OpenChat);
+    
+    if (LobbyMenuAction)
     {
-        EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+        // [인풋 필터링] 무한 연사 토글 버그를 예방하기 위해 Triggered 대신 단 한 번 발동하는 Started로 엄격한 격상 완료!
+        EnhancedInputComponent->BindAction(LobbyMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_ToggleLobbyMenu);
     }
 
     if (UseSlotAction1) EnhancedInputComponent->BindAction(UseSlotAction1, ETriggerEvent::Started, this, &UParcelHeroComponent::UseSlot1);
@@ -217,7 +220,8 @@ void UParcelHeroComponent::Look(const FInputActionValue& Value)
     ACharacter* Character = Cast<ACharacter>(GetOwner());
     if (!CanProcessLocalInput() || !Character) return;
 
-    const FVector2D LookValue = Value.Get<FVector2D>() * MouseSensitivity;
+	const FVector2D RawLookValue = Value.Get<FVector2D>();
+	const FVector2D LookValue = RawLookValue * MouseSensitivity;
     
     Character->AddControllerYawInput(LookValue.X);
     Character->AddControllerPitchInput(LookValue.Y);
@@ -641,6 +645,38 @@ void UParcelHeroComponent::ToggleInGameMenu()
         {
             ESCMenuRef->AddToViewport();
             ESCMenuRef->SetupMenu();
+        }
+    }
+}
+
+void UParcelHeroComponent::Input_OpenChat()
+{
+    if (!CanProcessLocalInput()) return;
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(Character->GetController()))
+    {
+        if (ParcelPC->LobbyHUDWidgetInstance)
+        {
+            ParcelPC->LobbyHUDWidgetInstance->SetChatInputInputMode(true);
+        }
+    }
+}
+
+void UParcelHeroComponent::Input_ToggleLobbyMenu()
+{
+    if (!CanProcessLocalInput()) return;
+    
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+    
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(Character->GetController()))
+    {
+        if (ParcelPC->LobbyHUDWidgetInstance && ParcelPC->LobbyHUDWidgetInstance->IsValidLowLevel())
+        {
+            ParcelPC->LobbyHUDWidgetInstance->ToggleLobbyMenuExternal();
+            HEROCOMP_LOG(Log, TEXT("[Lobby Menu] 단발성 조작 트리거 ➔ 로비 HUD 토글 신호 직결 완료."));
         }
     }
 }

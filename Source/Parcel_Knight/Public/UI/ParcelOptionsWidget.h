@@ -20,6 +20,7 @@ class PARCEL_KNIGHT_API UParcelOptionsWidget : public UUserWidget
 
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 
 	// UI Bindings
 	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))
@@ -65,8 +66,16 @@ protected:
 	UFUNCTION()
 	void HandleBackClicked();
 
+	UFUNCTION()
+	void HandleSliderCaptureEnd();
+
 private:
 	void InitializeSettings();
 	void PopulateScreenModeOptions();
 	void PopulateResolutionOptions();
+	void ApplySensitivityToOwningPawn(float Sensitivity);
+	void SaveLocalSettingsIfDirty();
+
+	bool bInitializingSettings = false;
+	bool bLocalSettingsDirty = false;
 };

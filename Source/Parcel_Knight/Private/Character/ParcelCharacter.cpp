@@ -20,23 +20,15 @@
 #include "UI/ParcelNameplateWidget.h"
 #include "Data/ItemData.h"
 
-
 DEFINE_LOG_CATEGORY(LogCharacter);
 
 AParcelCharacter::AParcelCharacter()
 {
     PrimaryActorTick.bCanEverTick = false;
-
     SetReplicateMovement(true);
-    
-    // 캐릭터 액터 자체를 네트워크에 복제
     bReplicates = true;
 
-    // 움직임이 잦은 플레이어 캐릭터라서 기본보다 높은 빈도로 네트워크 갱신을 요청
-    SetNetUpdateFrequency(100.f);
-
-    // 네트워크 상태가 안정적일 때도 너무 낮은 빈도로 떨어지지 않게 최소 갱신 빈도를 지정합니다.
-    SetMinNetUpdateFrequency(33.f);
+    SetNetUpdateFrequency(33.f);
 
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = true;
@@ -47,31 +39,31 @@ AParcelCharacter::AParcelCharacter()
     // 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
     GetCharacterMovement()->AirControl = 0.35f;
 
-	// 컴포넌트 조립
-  PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
-	RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
-	StatusEffectComponent = CreateDefaultSubobject<UDFStatusEffectComponent>(TEXT("StatusEffectComponent"));
-	KnockbackComponent = CreateDefaultSubobject<UDFKnockbackComponent>(TEXT("KnockbackComponent"));
-	HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
-	InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
-	MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
-	CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
-	StaminaComp = CreateDefaultSubobject<UParcelStaminaComponent>(TEXT("StaminaComp"));
-	NameplateWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("NameplateWidgetComp"));
-	if (NameplateWidgetComp)
-	{
-		NameplateWidgetComp->SetupAttachment(GetMesh());
-		NameplateWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
-		NameplateWidgetComp->SetDrawSize(FVector2D(250.f, 80.f));
-		NameplateWidgetComp->SetRelativeLocation(FVector(0.f, 0.f, 210.f));
-	}
-	if (PlayerStateComp)
-	{
-		PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
-	}
+    PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
+    RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
+    StatusEffectComponent = CreateDefaultSubobject<UDFStatusEffectComponent>(TEXT("StatusEffectComponent"));
+    KnockbackComponent = CreateDefaultSubobject<UDFKnockbackComponent>(TEXT("KnockbackComponent"));
+    HeroComp = CreateDefaultSubobject<UParcelHeroComponent>(TEXT("HeroComp"));
+    InteractionComp = CreateDefaultSubobject<UParcelInteractionComponent>(TEXT("InteractionComp"));
+    MovementStatComp = CreateDefaultSubobject<UParcelMovementStatComponent>(TEXT("MovementStatComp"));
+    CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
+    StaminaComp = CreateDefaultSubobject<UParcelStaminaComponent>(TEXT("StaminaComp"));
+    
+    NameplateWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("NameplateWidgetComp"));
+    if (NameplateWidgetComp)
+    {
+       NameplateWidgetComp->SetupAttachment(GetMesh());
+       NameplateWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
+       NameplateWidgetComp->SetDrawSize(FVector2D(250.f, 80.f));
+       NameplateWidgetComp->SetRelativeLocation(FVector(0.f, 0.f, 210.f));
+    }
+    if (PlayerStateComp)
+    {
+       PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
+    }
 
-	bIsRagdoll = false;
-	bIsGettingUp = false;
+    bIsRagdoll = false;
+    bIsGettingUp = false;
 }
 
 void AParcelCharacter::BeginPlay()
@@ -107,114 +99,84 @@ void AParcelCharacter::BeginPlay()
 
 void AParcelCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
 {
-	Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
+    Super::OnMovementModeChanged(PrevMovementMode, PreviousCustomMode);
 
-	if (HasAuthority() && PlayerStateComp)
-	{
-		FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
-
-		if (GetCharacterMovement()->MovementMode == MOVE_Falling)
-		{
-			PlayerStateComp->AddStateTag(InAirTag);
-			PLAYER_LOG(All, TEXT("[Server] %s 캐릭터가 공중 상태(MOVE_Falling)로 진입했습니다. (InAir 태그 추가)"), *GetName());
-		}
-	}
+    if (HasAuthority() && PlayerStateComp)
+    {
+       FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
+       if (GetCharacterMovement()->MovementMode == MOVE_Falling)
+       {
+          PlayerStateComp->AddStateTag(InAirTag);
+       }
+    }
 }
 
 void AParcelCharacter::OnJumped_Implementation()
 {
-	Super::OnJumped_Implementation();
-	if (HasAuthority() && PlayerStateComp)
-	{
-		PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir")));
-	}
+    Super::OnJumped_Implementation();
+    if (HasAuthority() && PlayerStateComp)
+    {
+       PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir")));
+    }
 }
 
 void AParcelCharacter::Landed(const FHitResult& Hit)
 {
-	Super::Landed(Hit);
-    
-	if (HasAuthority() && PlayerStateComp)
-	{
-		// 1. 공중 체공 상태 태그 해제
-		FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
-		if (PlayerStateComp->HasStateTag(InAirTag))
-		{
-			PlayerStateComp->RemoveStateTag(InAirTag);
-			PLAYER_LOG(All, TEXT("[Server] %s 캐릭터가 지면에 착지했습니다. (InAir 태그 제거)"), *GetName());
-		}
-
-		// [안전장치] 착지했으므로 혹시라도 지워지지 않고 남아있을 점프 액션 태그를 확실하게 청소
-		PlayerStateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Jump")));
-	}
-
-	if (MovementStatComp)
-	{
-		MovementStatComp->RefreshMoveSpeed();
-	}
+    Super::Landed(Hit);
+    if (HasAuthority() && PlayerStateComp)
+    {
+       FGameplayTag InAirTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.InAir"));
+       if (PlayerStateComp->HasStateTag(InAirTag)) PlayerStateComp->RemoveStateTag(InAirTag);
+       PlayerStateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Jump")));
+    }
+    if (MovementStatComp) MovementStatComp->RefreshMoveSpeed();
 }
 
 void AParcelCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-    // 부모 클래스의 입력 설정을 먼저 실행
     Super::SetupPlayerInputComponent(PlayerInputComponent);
-    
-    // 입력 컴포넌트 통로를 히어로 컴포넌트 내부의 바인딩 연산으로 넘김
-    if (HeroComp)
-    {
-       HeroComp->InitializePlayerInput(PlayerInputComponent);
-    }
+    if (HeroComp) HeroComp->InitializePlayerInput(PlayerInputComponent);
 }
 
 void AParcelCharacter::SetRagdollState(bool bNewIsRagdoll, bool bNewIsGettingUp)
 {
-	bIsRagdoll = bNewIsRagdoll;
-	bIsGettingUp = bNewIsGettingUp;
-	
-	if (HasAuthority() && PlayerStateComp)
-	{
-		FGameplayTag RagdollTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"));
-		FGameplayTag GettingUpTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.GettingUp"));
+    bIsRagdoll = bNewIsRagdoll;
+    bIsGettingUp = bNewIsGettingUp;
+    
+    if (HasAuthority() && PlayerStateComp)
+    {
+       FGameplayTag RagdollTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"));
+       FGameplayTag GettingUpTag = FGameplayTag::RequestGameplayTag(TEXT("Character.State.GettingUp"));
 
-		if (bIsRagdoll) PlayerStateComp->AddStateTag(RagdollTag);
-		else            PlayerStateComp->RemoveStateTag(RagdollTag);
+       if (bIsRagdoll) PlayerStateComp->AddStateTag(RagdollTag);
+       else            PlayerStateComp->RemoveStateTag(RagdollTag);
 
-		if (bIsGettingUp) PlayerStateComp->AddStateTag(GettingUpTag);
-		else              PlayerStateComp->RemoveStateTag(GettingUpTag);
-	}
+       if (bIsGettingUp) PlayerStateComp->AddStateTag(GettingUpTag);
+       else              PlayerStateComp->RemoveStateTag(GettingUpTag);
+    }
 
-	if (bIsGettingUp)
-	{
-		GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
-
-		GetWorldTimerManager().SetTimer(
-			GetUpTimerHandle,
-			this,
-			&AParcelCharacter::FinishGetUp,
-			1.3f,
-			false
-		);
-	}
-	else
-	{
-		GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
-	}
+    if (bIsGettingUp)
+    {
+       GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
+       GetWorldTimerManager().SetTimer(GetUpTimerHandle, this, &AParcelCharacter::FinishGetUp, 1.3f, false);
+    }
+    else
+    {
+       GetWorldTimerManager().ClearTimer(GetUpTimerHandle);
+    }
 }
 
 void AParcelCharacter::FinishGetUp()
 {
-	bIsGettingUp = false;
-
-	// [보완] 일어서기 타이머(기상 몽타주)가 끝나면 서버에서 GettingUp 태그 확실히 회수
-	if (HasAuthority() && PlayerStateComp)
-	{
-		PlayerStateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.GettingUp")));
-	}
+    bIsGettingUp = false;
+    if (HasAuthority() && PlayerStateComp)
+    {
+       PlayerStateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.GettingUp")));
+    }
 }
 
 void AParcelCharacter::PossessedBy(AController* NewController)
 {
-    // 서버의 possession 처리 흐름을 유지
     Super::PossessedBy(NewController);
 
     // 서버 Possessed 시점에 HeroComponent에 이벤트를 넘김
@@ -246,82 +208,56 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 
 void AParcelCharacter::OnRep_PlayerState()
 {
-	Super::OnRep_PlayerState();
-
-	UpdateOverheadNameplate();
+    Super::OnRep_PlayerState();
+    UpdateOverheadNameplate();
 }
 
 void AParcelCharacter::UpdateOverheadNameplate()
 {
-	APlayerState* PS = GetPlayerState();
-	if (!PS)
-	{
-		if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
-		{
-			GetWorldTimerManager().SetTimer(
-				NameplateRetryTimerHandle, 
-				this, 
-				&AParcelCharacter::UpdateOverheadNameplate, 
-				0.1f, // 0.1초 뒤 다시 들어와서 PlayerState 검사
-				false
-			);
-		}
-		return;
-	}
+    APlayerState* PS = GetPlayerState();
+    if (!PS)
+    {
+       if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
+       {
+          GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
+       }
+       return;
+    }
 
-	if (NameplateWidgetComp)
-	{
-		if (UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject()))
-		{
-			FString Nickname = PS->GetPlayerName();
-			NameWidget->SetPlayerName(Nickname);
-			
-			if (PlayerStateComp)
-			{
-				NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
-			}
-
-			GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
-            
-			PLAYER_LOG(All, TEXT("[%s] 머리 위 네임플레이트 및 상태이상 연동 완료."), *GetName(), *Nickname);
-		}
-		else
-		{
-			if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
-			{
-				GetWorldTimerManager().SetTimer(
-					NameplateRetryTimerHandle, 
-					this, 
-					&AParcelCharacter::UpdateOverheadNameplate, 
-					0.1f, 
-					false
-				);
-			}
-		}
-	}
+    if (NameplateWidgetComp)
+    {
+       if (UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject()))
+       {
+          FString Nickname = PS->GetPlayerName();
+          NameWidget->SetPlayerName(Nickname);
+          if (PlayerStateComp) NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
+          GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+       }
+       else
+       {
+          if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
+          {
+             GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
+          }
+       }
+    }
 }
 
 void AParcelCharacter::OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags)
 {
-	if (NameplateWidgetComp)
-	{
-		if (UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject()))
-		{
-			NameWidget->UpdateStatusEffects(ActiveTags);
-		}
-	}
+    if (NameplateWidgetComp)
+    {
+       if (UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject()))
+       {
+          NameWidget->UpdateStatusEffects(ActiveTags);
+       }
+    }
 }
 
 void AParcelCharacter::OnRep_Controller()
 {
-	// 클라이언트에서 복제된 Controller 변경 처리를 부모 클래스에 맡깁니다.
-	Super::OnRep_Controller();
-
-	// 클라이언트의 Controller 복제 시점에 HeroComponent에 이벤트를 넘김
-	if (HeroComp)
-	{
-		HeroComp->AddInputMappingContext();
-	}
+    Super::OnRep_Controller();
+    if (HeroComp) HeroComp->AddInputMappingContext();
 }
 
 void AParcelCharacter::OnCharacterDeath()
@@ -436,31 +372,18 @@ void AParcelCharacter::ApplyTitle(FGameplayTag TitleTag)
 
 void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 }
 
 void AParcelCharacter::HandleCharacterDeath()
 {
-	PLAYER_LOG(All, TEXT("[사망 체인] 캐릭터 사망 로직이 정상 가동됩니다."));
-
-	// Ragdoll 활성화
-	if (RagdollComp)
-	{
-		RagdollComp->StartRagdoll();
-	}
-
-	// Dead 상태 태그
-	if (HasAuthority() && PlayerStateComp)
-	{
-		PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Dead")));
-	}
-
-	// PlayerState로 넘김
-	if (HasAuthority())
-	{
-		if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
-		{
-			PS->HandleDeath();
-		}
-	}
+    if (RagdollComp) RagdollComp->StartRagdoll();
+    if (HasAuthority() && PlayerStateComp)
+    {
+       PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Dead")));
+    }
+    if (HasAuthority())
+    {
+       if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>()) PS->HandleDeath();
+    }
 }
