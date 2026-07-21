@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "GameplayTagContainer.h"
 #include "ParcelPlayerController.generated.h"
 
 class UParcelInGameDeadHUDWidget;
@@ -40,12 +41,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
 	void ToggleInGameMenu();
 
+	/** Submit the local persistent loadout for server-side DataTable validation. */
+	UFUNCTION(Server, Reliable)
+	void Server_SubmitLoadout(const TArray<FGameplayTag>& RequestedItems);
+
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void AcknowledgePossession(APawn* InPawn) override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
+
+	void SubmitLocalLoadoutToServer();
 	// [Editor] HUD 위젯 클래스 지정
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
