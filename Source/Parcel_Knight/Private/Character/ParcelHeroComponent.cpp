@@ -28,13 +28,12 @@ UParcelHeroComponent::UParcelHeroComponent()
     MouseSensitivity = 1.0f;
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
-    SpringArm->TargetArmLength = 350.f;
-    SpringArm->bDoCollisionTest = true;
+    SpringArm->TargetArmLength = 0.f;
+    SpringArm->bDoCollisionTest = false;
     SpringArm->ProbeChannel = ECC_Camera;
     SpringArm->ProbeSize = CameraCollisionProbeSize;
     SpringArm->bUsePawnControlRotation = true;
-    SpringArm->bEnableCameraLag = true;
-    SpringArm->CameraLagSpeed = 10.f;
+    SpringArm->bEnableCameraLag = false;
 
     FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     FollowCamera->bUsePawnControlRotation = false;
@@ -48,6 +47,7 @@ void UParcelHeroComponent::BeginPlay()
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
        SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+       SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
        FollowCamera->AttachToComponent(SpringArm, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
     
        HEROCOMP_LOG(Log, TEXT("[%s] 캐릭터에 카메라 컴포넌트 부착 완료."), *Character->GetName());
@@ -63,7 +63,7 @@ void UParcelHeroComponent::ResetCameraAttachment()
        if (SpringArm)
        {
           SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-          SpringArm->SetRelativeLocation(FVector::ZeroVector);
+          SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
        }
     }
 }
@@ -308,20 +308,23 @@ void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 
     RagdollComp->ToggleRagdoll();
 
-    // 래그돌이 켜질 때만 컴포넌트 틱을 킴
     if (RagdollComp->IsRagdoll())
     {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 카메라 보정을 위한 컴포넌트 틱 활성화"));
+       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 3인칭 카메라 전환 및 틱 활성화"));
+       if (SpringArm) SpringArm->TargetArmLength = 350.f;
+       Character->GetMesh()->SetOwnerNoSee(false);
        PrimaryComponentTick.SetTickFunctionEnable(true);
     }
     else
     {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 카메라 위치 복구 및 컴포넌트 틱 비활성화"));
+       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 1인칭 카메라 복구 및 틱 비활성화"));
        PrimaryComponentTick.SetTickFunctionEnable(false);
+       Character->GetMesh()->SetOwnerNoSee(true);
        if (SpringArm)
        {
+          SpringArm->TargetArmLength = 0.f;
           SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-          SpringArm->SetRelativeLocation(FVector::ZeroVector);
+          SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
        }
     }
 }
@@ -461,12 +464,18 @@ bool UParcelHeroComponent::CanProcessLocalInput() const
 
 void UParcelHeroComponent::EnterRagdollCameraMode()
 {
+	if (SpringArm) SpringArm->TargetArmLength = 350.f;
+	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+		Character->GetMesh()->SetOwnerNoSee(false);
 	PrimaryComponentTick.SetTickFunctionEnable(true);
 	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 진입"));
 }
 
 void UParcelHeroComponent::ExitRagdollCameraMode()
 {
+	if (SpringArm) SpringArm->TargetArmLength = 0.f;
+	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+		Character->GetMesh()->SetOwnerNoSee(true);
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 	ResetCameraAttachment();
 	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));

@@ -31,10 +31,12 @@ AParcelCharacter::AParcelCharacter()
     SetNetUpdateFrequency(33.f);
 
     bUseControllerRotationPitch = false;
-    bUseControllerRotationYaw = false;
+    bUseControllerRotationYaw = true;
     bUseControllerRotationRoll = false;
 
-    GetCharacterMovement()->bOrientRotationToMovement = true;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
+
+    // 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
     GetCharacterMovement()->AirControl = 0.35f;
 
     PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
@@ -67,23 +69,32 @@ AParcelCharacter::AParcelCharacter()
 void AParcelCharacter::BeginPlay()
 {
     Super::BeginPlay();
-    
-    if (PlayerStateComp)
-    {
-       PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
-    }
-    
-    if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
-    {
-       HealthComp->OnDeathDelegate.RemoveDynamic(this, &AParcelCharacter::HandleCharacterDeath);
-       HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::HandleCharacterDeath);
-    }
-    
-    if (GetWorld())
-    {
-       FTimerHandle StandaloneNameplateTimer;
-       GetWorldTimerManager().SetTimer(StandaloneNameplateTimer, this, &AParcelCharacter::UpdateOverheadNameplate, 0.2f, false);
-    }
+
+    GetMesh()->SetOwnerNoSee(true);
+	
+	if (PlayerStateComp)
+	{
+		PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
+	}
+	
+	// 사망 로직 보완
+	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+	{
+		HealthComp->OnDeathDelegate.RemoveDynamic(this, &AParcelCharacter::HandleCharacterDeath);
+		HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::HandleCharacterDeath);
+	}
+	
+	if (GetWorld())
+	{
+		FTimerHandle StandaloneNameplateTimer;
+		GetWorldTimerManager().SetTimer(
+			StandaloneNameplateTimer, 
+			this, 
+			&AParcelCharacter::UpdateOverheadNameplate, 
+			0.2f, // 0.2초 뒤 안정적으로 데이터가 로드되었을 때 실행
+			false
+		);
+	}
 }
 
 void AParcelCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
