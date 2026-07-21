@@ -299,19 +299,49 @@ void UParcelHUDWidget::HandleOnInteractionFocusChanged(AActor* NewFocusedActor)
 
 void UParcelHUDWidget::HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
 {
+	if (CachedCarriedBox.IsValid())
+	{
+		if (UHealthComponent* OldHealth = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+		{
+			OldHealth->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleCarriedBoxHPChanged);
+		}
+	}
+
+	CachedCarriedBox = NewCarriedBox;
+
 	if (!NewCarriedBox)
 	{
-		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag());
+		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
 		return;
 	}
 	
-	FBoxData CarriedBoxData = NewCarriedBox->GetBoxData();
+	if (UHealthComponent* HealthComp = NewCarriedBox->FindComponentByClass<UHealthComponent>())
+	{
+		HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleCarriedBoxHPChanged);
+		HealthComp->OnHPChanged.AddDynamic(this, &UParcelHUDWidget::HandleCarriedBoxHPChanged);
+		HandleCarriedBoxHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+	}
+	else
+	{
+		HandleCarriedBoxHPChanged(0.f, 0.f);
+	}
+}
+
+void UParcelHUDWidget::HandleCarriedBoxHPChanged(float CurrentHP, float MaxHP)
+{
+	if (!CachedCarriedBox.IsValid())
+	{
+		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
+		return;
+	}
+
+	FBoxData CarriedBoxData = CachedCarriedBox->GetBoxData();
 	
 	FText BoxNameText = FText::FromString(CarriedBoxData.DisplayName);
 	FText FormattedName = FText::Format(
-		FText::FromString(TEXT("{0} ({1}kg)")), 
-		BoxNameText, 
-		FText::AsNumber(CarriedBoxData.Weight)
+	   FText::FromString(TEXT("{0} ({1}kg)")), 
+	   BoxNameText, 
+	   FText::AsNumber(CarriedBoxData.Weight)
 	);
 	
 	FText DestinationText = FText::FromString(TEXT("목적지 : 미지정 구역"));
@@ -320,14 +350,26 @@ void UParcelHUDWidget::HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
 		FString ZoneString = CarriedBoxData.TargetZoneTag.ToString();
 		ZoneString.ReplaceInline(TEXT("Delivery."), TEXT(""));
 		ZoneString.ReplaceInline(TEXT("Zone."), TEXT(""));
-		
+       
 		DestinationText = FText::Format(
-			FText::FromString(TEXT("목적지 : {0} 구역")), 
-			FText::FromString(ZoneString)
+		   FText::FromString(TEXT("목적지 : {0} 구역")), 
+		   FText::FromString(ZoneString)
 		);
 	}
 	
-	K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag);
+	FText BoxHPText = FText::FromString(TEXT("내구도 : -"));
+	if (UHealthComponent* HealthComp = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+	{
+		int32 CurHPVal = FMath::RoundToInt(HealthComp->GetHP());
+		int32 MaxHPVal = FMath::RoundToInt(HealthComp->GetMaxHP());
+		BoxHPText = FText::Format(
+			FText::FromString(TEXT("내구도 : {0} / {1}")),
+			FText::AsNumber(CurHPVal),
+			FText::AsNumber(MaxHPVal)
+		);
+	}
+	
+	K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag, BoxHPText);
 }
 
 void UParcelHUDWidget::UpdateLocalTimer()

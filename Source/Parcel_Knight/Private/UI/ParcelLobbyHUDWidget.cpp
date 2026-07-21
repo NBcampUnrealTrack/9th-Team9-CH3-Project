@@ -23,6 +23,8 @@
 #include "Core/HealthComponent.h" 
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelInteractionComponent.h"
+#include "Character/CharacterCarryComponent.h"
+#include "Delivery/DeliveryBox.h"
 
 void UParcelLobbyHUDWidget::NativeConstruct()
 {
@@ -376,40 +378,21 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
         APawn* LocalPawn = GetOwningPlayerPawn();
         if (LocalPawn)
         {
+            // 1. 스태미나 컴포넌트 바인딩
             if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
             {
                 StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
                 HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
             }
             
-            if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
-            {
-                HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
-                HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
-            }
-
-            bStatDelegatesBound = true;
-            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 로컬 캐릭터의 실시간 스태미나/체력 비주얼 인터셉트 파이프라인"));
-        }
-    }
-    
-    if (!bStatDelegatesBound)
-    {
-        APawn* LocalPawn = GetOwningPlayerPawn();
-        if (LocalPawn)
-        {
-            if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
-            {
-                StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
-                HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
-            }
-            
+            // 2. 체력 컴포넌트 바인딩
             if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
             {
                 HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
                 HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
             }
             
+            // 3. 상호작용 컴포넌트 바인딩 (E키 UI 프롬프트)
             if (UParcelInteractionComponent* InteractComp = LocalPawn->FindComponentByClass<UParcelInteractionComponent>())
             {
                 InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
@@ -418,15 +401,100 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
                 HandleNativeInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
             }
 
+            // 4. 히어로 컴포넌트 바인딩 (던지기 차징 게이지)
             if (UParcelHeroComponent* HeroComp = LocalPawn->FindComponentByClass<UParcelHeroComponent>())
             {
                 HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
             }
+            
+            // 5. 운반 컴포넌트 바인딩
+            if (UCharacterCarryComponent* CarryComp = LocalPawn->FindComponentByClass<UCharacterCarryComponent>())
+            {
+                CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
+                CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
+                
+                HandleNativeCarriedBoxChanged(CarryComp->GetCarriedBox());
+            }
 
-            bStatDelegatesBound = true; // 안전 잠금
-            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 팀 규격 상호작용 및 차징 게이지 인터셉트망 최종 완공!"));
+            bStatDelegatesBound = true;
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 로컬 캐릭터의 스태미나/체력/상호작용/차징 게이지 인터셉트망 최종 완공!"));
         }
     }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
+{
+    if (CachedCarriedBox.IsValid())
+    {
+        if (UHealthComponent* OldHealth = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+        {
+            OldHealth->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged);
+        }
+    }
+
+    CachedCarriedBox = NewCarriedBox;
+
+    if (!NewCarriedBox)
+    {
+        K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
+        return;
+    }
+
+    if (UHealthComponent* HealthComp = NewCarriedBox->FindComponentByClass<UHealthComponent>())
+    {
+        HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged);
+        HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged);
+        HandleNativeCarriedBoxHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+    }
+    else
+    {
+        HandleNativeCarriedBoxHPChanged(0.f, 0.f);
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged(float CurrentHP, float MaxHP)
+{
+    if (!CachedCarriedBox.IsValid())
+    {
+        K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
+        return;
+    }
+
+    FBoxData CarriedBoxData = CachedCarriedBox->GetBoxData();
+    
+    FText BoxNameText = FText::FromString(CarriedBoxData.DisplayName);
+    FText FormattedName = FText::Format(
+        FText::FromString(TEXT("{0} ({1}kg)")), 
+        BoxNameText, 
+        FText::AsNumber(CarriedBoxData.Weight)
+    );
+    
+    FText DestinationText = FText::FromString(TEXT("목적지 : 미지정 구역"));
+    if (CarriedBoxData.TargetZoneTag.IsValid())
+    {
+        FString ZoneString = CarriedBoxData.TargetZoneTag.ToString();
+        ZoneString.ReplaceInline(TEXT("Delivery."), TEXT(""));
+        ZoneString.ReplaceInline(TEXT("Zone."), TEXT(""));
+        
+        DestinationText = FText::Format(
+            FText::FromString(TEXT("목적지 : {0} 구역")), 
+            FText::FromString(ZoneString)
+        );
+    }
+
+    FText BoxHPText = FText::FromString(TEXT("내구도 : -"));
+    if (UHealthComponent* HealthComp = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+    {
+        int32 CurHPVal = FMath::RoundToInt(HealthComp->GetHP());
+        int32 MaxHPVal = FMath::RoundToInt(HealthComp->GetMaxHP());
+        BoxHPText = FText::Format(
+            FText::FromString(TEXT("내구도 : {0} / {1}")),
+            FText::AsNumber(CurHPVal),
+            FText::AsNumber(MaxHPVal)
+        );
+    }
+    
+    K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag, BoxHPText);
 }
 
 void UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged(AActor* NewFocusedActor)

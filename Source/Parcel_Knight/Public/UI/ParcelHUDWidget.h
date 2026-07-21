@@ -61,7 +61,7 @@ protected:
 	void K2_OnCrosshairStateChanged(bool bCanInteract, const FText& InteractionPrompt);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
-	void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag);
+	void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag, const FText& BoxHPText);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
 	void K2_OnComboChanged(int32 NewComboCount, const FText& DisplayText);
@@ -108,12 +108,18 @@ private:
 	UFUNCTION()
 	void HandleOnDeliveryLogReceived(const FString& PlayerName, const FString& BoxName, bool bSuccess);
 	
+	UFUNCTION() 
+	void HandleCarriedBoxHPChanged(float CurrentHP, float MaxHP);
+	
 	// [Timestamp] (남은 시간)
 	void UpdateLocalTimer();
 	
 	// 안전한 접근을 위해 캐싱
 	UPROPERTY()
 	TWeakObjectPtr<AParcelGameState> CachedGameState;
+	
+	UPROPERTY()
+	TWeakObjectPtr<ADeliveryBox> CachedCarriedBox;
 	
 	// 안전장치용 타이머 핸들
 	FTimerHandle RetryBindTimerHandle;

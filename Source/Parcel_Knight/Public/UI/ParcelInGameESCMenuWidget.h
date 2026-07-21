@@ -7,6 +7,7 @@
 class UButton;
 class UTextBlock;
 class UVerticalBox;
+class UParcelOptionsWidget;
 
 /**
  * 인게임 ESC(일시정지) 메뉴의 전체 제어 및 멀티플레이어 바인딩을 담당하는 컨트롤러
@@ -18,6 +19,8 @@ class PARCEL_KNIGHT_API UParcelInGameESCMenuWidget : public UUserWidget
 	
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
+	virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 	// UI Bindings
 	UPROPERTY(meta = (BindWidget))
@@ -40,6 +43,12 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UVerticalBox> VB_PlayerList;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UParcelOptionsWidget> OptionsWidgetClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UParcelOptionsWidget> OptionsWidgetInstance = nullptr;
 
 	// Handlers
 	UFUNCTION()
@@ -71,6 +80,12 @@ public:
 	void CompleteTeardown();
 	
 	void RefreshMenuData();
+	
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	bool CloseSubMenuIfOpen();
+	
+	UFUNCTION()
+	void CloseOptionsWidget();
 
 private:
 	void UpdateMapName();
