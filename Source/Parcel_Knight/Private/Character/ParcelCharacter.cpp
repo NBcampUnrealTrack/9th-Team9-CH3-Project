@@ -20,6 +20,8 @@
 #include "UI/ParcelNameplateWidget.h"
 #include "Data/ItemData.h"
 
+DEFINE_LOG_CATEGORY(LogCharacter);
+
 AParcelCharacter::AParcelCharacter()
 {
     PrimaryActorTick.bCanEverTick = false;
