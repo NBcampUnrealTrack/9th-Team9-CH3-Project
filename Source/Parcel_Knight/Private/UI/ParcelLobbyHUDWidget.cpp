@@ -376,13 +376,16 @@ void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
             UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] MapDataTable이 할당되어 있지 않아 기본 맵 경로를 사용합니다."));
         }
 
-        // Listen 서버 옵션(?listen) 결합
-        FString TravelURL = FString::Printf(TEXT("%s?listen"), *SelectedMapPath);
+        if (UGameInstance* GI = GetGameInstance())
+        {
+            if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
+            {
+                SessionSubsystem->StartGame(SelectedMapPath);
+                return;
+            }
+        }
         
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 확정 ➔ 선택된 맵(%s)으로 강제 트래블(ServerTravel) 개시 URL: %s"), 
-            *SelectedMapPath, *TravelURL);
-
-        // 동적 경로로 ServerTravel 실행
+        FString TravelURL = FString::Printf(TEXT("%s?listen"), *SelectedMapPath);
         if (UWorld* World = GetWorld())
         {
             World->ServerTravel(TravelURL);

@@ -20,6 +20,8 @@ AParcelGameMode::AParcelGameMode()
 	DefaultPawnClass    = AParcelCharacter::StaticClass();
 	DeliveryRuleComp = CreateDefaultSubobject<UDeliveryRuleComponent>("DeliveryRuleComponent");
 	RespawnComp      = CreateDefaultSubobject<URespawnComponent>("RespawnComponent");
+	
+	bUseSeamlessTravel = true;
 }
 
 void AParcelGameMode::PostLogin(APlayerController* NewPlayer)
