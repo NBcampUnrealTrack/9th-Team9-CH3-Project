@@ -47,6 +47,13 @@ void URagdollComponent::StartRagdoll()
        ServerSetRagdoll(true);
        return;
     }
+
+    if (bRagdollOnCooldown)
+    {
+        RAGDOLL_LOG(Log, TEXT("StartRagdoll 무시: 쿨타임 중"));
+        return;
+    }
+
     Multicast_SetRagdoll(true);
 }
 
@@ -69,7 +76,22 @@ void URagdollComponent::ToggleRagdoll()
        ServerSetRagdoll(!bCurrentlyRagdoll);
        return;
     }
+
     Multicast_SetRagdoll(!bCurrentlyRagdoll);
+}
+
+bool URagdollComponent::TryConsumeToggleCooldown()
+{
+    if (bRagdollOnCooldown) return false;
+
+    bRagdollOnCooldown = true;
+    GetWorld()->GetTimerManager().SetTimer(
+        RagdollCooldownTimerHandle,
+        [this]() { bRagdollOnCooldown = false; },
+        RagdollCooldown,
+        false
+    );
+    return true;
 }
 
 bool URagdollComponent::IsRagdoll() const
@@ -165,6 +187,26 @@ void URagdollComponent::AttemptAutoRecovery()
         }
     }
 
+    // 공중에 있으면 땅에 닿을 때까지 0.5초마다 재시도 (MaxAirRecoveryWait를 넘기면 공중이어도 강제 기상)
+    if (!IsRagdollCloseToGround())
+    {
+        AirRecoveryWaitElapsed += 0.5f;
+        if (AirRecoveryWaitElapsed < MaxAirRecoveryWait)
+        {
+            GetWorld()->GetTimerManager().SetTimer(
+                AutoRecoveryTimerHandle,
+                this,
+                &URagdollComponent::AttemptAutoRecovery,
+                0.5f,
+                false
+            );
+            return;
+        }
+
+        RAGDOLL_LOG(Log, TEXT("공중 대기 시간(%.1f초) 초과로 강제 기상합니다."), MaxAirRecoveryWait);
+    }
+
+    AirRecoveryWaitElapsed = 0.f;
     StopRagdoll();
 }
 
@@ -197,8 +239,10 @@ void URagdollComponent::ApplyStartRagdoll()
     // 2. 메시 물리 시뮬레이션 활성화
     Mesh->SetCollisionProfileName(TEXT("Ragdoll"));
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Mesh->SetSimulatePhysics(true);
     Mesh->SetAllBodiesBelowSimulatePhysics(TEXT("pelvis"), true, true);
     Mesh->SetAllBodiesBelowPhysicsBlendWeight(TEXT("pelvis"), 1.0f, false, true);
+    Mesh->bBlendPhysics = true;
     Mesh->WakeAllRigidBodies();
 
     // 3. [서버 권한] 게임플레이 태그 적용 및 스프린트 강제 해제 방어 코드
@@ -221,6 +265,7 @@ void URagdollComponent::ApplyStartRagdoll()
         }
 
         // 상태이상이 없으면 AutoRecoveryDelay 초 후 강제 기상 시도
+        AirRecoveryWaitElapsed = 0.f;
         GetWorld()->GetTimerManager().SetTimer(
             AutoRecoveryTimerHandle,
             this,
@@ -298,11 +343,34 @@ void URagdollComponent::ApplyStopRagdoll()
     Mesh->SetRelativeLocation(DefaultMeshRelativeLocation, false, nullptr, ETeleportType::TeleportPhysics);
     Mesh->SetRelativeRotation(DefaultMeshRelativeRotation, false, nullptr, ETeleportType::TeleportPhysics);
 
-    // 5. 콜리전 재설정 및 이동 컴포넌트 걷기 모드로 복구
+    // 5. 콜리전 재설정 및 이동 컴포넌트 복구 (RecoveryLockDuration 초 후 이동 가능)
     Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
     {
-       Movement->SetMovementMode(MOVE_Walking);
+        Movement->DisableMovement();
+    }
+
+    if (GetOwner()->HasAuthority())
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            RecoveryLockTimerHandle,
+            [this]()
+            {
+                if (OwnerCharacter)
+                    if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
+                        Movement->SetMovementMode(MOVE_Walking);
+            },
+            RecoveryLockDuration,
+            false
+        );
+
+        bRagdollOnCooldown = true;
+        GetWorld()->GetTimerManager().SetTimer(
+            RagdollCooldownTimerHandle,
+            [this]() { bRagdollOnCooldown = false; },
+            RagdollCooldown,
+            false
+        );
     }
     
     // 6. [서버 권한] 기절 상태 완료 태그 제거 및 자동 기상 타이머 정리

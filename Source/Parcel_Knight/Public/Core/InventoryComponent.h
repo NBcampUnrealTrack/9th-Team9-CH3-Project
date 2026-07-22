@@ -64,6 +64,10 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_UseItem(FGameplayTag ItemTag);
 
+	// [Multicast, Unreliable] 아이템 사용 성공 시 모든 클라이언트에서 FX/Sound 재생
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayItemFX(FGameplayTag ItemTag);
+
 	// ========================= 이벤트 =========================
 
 	// 인벤토리 변경 시 브로드캐스트 — UI 갱신용

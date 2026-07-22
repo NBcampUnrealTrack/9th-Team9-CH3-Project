@@ -141,10 +141,14 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
 		  SetMouseSensitivity(Settings->GetMouseSensitivity());
 	  }
 
-    // IA 바인딩
+    // IA 바인딩 (SetupPlayerInputComponent가 재호출돼도 한 번만 등록)
+    if (bInputBound) return;
+
     UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
     if (!EnhancedInputComponent) return;
-    
+
+    bInputBound = true;
+
     if (MoveAction) EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Move);
     if (LookAction) EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &UParcelHeroComponent::Look);
     
