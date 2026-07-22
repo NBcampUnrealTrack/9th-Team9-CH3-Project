@@ -15,7 +15,7 @@ class UHealthComponent;
 class UNiagaraSystem;
 class USoundBase;
 class USoundAttenuation;
-class UTextRenderComponent;
+class UWidgetComponent;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -135,12 +135,16 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_PlayDestroyEffect();
 
-	// 상자 위에 표시할 실시간 3D 체력 텍스트 컴포넌트
+	// 상자 위에 표시할 실시간 3D 체력 위젯 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Delivery Box Visual")
-	TObjectPtr<UTextRenderComponent> HPTextVisualizer;
+	TObjectPtr<UWidgetComponent> HPWidgetVisualizer;
 
 	UFUNCTION()
 	void UpdateHPText(float CurrentHP, float MaxHP);
+
+	// 블루프린트 위젯(ProgressBar 및 Text)을 업데이트하기 위한 블루프린트 이벤트
+	UFUNCTION(BlueprintImplementableEvent, Category = "Delivery Box Visual")
+	void BP_OnHPWidgetUpdated(float CurrentHP, float MaxHP, const FString& ZoneName);
 
 private:
 	// 상자 목적지 구역 태그에 맞춰 머티리얼을 동적으로 적용합니다.

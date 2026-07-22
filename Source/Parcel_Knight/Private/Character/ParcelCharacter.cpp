@@ -19,6 +19,8 @@
 #include "Core/CustomizationComponent.h"
 #include "UI/ParcelNameplateWidget.h"
 #include "Data/ItemData.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
 
 DEFINE_LOG_CATEGORY(LogCharacter);
 
@@ -62,6 +64,31 @@ AParcelCharacter::AParcelCharacter()
        PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
     }
 
+    // 미니맵용 스프링 암 및 씬 캡처 컴포넌트 생성 및 설정
+    MinimapSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("MinimapSpringArm"));
+    if (MinimapSpringArm)
+    {
+        MinimapSpringArm->SetupAttachment(RootComponent);
+        MinimapSpringArm->TargetArmLength = 1200.f; // 미니맵 카메라 높이
+        MinimapSpringArm->bUsePawnControlRotation = false; // 마우스 회전에 영향받지 않음
+        MinimapSpringArm->bInheritPitch = false;
+        MinimapSpringArm->bInheritRoll = false;
+        MinimapSpringArm->bInheritYaw = false; // 기본값은 North-up 고정 (회전을 원하면 true로 설정 가능)
+        MinimapSpringArm->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f)); // 수직 하강 촬영
+    }
+
+    MinimapCaptureComponent = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("MinimapCaptureComponent"));
+    if (MinimapCaptureComponent)
+    {
+        MinimapCaptureComponent->SetupAttachment(MinimapSpringArm);
+        MinimapCaptureComponent->ProjectionType = ECameraProjectionMode::Orthographic;
+        MinimapCaptureComponent->OrthoWidth = 2500.f; // 캡처 반경 가로폭 범위
+        MinimapCaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR; // 최적화 LDR 캡처
+        MinimapCaptureComponent->bCaptureEveryFrame = true;
+        MinimapCaptureComponent->bCaptureOnMovement = true;
+        MinimapCaptureComponent->bAutoActivate = false; // 로컬 플레이어 확인 후 활성화 처리
+    }
+
     bIsRagdoll = false;
     bIsGettingUp = false;
 }
@@ -69,6 +96,8 @@ AParcelCharacter::AParcelCharacter()
 void AParcelCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    UpdateMinimapCaptureState();
 
     GetMesh()->SetOwnerNoSee(true);
 	
@@ -179,6 +208,8 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
 
+    UpdateMinimapCaptureState();
+
     // 서버 Possessed 시점에 HeroComponent에 이벤트를 넘김
     if (HeroComp)
     {
@@ -257,6 +288,9 @@ void AParcelCharacter::OnCharacterStateTagsChanged(const FGameplayTagContainer& 
 void AParcelCharacter::OnRep_Controller()
 {
     Super::OnRep_Controller();
+    
+    UpdateMinimapCaptureState();
+
     if (HeroComp) HeroComp->AddInputMappingContext();
 }
 
@@ -380,10 +414,37 @@ void AParcelCharacter::HandleCharacterDeath()
     if (RagdollComp) RagdollComp->StartRagdoll();
     if (HasAuthority() && PlayerStateComp)
     {
-       PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Dead")));
+        PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Dead")));
     }
     if (HasAuthority())
     {
        if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>()) PS->HandleDeath();
+    }
+}
+
+void AParcelCharacter::UpdateMinimapCaptureState()
+{
+    // 로컬 컨트롤러가 제어하는 캐릭터인지 체크
+    if (IsLocallyControlled())
+    {
+        if (MinimapCaptureComponent)
+        {
+            MinimapCaptureComponent->Activate(true);
+            MinimapCaptureComponent->SetComponentTickEnabled(true);
+        }
+    }
+    else
+    {
+        // 로컬이 아니라면 미니맵 스프링 암과 씬 캡처 컴포넌트를 파괴하여 프레임 드랍 및 메모리 오버헤드 원천 차단
+        if (MinimapCaptureComponent)
+        {
+            MinimapCaptureComponent->Deactivate();
+            MinimapCaptureComponent->SetComponentTickEnabled(false);
+            MinimapCaptureComponent->DestroyComponent();
+        }
+        if (MinimapSpringArm)
+        {
+            MinimapSpringArm->DestroyComponent();
+        }
     }
 }

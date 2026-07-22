@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/DataTable.h"
+#include "Data/ItemData.h"
 #include "ParcelLobbyHUDWidget.generated.h"
 
 class UButton;
@@ -13,6 +14,7 @@ class UImage;
 class UCanvasPanel;
 class UWidgetAnimation;
 class UParcelLobbyPlayerSlotWidget;
+class ADeliveryBox;
 
 /**
  * 맵 스테이지 구조체
@@ -60,6 +62,9 @@ protected:
     UFUNCTION() void HandleChatTextCommitted(const FText& Text, ETextCommit::Type CommitMethod);
     UFUNCTION() void HandleOnSessionDestroyComplete(bool bWasSuccessful);
     UFUNCTION() void HandleOnLobbyMapChanged(int32 NewMapIndex);
+    
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Carry")
+    void K2_OnCarriedBoxInfoChanged(bool bIsCarrying, const FText& BoxTypeName, const FText& DestinationText, FGameplayTag BoxTypeTag, const FText& BoxHPText);
 
 protected:
     UPROPERTY(BlueprintReadOnly, meta = (BindWidget)) TObjectPtr<UCanvasPanel> Canvas_MenuContainer;
@@ -93,6 +98,12 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lobby|Data")
     TObjectPtr<UDataTable> MapDataTable;
     
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lobby|Data")
+    TObjectPtr<UDataTable> ItemTable;
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|Inventory")
+    void K2_OnInventoryChanged(const TArray<FGameplayTag>& ItemTags);
+    
 private:
     int32 LocalCurrentMapIndex = 0;
     
@@ -124,6 +135,14 @@ private:
     UFUNCTION() void HandleNativeStaminaChanged(float CurrentStamina, float MaxStamina);
     UFUNCTION() void HandleNativeInteractionFocusChanged(AActor* NewFocusedActor);
     UFUNCTION() void HandleNativeThrowChargeChanged(bool bIsCharging, float ChargeRatio);
+    
+    UFUNCTION() void HandleNativeCarriedBoxChanged(ADeliveryBox* NewCarriedBox);
+    UFUNCTION() void HandleNativeCarriedBoxHPChanged(float CurrentHP, float MaxHP);
+    
+    UFUNCTION() void HandleNativeInventoryChanged();
+
+    UPROPERTY()
+    TWeakObjectPtr<ADeliveryBox> CachedCarriedBox;
 
 protected:
     UFUNCTION(BlueprintImplementableEvent, Category = "Lobby|UI")
@@ -154,8 +173,10 @@ protected:
     void K2_OnMapSelectMenuOpened();
 
 public:
-
     UFUNCTION(BlueprintCallable, Category = "Lobby")
     void SelectMapByIndex(int32 NewMapIndex);
+    
+    UFUNCTION(BlueprintPure, Category = "Lobby|Inventory")
+    bool GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItemData) const;
  
 };

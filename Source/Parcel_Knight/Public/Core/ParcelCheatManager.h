@@ -78,4 +78,10 @@ public:
 	// ─── UI ───
 	// 사망 및 리스폰 Suicide 명령어
 	UFUNCTION(Exec) void DebugSuicide();
+
+	// ─── 카메라 ───
+	// 강제 3인칭 전환
+	UFUNCTION(Exec) void DebugForceThirdPerson();
+	// 강제 1인칭 복귀
+	UFUNCTION(Exec) void DebugForceFirstPerson();
 };

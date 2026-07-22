@@ -28,8 +28,15 @@ void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, cons
 		// 물리 충격에 의한 대미지인 경우 데미지 스케일링 및 캡핑(상한선) 적용
 		if (SourceName.Contains(TEXT("impact")))
 		{
-			// 1) 상자 자체의 데이터 테이블 파손 임계치(DamageThreshold)를 동적으로 사용! (깨지기 쉬운 상자는 낮고, 무거운 상자는 높음)
+			// 1) 상자 자체의 데이터 테이블 파손 임계치(DamageThreshold) 로드
 			float DamageThreshold = Box->GetDamageThreshold();
+
+			// 임계값 미만의 미세한 물리 충격은 완전히 무시
+			if (Force < DamageThreshold)
+			{
+				return;
+			}
+
 			float DamageMultiplier = 0.15f;
 			float MaxDamageLimitPercent = 0.20f;
 
@@ -40,7 +47,9 @@ void UPhysicsJudgeManager::ProcessBoxDamage(ADeliveryBox* Box, float Force, cons
 				MaxDamageLimitPercent = 0.60f;  // 최대 60% 캡 설정 (확정 2회 충격에 파손 보장)
 			}
 
-			float BaseDamage = (Force - DamageThreshold) * DamageMultiplier;
+			// 큰 임계치를 대미지 연산에서 직접 빼버리면 대미지가 너무 줄어들므로, 
+			// 임계값을 충족(체크 완료)한 이후에는 기본 감쇄 오프셋(50.f)만 차감하여 스케일링합니다.
+			float BaseDamage = (Force - 50.0f) * DamageMultiplier;
 			float MaxDamageLimit = BoxHealth->GetMaxHP() * MaxDamageLimitPercent;
 			
 			FinalDamage = FMath::Clamp(BaseDamage, 0.0f, MaxDamageLimit);
