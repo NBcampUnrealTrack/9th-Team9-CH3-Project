@@ -155,6 +155,9 @@ void UDeliveryRuleComponent::OnEverySecond()
 void UDeliveryRuleComponent::OnTimeUp()
 {
 	GAMERULE_LOG(Warning, TEXT("시간 만료 — 최종 등급 산정"));
+	
+	GetWorld()->GetTimerManager().ClearTimer(RoundTimerHandle);
+	
 	UTeamScoreComponent* TeamScoreComp = GetWorld()->GetGameState<AParcelGameState>()
 		->GetTeamScoreComponent();
 
@@ -192,7 +195,27 @@ void UDeliveryRuleComponent::OnTimeUp()
 		if (AParcelPlayerState* PPS = Cast<AParcelPlayerState>(PS))
 			PPS->Client_GrantReward(Reward);
 	}
+	
+	if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
+	{
+		ParcelGS->Multicast_NotifyStageResult(Grade, Reward, TransitionDelay);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer(
+		NextStageTimerHandle,
+		this,
+		&UDeliveryRuleComponent::TransitionToNextStage,
+		TransitionDelay,
+		false
+	);
+}
+
+void UDeliveryRuleComponent::TransitionToNextStage()
+{
+	GAMERULE_LOG(Log, TEXT("10초 여유 시간 종료 — 다음 스테이지 진입 및 매치 처리"));
 
 	if (AGameMode* GM = GetOwner<AGameMode>())
+	{
 		GM->EndMatch();
+	}
 }

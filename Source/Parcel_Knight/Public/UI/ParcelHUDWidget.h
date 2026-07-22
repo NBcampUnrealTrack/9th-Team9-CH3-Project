@@ -146,4 +146,22 @@ private:
 	// [Timestamp] UI 자체 로컬 타이머 핸들 및 종료 시간 저장 변수
 	FTimerHandle UILocalTimerHandle;
 	float CachedExpirationTime = 0.0f;
+	
+protected:
+	// [UI] 스테이지 연출 시작 (오늘의 일당 UI 출력, 축하 sound 재생용)
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnStageResultStarted(FGameplayTag StageGrade, int32 EarnedMoney, float TransitionDelay);
+
+	// [UI] 10초 -> 9초 -> 8초... 카운트다운 변경 알림
+	UFUNCTION(BlueprintImplementableEvent, Category = "ParcelUI")
+	void K2_OnTransitionCountdownUpdated(int32 RemainingSeconds);
+
+private:
+	UFUNCTION()
+	void HandleOnStageResultReceived(FGameplayTag StageGrade, int32 EarnedMoney, float TransitionDelay);
+
+	void UpdateTransitionCountdown();
+
+	FTimerHandle ResultCountdownTimerHandle;
+	float TransitionEndTime = 0.0f;
 };
