@@ -15,12 +15,19 @@
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "GameMapsSettings.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 
 namespace ParcelFrontendMaps
 {
 	const FString Lobby = TEXT("LV_DF_Lobby_Stage00");
-	const FString MainMenuBootstrap = TEXT("Testing_DF_Stage01");
+
+	FString GetMainMenuLevelName()
+	{
+		return FPackageName::GetShortName(
+			FPackageName::ObjectPathToPackageName(UGameMapsSettings::GetGameDefaultMap()));
+	}
 }
 
 DEFINE_LOG_CATEGORY(LogParcelPlayerController);
@@ -59,7 +66,7 @@ void AParcelPlayerController::BeginPlay()
 			return;
 		}
 
-		if (CurrentLevelName == ParcelFrontendMaps::MainMenuBootstrap)
+		if (CurrentLevelName == ParcelFrontendMaps::GetMainMenuLevelName())
 		{
 			return;
 		}

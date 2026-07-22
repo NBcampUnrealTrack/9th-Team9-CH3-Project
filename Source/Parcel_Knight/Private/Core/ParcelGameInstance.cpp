@@ -155,10 +155,15 @@ void UParcelGameInstance::HandleSessionInviteAccepted(
 
 // ========================= 저장 / 불러오기 =========================
 
-void UParcelGameInstance::SaveData()
+bool UParcelGameInstance::SaveData()
 {
 	UParcelSaveGame* SaveGame = Cast<UParcelSaveGame>(
 		UGameplayStatics::CreateSaveGameObject(UParcelSaveGame::StaticClass()));
+	if (!SaveGame)
+	{
+		UE_LOG(LogParcelGameInstance, Error, TEXT("Failed to allocate ParcelSaveGame."));
+		return false;
+	}
 
 	SaveGame->MaxClearedStage  = MaxClearedStage;
 	SaveGame->Money            = Money;
@@ -169,7 +174,12 @@ void UParcelGameInstance::SaveData()
 	SaveGame->EquippedTitle    = EquippedTitle;
 	SaveGame->EquippedEffect   = EquippedEffect;
 
-	UGameplayStatics::SaveGameToSlot(SaveGame, SaveSlotName, 0);
+	const bool bSaved = UGameplayStatics::SaveGameToSlot(SaveGame, SaveSlotName, 0);
+	if (!bSaved)
+	{
+		UE_LOG(LogParcelGameInstance, Error, TEXT("Failed to save local profile to slot %s."), *SaveSlotName);
+	}
+	return bSaved;
 }
 
 void UParcelGameInstance::LoadData()
@@ -205,9 +215,33 @@ void UParcelGameInstance::AddMoney(int32 Amount)
 
 bool UParcelGameInstance::SpendMoney(int32 Amount)
 {
-	if (Money < Amount) return false;
-	Money -= Amount;
-	SaveData();
+	if (Amount <= 0)
+	{
+		UE_LOG(LogParcelGameInstance, Warning, TEXT("SpendMoney rejected non-positive amount %d."), Amount);
+		return false;
+	}
+
+	const int64 NewBalance = static_cast<int64>(Money) - static_cast<int64>(Amount);
+	if (NewBalance < 0 || NewBalance > MAX_int32)
+	{
+		UE_LOG(
+			LogParcelGameInstance,
+			Warning,
+			TEXT("SpendMoney rejected amount %d for current balance %d."),
+			Amount,
+			Money);
+		return false;
+	}
+
+	const int32 PreviousBalance = Money;
+	Money = static_cast<int32>(NewBalance);
+	if (!SaveData())
+	{
+		Money = PreviousBalance;
+		UE_LOG(LogParcelGameInstance, Error, TEXT("SpendMoney rolled back because the local profile could not be saved."));
+		return false;
+	}
+
 	return true;
 }
 
