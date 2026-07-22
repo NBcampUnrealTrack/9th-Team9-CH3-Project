@@ -6,6 +6,8 @@
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
 #include "GameFramework/GameUserSettings.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 void UParcelOptionsWidget::NativeConstruct()
 {
@@ -292,7 +294,9 @@ void UParcelOptionsWidget::HandleSensitivityTextCommitted(const FText& Text, ETe
 
 void UParcelOptionsWidget::HandleApplyClicked()
 {
-    if (UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings())
+	PlayButtonClickSound();
+	
+	if (UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings())
     {
         if (Combo_ScreenMode)
         {
@@ -326,6 +330,8 @@ void UParcelOptionsWidget::HandleApplyClicked()
 
 void UParcelOptionsWidget::HandleBackClicked()
 {
+	PlayButtonClickSound();
+	
 	SaveLocalSettingsIfDirty();
 	
 	if (OnOptionsClosed.IsBound())
@@ -376,4 +382,13 @@ FReply UParcelOptionsWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const 
 	}
 
 	return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
+}
+
+void UParcelOptionsWidget::PlayButtonClickSound()
+{
+	if (ButtonClickSound)
+	{
+		// 뷰포트에 2D로 UI 효과음 출력
+		UGameplayStatics::PlaySound2D(this, ButtonClickSound);
+	}
 }

@@ -6,6 +6,7 @@
 #include "ParcelInGameDeadHUDWidget.generated.h"
 
 class UTextBlock;
+class USoundBase;
 
 /**
  * 
@@ -28,10 +29,15 @@ protected:
 	
 	UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly, Category = "ParcelUI|Dead")
 	TObjectPtr<UTextBlock> Txt_CountdownNumber;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "ParcelUI|Dead|Sound")
+	TObjectPtr<USoundBase> HeartbeatSound;
 
 private:
 	// 타이머 내부 함수
 	void AdvanceCountdown();
+	
+	void PlayHeartbeatSound();
 
 	FTimerHandle CountdownTimerHandle;
 	int32 CurrentCount = 5;

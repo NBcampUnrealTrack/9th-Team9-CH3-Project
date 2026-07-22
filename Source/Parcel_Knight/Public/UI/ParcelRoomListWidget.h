@@ -7,6 +7,7 @@
 class UScrollBox;
 class UButton;
 class UParcelRoomListEntry;
+class USoundBase;
 
 /**
  * UParcelRoomListWidget
@@ -30,6 +31,9 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 	
 	// UMG 위젯 바인딩
 	UPROPERTY(meta = (BindWidget))
@@ -56,6 +60,8 @@ protected:
 	void K2_OnBackToMainMenuStarted();
 	
 private:
+	void PlayButtonClickSound();
+	
 	UFUNCTION()
 	void HandleSessionSearchStarted();
 

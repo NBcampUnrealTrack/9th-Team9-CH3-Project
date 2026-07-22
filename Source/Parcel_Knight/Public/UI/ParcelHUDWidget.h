@@ -11,6 +11,7 @@ class AParcelGameState;
 class ADeliveryBox;
 class UButton;
 class UParcelFriendListWidget;
+class USoundBase;
 /**
  *  UParcelWidget
  *  인게임 HUD 요소의 이벤트 바인딩하고 관리하는 베이스 위젯
@@ -25,6 +26,9 @@ protected:
 	// 위젯의 BeginPlay 함수
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 
 public:
 	// 로컬 플레이어와 데이터를 바인딩
@@ -91,6 +95,7 @@ protected:
 	void K2_OnInventoryChanged(const TArray<FGameplayTag>& ItemTags);
 	
 private:
+	void PlayButtonClickSound();
 	
 	UFUNCTION()
 	void HandleOnTeamScoreChanged(int32 NewTeamScore);

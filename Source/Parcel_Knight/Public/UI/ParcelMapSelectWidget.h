@@ -9,6 +9,7 @@ class UButton;
 class UDataTable;
 class UParcelLobbyHUDWidget;
 class UParcelMapEntryWidget;
+class USoundBase;
 
 /**
  * UParcelMapSelectWidget
@@ -23,12 +24,17 @@ protected:
 	// 동적으로 담아낼 주머니 스크롤 박스와 닫기 버튼
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget)) TObjectPtr<UScrollBox> ScrollBox_MapList;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget)) TObjectPtr<UButton> Btn_CloseMapMenu;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 
 	// 에디터에서 낱개 항목으로 사용할 WBP_MapEntry 위젯을 지정할 슬롯
 	UPROPERTY(EditDefaultsOnly, Category = "MapSelect|UI")
 	TSubclassOf<UParcelMapEntryWidget> MapEntryClass;
 
 private:
+	void PlayButtonClickSound();
+	
 	UFUNCTION() void HandleCloseClicked();
 
 public:
