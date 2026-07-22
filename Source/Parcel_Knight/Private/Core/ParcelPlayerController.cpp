@@ -1,6 +1,6 @@
 #include "Core/ParcelPlayerController.h"
 #include "ParcelLog.h"
-#include "UI/ParcelInGameDeadHUDWidget.h"
+#include "Parcel_Knight/Public/UI/ParcelInGameDeadHUDWidget.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "UI/ParcelHUDWidget.h"
 #include "UI/ParcelTrapStatusOverlayWidget.h"

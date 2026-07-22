@@ -4,6 +4,8 @@
 #include "UI/ParcelMapEntryWidget.h"
 #include "UI/ParcelLobbyHUDWidget.h"
 #include "Engine/DataTable.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 void UParcelMapSelectWidget::BuildMapListPopulate(UDataTable* TargetDataTable, UParcelLobbyHUDWidget* OwnerHUD)
 {
@@ -40,5 +42,16 @@ void UParcelMapSelectWidget::BuildMapListPopulate(UDataTable* TargetDataTable, U
 
 void UParcelMapSelectWidget::HandleCloseClicked()
 {
+	PlayButtonClickSound();
+	
 	RemoveFromParent();
+}
+
+void UParcelMapSelectWidget::PlayButtonClickSound()
+{
+	if (ButtonClickSound)
+	{
+		// 뷰포트에 2D로 UI 효과음 출력
+		UGameplayStatics::PlaySound2D(this, ButtonClickSound);
+	}
 }

@@ -8,6 +8,8 @@
 #include "Core/SessionSubsystem.h"
 #include "Core/ParcelPlayerState.h"
 #include "UI/ParcelOptionsWidget.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 void UParcelInGameESCMenuWidget::NativeConstruct()
 {
@@ -138,11 +140,15 @@ void UParcelInGameESCMenuWidget::UpdatePlayerList()
 
 void UParcelInGameESCMenuWidget::HandleResumeClicked()
 {
+	PlayButtonClickSound();
+	
 	K2_OnMenuCloseStarted();
 }
 
 void UParcelInGameESCMenuWidget::HandleRestartClicked()
 {
+	PlayButtonClickSound();
+	
 	APlayerController* PC = GetOwningPlayer();
 	if (PC && PC->HasAuthority())
 	{
@@ -154,6 +160,8 @@ void UParcelInGameESCMenuWidget::HandleRestartClicked()
 
 void UParcelInGameESCMenuWidget::HandleOptionsClicked()
 {
+	PlayButtonClickSound();
+	
 	if (OptionsWidgetInstance && OptionsWidgetInstance->IsInViewport())
 	{
 		CloseOptionsWidget();
@@ -225,4 +233,13 @@ bool UParcelInGameESCMenuWidget::CloseSubMenuIfOpen()
 		return true;
 	}
 	return false;
+}
+
+void UParcelInGameESCMenuWidget::PlayButtonClickSound()
+{
+	if (ButtonClickSound)
+	{
+		// 뷰포트에 2D로 UI 효과음 출력
+		UGameplayStatics::PlaySound2D(this, ButtonClickSound);
+	}
 }

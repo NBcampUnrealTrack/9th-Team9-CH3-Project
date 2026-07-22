@@ -15,6 +15,7 @@ class UCanvasPanel;
 class UWidgetAnimation;
 class UParcelLobbyPlayerSlotWidget;
 class ADeliveryBox;
+class USoundBase;
 
 /**
  * 맵 스테이지 구조체
@@ -49,6 +50,9 @@ protected:
     virtual void NativeDestruct() override;
     
     virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+    TObjectPtr<USoundBase> ButtonClickSound;
     
     void SetupLobbyLayout();
     
@@ -88,6 +92,8 @@ protected:
     UPROPERTY(BlueprintReadOnly, meta = (BindWidget)) TObjectPtr<UEditableText> EditableText_ChatInput;
 
 private:
+    void PlayButtonClickSound();
+    
     bool bIsMenuOpen = false;
     bool bIsReady = false;
     

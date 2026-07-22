@@ -11,6 +11,7 @@ class UParcelInventoryItemEntryWidget;
 class UParcelShopItemEntryWidget;
 class UTextBlock;
 class UUniformGridPanel;
+class USoundBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnParcelShopCloseRequested);
 
@@ -33,6 +34,9 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UUniformGridPanel> ShopItemGrid;
@@ -74,6 +78,8 @@ protected:
 	int32 InventoryGridColumns = 3;
 
 private:
+	void PlayButtonClickSound();
+	
 	UFUNCTION()
 	void HandleCloseClicked();
 
