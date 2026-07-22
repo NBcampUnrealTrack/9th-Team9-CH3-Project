@@ -2,6 +2,7 @@
 #include "ParcelLog.h"
 #include "GameFramework/GameStateBase.h"
 #include "Core/ParcelGameState.h"
+#include "Core/InventoryComponent.h"
 #include "Core/TeamScoreComponent.h"
 #include "Character/ParcelInteractionComponent.h" 
 #include "Core/HealthComponent.h"
@@ -15,6 +16,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "UI/ParcelFriendListWidget.h"
+#include "Core/ParcelPlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogInGameHUD);
 
@@ -96,6 +98,7 @@ void UParcelHUDWidget::TryBindUIEvents()
 	bool bHeroBound = false;
 	bool bStaminaBound = false;
 	bool bLogBound = false;
+	bool bInventoryBound = false;
 	
 	// GameState와 TeamScore 바인딩
 	if (!CachedGameState.IsValid())
@@ -202,10 +205,24 @@ void UParcelHUDWidget::TryBindUIEvents()
 			HandleOnStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
 			bStaminaBound = true;
 		}
+		
+		// 인벤토리 바인딩
+		if (APlayerState* PS = OwningPawn->GetPlayerState())
+		{
+			if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+			{
+				InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnInventoryChanged);
+				InvComp->OnInventoryChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnInventoryChanged);
+                
+				HandleOnInventoryChanged();
+				bInventoryBound = true;
+			}
+		}
 	}
 	
 	// 4. 멀티플레이 안전장치
-	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound && bLogBound)
+	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && 
+		bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound && bLogBound && bInventoryBound)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
 		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
@@ -299,19 +316,49 @@ void UParcelHUDWidget::HandleOnInteractionFocusChanged(AActor* NewFocusedActor)
 
 void UParcelHUDWidget::HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
 {
+	if (CachedCarriedBox.IsValid())
+	{
+		if (UHealthComponent* OldHealth = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+		{
+			OldHealth->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleCarriedBoxHPChanged);
+		}
+	}
+
+	CachedCarriedBox = NewCarriedBox;
+
 	if (!NewCarriedBox)
 	{
-		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag());
+		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
 		return;
 	}
 	
-	FBoxData CarriedBoxData = NewCarriedBox->GetBoxData();
+	if (UHealthComponent* HealthComp = NewCarriedBox->FindComponentByClass<UHealthComponent>())
+	{
+		HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleCarriedBoxHPChanged);
+		HealthComp->OnHPChanged.AddDynamic(this, &UParcelHUDWidget::HandleCarriedBoxHPChanged);
+		HandleCarriedBoxHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+	}
+	else
+	{
+		HandleCarriedBoxHPChanged(0.f, 0.f);
+	}
+}
+
+void UParcelHUDWidget::HandleCarriedBoxHPChanged(float CurrentHP, float MaxHP)
+{
+	if (!CachedCarriedBox.IsValid())
+	{
+		K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
+		return;
+	}
+
+	FBoxData CarriedBoxData = CachedCarriedBox->GetBoxData();
 	
 	FText BoxNameText = FText::FromString(CarriedBoxData.DisplayName);
 	FText FormattedName = FText::Format(
-		FText::FromString(TEXT("{0} ({1}kg)")), 
-		BoxNameText, 
-		FText::AsNumber(CarriedBoxData.Weight)
+	   FText::FromString(TEXT("{0} ({1}kg)")), 
+	   BoxNameText, 
+	   FText::AsNumber(CarriedBoxData.Weight)
 	);
 	
 	FText DestinationText = FText::FromString(TEXT("목적지 : 미지정 구역"));
@@ -320,14 +367,26 @@ void UParcelHUDWidget::HandleOnCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
 		FString ZoneString = CarriedBoxData.TargetZoneTag.ToString();
 		ZoneString.ReplaceInline(TEXT("Delivery."), TEXT(""));
 		ZoneString.ReplaceInline(TEXT("Zone."), TEXT(""));
-		
+       
 		DestinationText = FText::Format(
-			FText::FromString(TEXT("목적지 : {0} 구역")), 
-			FText::FromString(ZoneString)
+		   FText::FromString(TEXT("목적지 : {0} 구역")), 
+		   FText::FromString(ZoneString)
 		);
 	}
 	
-	K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag);
+	FText BoxHPText = FText::FromString(TEXT("내구도 : -"));
+	if (UHealthComponent* HealthComp = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+	{
+		int32 CurHPVal = FMath::RoundToInt(HealthComp->GetHP());
+		int32 MaxHPVal = FMath::RoundToInt(HealthComp->GetMaxHP());
+		BoxHPText = FText::Format(
+			FText::FromString(TEXT("내구도 : {0} / {1}")),
+			FText::AsNumber(CurHPVal),
+			FText::AsNumber(MaxHPVal)
+		);
+	}
+	
+	K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag, BoxHPText);
 }
 
 void UParcelHUDWidget::UpdateLocalTimer()
@@ -381,4 +440,40 @@ void UParcelHUDWidget::HandleOnStaminaChanged(float CurrentStamina, float MaxSta
 void UParcelHUDWidget::HandleOnDeliveryLogReceived(const FString& PlayerName, const FString& BoxName, bool bSuccess)
 {
 	K2_OnDeliveryLogAdded(PlayerName, BoxName, bSuccess);
+}
+
+void UParcelHUDWidget::HandleOnInventoryChanged()
+{
+	if (APawn* OwningPawn = GetOwningPlayerPawn())
+	{
+		if (AParcelPlayerState* PS = OwningPawn->GetPlayerState<AParcelPlayerState>())
+		{
+			if (UInventoryComponent* InvComp = PS->GetInventoryComponent())
+			{
+				K2_OnInventoryChanged(InvComp->GetItems());
+			}
+		}
+	}
+}
+
+bool UParcelHUDWidget::GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItemData) const
+{
+	if (!ItemTable || !ItemTag.IsValid())
+	{
+		return false;
+	}
+
+	for (const FName RowName : ItemTable->GetRowNames())
+	{
+		if (const FItemData* Row = ItemTable->FindRow<FItemData>(RowName, TEXT("GetItemDataByTag")))
+		{
+			if (Row->ItemTag == ItemTag)
+			{
+				OutItemData = *Row;
+				return true;
+			}
+		}
+	}
+
+	return false;
 }

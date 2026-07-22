@@ -18,6 +18,7 @@ class PARCEL_KNIGHT_API UParcelInventoryItemEntryWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "Parcel|Inventory")
 	void InitializeInventoryItem(
 		FGameplayTag InItemId,
 		const FText& InDisplayName,

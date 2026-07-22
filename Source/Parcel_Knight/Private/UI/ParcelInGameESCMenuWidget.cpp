@@ -7,6 +7,7 @@
 #include "Engine/GameInstance.h"
 #include "Core/SessionSubsystem.h"
 #include "Core/ParcelPlayerState.h"
+#include "UI/ParcelOptionsWidget.h"
 
 void UParcelInGameESCMenuWidget::NativeConstruct()
 {
@@ -23,6 +24,26 @@ void UParcelInGameESCMenuWidget::NativeConstruct()
     
 	if (Btn_Exit)
 		Btn_Exit->OnClicked.AddDynamic(this, &UParcelInGameESCMenuWidget::HandleExitClicked);
+}
+
+void UParcelInGameESCMenuWidget::NativeDestruct()
+{
+	CloseOptionsWidget();
+	Super::NativeDestruct();
+}
+
+FReply UParcelInGameESCMenuWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (InKeyEvent.GetKey() == EKeys::Escape)
+	{
+		if (OptionsWidgetInstance && OptionsWidgetInstance->IsInViewport())
+		{
+			CloseOptionsWidget();
+			return FReply::Handled();
+		}
+	}
+
+	return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
 }
 
 void UParcelInGameESCMenuWidget::SetupMenu()
@@ -50,6 +71,8 @@ void UParcelInGameESCMenuWidget::SetupMenu()
 
 void UParcelInGameESCMenuWidget::CompleteTeardown()
 {
+	CloseOptionsWidget();
+	
 	APlayerController* PC = GetOwningPlayer();
 	if (PC)
 	{
@@ -131,6 +154,55 @@ void UParcelInGameESCMenuWidget::HandleRestartClicked()
 
 void UParcelInGameESCMenuWidget::HandleOptionsClicked()
 {
+	if (OptionsWidgetInstance && OptionsWidgetInstance->IsInViewport())
+	{
+		CloseOptionsWidget();
+		return;
+	}
+
+	if (OptionsWidgetClass)
+	{
+		OptionsWidgetInstance = CreateWidget<UParcelOptionsWidget>(GetOwningPlayer(), OptionsWidgetClass);
+		if (OptionsWidgetInstance)
+		{
+			OptionsWidgetInstance->OnOptionsClosed.RemoveDynamic(this, &UParcelInGameESCMenuWidget::CloseOptionsWidget);
+			OptionsWidgetInstance->OnOptionsClosed.AddDynamic(this, &UParcelInGameESCMenuWidget::CloseOptionsWidget);
+
+			OptionsWidgetInstance->AddToViewport(600);
+          
+			APlayerController* PC = GetOwningPlayer();
+			if (PC)
+			{
+				FInputModeGameAndUI InputMode;
+				InputMode.SetWidgetToFocus(OptionsWidgetInstance->TakeWidget());
+				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				PC->SetInputMode(InputMode);
+			}
+		}
+	}
+}
+
+void UParcelInGameESCMenuWidget::CloseOptionsWidget()
+{
+	if (OptionsWidgetInstance)
+	{
+		OptionsWidgetInstance->OnOptionsClosed.RemoveDynamic(this, &UParcelInGameESCMenuWidget::CloseOptionsWidget);
+
+		if (OptionsWidgetInstance->IsInViewport())
+		{
+			OptionsWidgetInstance->RemoveFromParent();
+		}
+		OptionsWidgetInstance = nullptr;
+		
+		APlayerController* PC = GetOwningPlayer();
+		if (PC)
+		{
+			FInputModeGameAndUI InputMode;
+			InputMode.SetWidgetToFocus(TakeWidget());
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			PC->SetInputMode(InputMode);
+		}
+	}
 }
 
 void UParcelInGameESCMenuWidget::HandleExitClicked()
@@ -143,4 +215,14 @@ void UParcelInGameESCMenuWidget::HandleExitClicked()
 			SessionSubsystem->LeaveSession();
 		}
 	}
+}
+
+bool UParcelInGameESCMenuWidget::CloseSubMenuIfOpen()
+{
+	if (OptionsWidgetInstance && OptionsWidgetInstance->IsInViewport())
+	{
+		CloseOptionsWidget();
+		return true;
+	}
+	return false;
 }

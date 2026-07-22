@@ -9,6 +9,8 @@ class UComboBoxString;
 class UButton;
 class UEditableTextBox;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOptionsClosedSignature);
+
 /**
  * UParcelOptionsWidget
  * 볼륨, 마우스 감도 및 엔진 그래픽 세팅(해상도, 화면모드)을 조작하고 보관하는 위젯
@@ -18,9 +20,15 @@ class PARCEL_KNIGHT_API UParcelOptionsWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
+public:
+	UPROPERTY(BlueprintAssignable, Category = "UI")
+	FOnOptionsClosedSignature OnOptionsClosed;
+	
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	
+	virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 	// UI Bindings
 	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (BindWidget))

@@ -38,11 +38,13 @@ void UParcelGameUserSettings::SetToDefaults()
 void UParcelGameUserSettings::LoadSettings(bool bForceReload)
 {
 	Super::LoadSettings(bForceReload);
-	ValidateSettings();
 }
 
 void UParcelGameUserSettings::ValidateSettings()
 {
+	if (bIsValidating) return;
+	bIsValidating = true;
+
 	Super::ValidateSettings();
 
 	MasterVolume = FMath::Clamp(MasterVolume, 0.0f, 1.0f);
@@ -60,6 +62,8 @@ void UParcelGameUserSettings::ValidateSettings()
 	{
 		SettingsSoundMix = TSoftObjectPtr<USoundMix>(ParcelSettingsDefaults::SettingsSoundMixPath);
 	}
+
+	bIsValidating = false;
 }
 
 UParcelGameUserSettings* UParcelGameUserSettings::GetParcelGameUserSettings()
