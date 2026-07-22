@@ -58,4 +58,7 @@ private:
 
 	bool bSettingsSoundMixPushed = false;
 	bool bIsValidating = false;
+	
+public:
+	virtual void ApplyNonResolutionSettings() override;
 };
