@@ -19,6 +19,8 @@ class UAnimMontage;
 class UWidgetComponent;
 class UParcelStaminaComponent;
 class UInputAction;
+class USpringArmComponent;
+class USceneCaptureComponent2D;
 
 UCLASS()
 class PARCEL_KNIGHT_API AParcelCharacter : public ACharacter
@@ -144,6 +146,9 @@ private:
 	// 총 히트스캔 — Server_UseSlot에서 Gun 아이템일 때 호출
 	void DoGunLineTrace();
 
+	// 로컬 플레이어 전용 미니맵 씬 캡처 활성화 및 타인 캐릭터 캡처 제거
+	void UpdateMinimapCaptureState();
+
 	// 클라이언트에서 Controller 값이 복제되어 바뀔 때 호출
 	virtual void OnRep_Controller() override;
 
@@ -151,5 +156,11 @@ private:
 	virtual void OnJumped_Implementation() override;
 	virtual void Landed(const FHitResult& Hit) override;
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Minimap", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USpringArmComponent> MinimapSpringArm;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Minimap", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneCaptureComponent2D> MinimapCaptureComponent;
+
     UFUNCTION() void HandleCharacterDeath();
 };
