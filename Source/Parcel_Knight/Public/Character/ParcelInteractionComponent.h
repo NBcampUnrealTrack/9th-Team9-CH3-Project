@@ -33,6 +33,8 @@ protected:
 	void Server_RequestPrimaryInteract(AActor* TargetActor);
 
 private:
+	bool IsValidServerInteractionRequest(AActor* TargetActor) const;
+
 	// 0.1초마다 타이머에 의해 주기적으로 호출하는 시선 검사 함수
 	void CheckTraceTarget();
 	
