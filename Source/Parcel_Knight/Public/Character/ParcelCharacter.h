@@ -157,6 +157,9 @@ private:
 	// 총 히트스캔 — Server_UseSlot에서 Gun 아이템일 때 호출
 	void DoGunLineTrace();
 
+	// 서버의 HealthComponent 사망 이벤트는 이 Character 처리기로만 진입한다.
+	void BindAuthoritativeDeathHandler();
+
 	// 로컬 플레이어 전용 미니맵 씬 캡처 활성화 및 타인 캐릭터 캡처 제거
 	void UpdateMinimapCaptureState();
 
@@ -175,4 +178,8 @@ protected:
 	TObjectPtr<USceneCaptureComponent2D> MinimapCaptureComponent;
 
     UFUNCTION() void HandleCharacterDeath();
+
+private:
+	// Pawn 한 생명주기 동안만 유지되며, 실제 리스폰으로 새 Pawn이 생성될 때 초기화된다.
+	bool bDeathHandled = false;
 };

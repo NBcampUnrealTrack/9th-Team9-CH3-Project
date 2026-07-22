@@ -110,12 +110,7 @@ void AParcelCharacter::BeginPlay()
 		PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
 	}
 	
-	// 사망 로직 보완
-	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
-	{
-		HealthComp->OnDeathDelegate.RemoveDynamic(this, &AParcelCharacter::HandleCharacterDeath);
-		HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::HandleCharacterDeath);
-	}
+	BindAuthoritativeDeathHandler();
 	
 	if (GetWorld())
 	{
@@ -220,14 +215,7 @@ void AParcelCharacter::PossessedBy(AController* NewController)
        HeroComp->AddInputMappingContext();
     }
 
-	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
-    {
-        if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
-        {
-            HealthComp->OnDeathDelegate.AddUniqueDynamic(PS, &AParcelPlayerState::HandleDeath);
-        }
-        HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterDeath);
-    }
+	BindAuthoritativeDeathHandler();
 
 	if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
 	{
@@ -300,8 +288,7 @@ void AParcelCharacter::OnRep_Controller()
 
 void AParcelCharacter::OnCharacterDeath()
 {
-	if (RagdollComp)
-		RagdollComp->StartRagdoll();
+	HandleCharacterDeath();
 }
 
 void AParcelCharacter::Server_UseSlot_Implementation(int32 SlotIndex)
@@ -415,15 +402,44 @@ void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 void AParcelCharacter::HandleCharacterDeath()
 {
+	if (!HasAuthority() || bDeathHandled)
+	{
+		return;
+	}
+
+	bDeathHandled = true;
+
     if (RagdollComp) RagdollComp->StartRagdoll();
-    if (HasAuthority() && PlayerStateComp)
+    if (PlayerStateComp)
     {
         PlayerStateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Dead")));
     }
-    if (HasAuthority())
+
+	if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
     {
-       if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>()) PS->HandleDeath();
+		PS->HandleDeath();
     }
+}
+
+void AParcelCharacter::BindAuthoritativeDeathHandler()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+	{
+		// 이전 병렬 경로를 제거하고 서버의 단일 진입점만 유지한다.
+		HealthComp->OnDeathDelegate.RemoveDynamic(this, &AParcelCharacter::OnCharacterDeath);
+		if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
+		{
+			HealthComp->OnDeathDelegate.RemoveDynamic(PS, &AParcelPlayerState::HandleDeath);
+		}
+
+		HealthComp->OnDeathDelegate.RemoveDynamic(this, &AParcelCharacter::HandleCharacterDeath);
+		HealthComp->OnDeathDelegate.AddUniqueDynamic(this, &AParcelCharacter::HandleCharacterDeath);
+	}
 }
 
 void AParcelCharacter::UpdateMinimapCaptureState()

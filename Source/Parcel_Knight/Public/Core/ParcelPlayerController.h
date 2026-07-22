@@ -84,6 +84,7 @@ protected:
 
 private:
 	void CreateTrapStatusOverlayIfNeeded();
+	TWeakObjectPtr<APawn> LastRespawnNotifiedPawn;
 	
 public:
 	/** [Client -> Server] 클라이언트가 입력한 채팅을 서버 방장에게 전달하는 Reliable RPC */

@@ -100,8 +100,9 @@ void AParcelPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 	SubmitLocalLoadoutToServer();
-	
-	Client_NotifyRespawn();
+
+	// ClientRestart가 owning client의 AcknowledgePossession을 호출하며,
+	// 새 Pawn 승인 뒤 해당 경로에서만 UI를 한 번 복구한다.
 }
 
 void AParcelPlayerController::AcknowledgePossession(APawn* InPawn)
@@ -109,10 +110,15 @@ void AParcelPlayerController::AcknowledgePossession(APawn* InPawn)
 	Super::AcknowledgePossession(InPawn);
 	SubmitLocalLoadoutToServer();
 
-	if (IsLocalController())
+	if (IsLocalController() && InPawn && LastRespawnNotifiedPawn.Get() != InPawn)
 	{
-		CONTROLLER_LOG(Log, TEXT("[클라이언트 빙의 확정] AcknowledgePossession 감지 - UI 최종 정렬을 실행합니다."));
-		Client_NotifyRespawn();
+		const UHealthComponent* HealthComp = InPawn->FindComponentByClass<UHealthComponent>();
+		if (!HealthComp || !HealthComp->IsDead())
+		{
+			LastRespawnNotifiedPawn = InPawn;
+			CONTROLLER_LOG(Log, TEXT("[클라이언트 빙의 확정] AcknowledgePossession 감지 - UI 최종 정렬을 실행합니다."));
+			Client_NotifyRespawn();
+		}
 	}
 }
 
