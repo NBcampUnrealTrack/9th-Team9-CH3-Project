@@ -45,6 +45,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Ragdoll")
     bool GetIsRagdoll() const { return bIsRagdoll; }
 
+    UFUNCTION(BlueprintPure, Category = "Ragdoll")
+    bool GetIsGettingUp() const { return bIsGettingUp; }
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ragdoll")
     TObjectPtr<UAnimMontage> GetUpMontage;
 

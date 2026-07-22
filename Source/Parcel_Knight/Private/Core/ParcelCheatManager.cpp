@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/ParcelCheatManager.h"
+#include "Character/ParcelCharacter.h"
+#include "Character/ParcelHeroComponent.h"
 #include "Core/ParcelGameMode.h"
 #include "Core/ParcelGameState.h"
 #include "Core/ParcelGameInstance.h"
@@ -278,4 +280,26 @@ void UParcelCheatManager::DebugSuicide()
 		HealthComp->TakeDamage(FatalDamage);
 		UE_LOG(LogTemp, Log, TEXT("[치트] DebugSuicide 발동. 캐릭터에게 %f 만큼의 치명적 데미지를 부여했습니다."), FatalDamage);
 	}
+}
+
+// ========================= 카메라 =========================
+
+void UParcelCheatManager::DebugForceThirdPerson()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelCharacter* Character = Cast<AParcelCharacter>(PC->GetPawn());
+	if (!Character) return;
+	if (UParcelHeroComponent* HeroComp = Character->GetParcelHeroComponent())
+		HeroComp->EnterRagdollCameraMode();
+}
+
+void UParcelCheatManager::DebugForceFirstPerson()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	if (!PC) return;
+	AParcelCharacter* Character = Cast<AParcelCharacter>(PC->GetPawn());
+	if (!Character) return;
+	if (UParcelHeroComponent* HeroComp = Character->GetParcelHeroComponent())
+		HeroComp->ExitRagdollCameraMode();
 }
