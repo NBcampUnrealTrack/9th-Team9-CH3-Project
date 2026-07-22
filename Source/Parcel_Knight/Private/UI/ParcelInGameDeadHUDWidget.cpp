@@ -1,12 +1,22 @@
-#include "UI/ParcelInGameDeadHUDWidget.h"
+#include "../../Public/UI/ParcelInGameDeadHUDWidget.h"
 #include "Components/TextBlock.h"
 #include "Core/ParcelPlayerController.h"
 #include "TimerManager.h"
 #include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 void UParcelInGameDeadHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+}
+
+void UParcelInGameDeadHUDWidget::PlayHeartbeatSound()
+{
+	if (HeartbeatSound)
+	{
+		UGameplayStatics::PlaySound2D(this, HeartbeatSound);
+	}
 }
 
 void UParcelInGameDeadHUDWidget::StartDeathCountdown(int32 TotalSeconds)
@@ -19,6 +29,8 @@ void UParcelInGameDeadHUDWidget::StartDeathCountdown(int32 TotalSeconds)
 		Txt_CountdownNumber->SetText(FText::AsNumber(CurrentCount));
 	}
 	K2_OnCountdownChanged(CurrentCount);
+	
+	PlayHeartbeatSound();
 
 	// 1초 간격으로 반복되는 로컬 타이머 구동
 	GetWorld()->GetTimerManager().ClearTimer(CountdownTimerHandle);
@@ -49,6 +61,8 @@ void UParcelInGameDeadHUDWidget::AdvanceCountdown()
 		Txt_CountdownNumber->SetText(FText::AsNumber(CurrentCount));
 	}
 	K2_OnCountdownChanged(CurrentCount);
+	
+	PlayHeartbeatSound();
 }
 
 FReply UParcelInGameDeadHUDWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)

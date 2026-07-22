@@ -5,6 +5,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "ParcelLog.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 void UParcelMainMenuWidget::NativeConstruct()
 {
@@ -78,17 +80,21 @@ void UParcelMainMenuWidget::NativeDestruct()
 
 void UParcelMainMenuWidget::HandleSinglePlayClicked()
 {
+	PlayButtonClickSound();
+	
 	INGAMEHUD_LOG(Log, TEXT("[Main Menu] 싱글 플레이 모드 진입 시작"));
 
 	// HasAuthority 1인 리슨 서버 구동
-	// [중요] 실제 마무리 단계에서는 맵 이름 정확하게 세팅해서 경로 바꿔줘야 함
-	SetMapPath(TEXT("/Game/Maps/TestMaps/Testing_DF_Stage01"));
+	// TODO : 맵 경로 체크
+	SetMapPath(TEXT("/Game/Maps/LV_DF_Lobby_Stage00.LV_DF_Lobby_Stage00"));
 	
 	CreateSession(1);
 }
 
 void UParcelMainMenuWidget::HandleMultiPlayClicked()
 {
+	PlayButtonClickSound();
+	
 	INGAMEHUD_LOG(Log, TEXT("[Main Menu] 멀티 플레이 버튼 클릭"));
 
 	// 스팀 서버에 방 목록 요청
@@ -99,6 +105,8 @@ void UParcelMainMenuWidget::HandleMultiPlayClicked()
 
 void UParcelMainMenuWidget::HandleOptionsClicked()
 {
+	PlayButtonClickSound();
+	
 	if (!OptionsWidgetClass)
 	{
 		INGAMEHUD_LOG(Error, TEXT("[Main Menu] OptionsWidgetClass가 할당되지 않았습니다."));
@@ -114,6 +122,8 @@ void UParcelMainMenuWidget::HandleOptionsClicked()
 
 void UParcelMainMenuWidget::HandleShopClicked()
 {
+	PlayButtonClickSound();
+	
 	if (!ShopInventoryWidgetClass)
 	{
 		INGAMEHUD_LOG(Error, TEXT("[Main Menu] ShopInventoryWidgetClass is not assigned."));
@@ -172,6 +182,17 @@ void UParcelMainMenuWidget::HandleShopCloseRequested()
 
 void UParcelMainMenuWidget::HandleExitGameClicked()
 {
+	PlayButtonClickSound();
+	
 	INGAMEHUD_LOG(Log, TEXT("[Main Menu] 게임 종료 요청"));
 	UKismetSystemLibrary::QuitGame(GetWorld(), GetOwningPlayer(), EQuitPreference::Quit, false);
+}
+
+void UParcelMainMenuWidget::PlayButtonClickSound()
+{
+	if (ButtonClickSound)
+	{
+		// 뷰포트에 2D로 UI 효과음 출력
+		UGameplayStatics::PlaySound2D(this, ButtonClickSound);
+	}
 }

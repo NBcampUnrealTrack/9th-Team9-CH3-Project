@@ -8,6 +8,7 @@ class UButton;
 class UTextBlock;
 class UVerticalBox;
 class UParcelOptionsWidget;
+class USoundBase;
 
 /**
  * 인게임 ESC(일시정지) 메뉴의 전체 제어 및 멀티플레이어 바인딩을 담당하는 컨트롤러
@@ -21,6 +22,9 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 
 	// UI Bindings
 	UPROPERTY(meta = (BindWidget))
@@ -88,6 +92,8 @@ public:
 	void CloseOptionsWidget();
 
 private:
+	void PlayButtonClickSound();
+	
 	void UpdateMapName();
 	void UpdatePersonalScore();
 	void UpdatePlayerList();

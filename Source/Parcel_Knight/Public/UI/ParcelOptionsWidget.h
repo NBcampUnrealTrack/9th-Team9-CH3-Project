@@ -8,6 +8,7 @@ class USlider;
 class UComboBoxString;
 class UButton;
 class UEditableTextBox;
+class USoundBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOptionsClosedSignature);
 
@@ -27,6 +28,9 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 	
 	virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -78,6 +82,8 @@ protected:
 	void HandleSliderCaptureEnd();
 
 private:
+	void PlayButtonClickSound();
+	
 	void InitializeSettings();
 	void PopulateScreenModeOptions();
 	void PopulateResolutionOptions();
