@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameState.h"
+#include "GameplayTagContainer.h"
 #include "ParcelGameState.generated.h"
 
 class UTeamScoreComponent;
@@ -11,6 +12,7 @@ class UShopComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnDeliveryLogReceivedSignature, const FString&, PlayerName, const FString&, BoxName, bool, bSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyMapChangedSignature, int32, NewMapIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnStageResultReceivedSignature, FGameplayTag, StageGrade, int32, EarnedMoney, float, TransitionDelay);
 /**
  * 팀 점수 및 남은 시간을 관리하는 GameState
  * 실제 로직은 UTeamScoreComponent가 담당한다.
@@ -35,6 +37,12 @@ public:
 	
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_NotifyDeliveryLog(const FString& PlayerName, const FString& BoxName, bool bSuccess);
+	
+	UPROPERTY(BlueprintAssignable, Category = "ParcelUI|Events")
+	FOnStageResultReceivedSignature OnStageResultReceived;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_NotifyStageResult(FGameplayTag StageGrade, int32 EarnedMoney, float TransitionDelay);
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")

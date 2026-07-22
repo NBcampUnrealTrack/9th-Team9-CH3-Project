@@ -57,4 +57,14 @@ private:
 	
 	// [Server Only] 제한시간 만료 시 호출 — 점수 감소 및 라운드 종료
 	void OnTimeUp();
+	
+	// 스테이지 종료 후 다음 스테이지 진입 전 여유시간 (기본 10초)
+	UPROPERTY(EditAnywhere, Category = "Stage")
+	float TransitionDelay = 10.0f;
+
+	// 다음 스테이지 이동 타이머 핸들
+	FTimerHandle NextStageTimerHandle;
+
+	// 10초 여유시간 종료 후 호출되는 최종 진입 함수
+	void TransitionToNextStage();
 };

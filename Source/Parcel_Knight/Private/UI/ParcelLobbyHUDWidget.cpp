@@ -346,8 +346,47 @@ void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
     
     if (PC && PC->HasAuthority())
     {
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 확정 ➔ 인게임 배달 구역으로 강제 트래블(ServerTravel) 개시!"));
-        GetWorld()->ServerTravel(TEXT("/Game/Maps/LV_DF_Stage01?listen"));
+        // 기본 폴백(Fallback) 맵 경로 설정
+        FString SelectedMapPath = TEXT("/Game/Maps/LV_DF_Stage01");
+
+        // MapDataTable에서 현재 선택된 인덱스의 MapPath 동적 추출
+        if (MapDataTable)
+        {
+            TArray<FParcelMapStageData*> AllMapRows;
+            MapDataTable->GetAllRows<FParcelMapStageData>(TEXT("StartGameMapContext"), AllMapRows);
+
+            if (AllMapRows.IsValidIndex(LocalCurrentMapIndex) && AllMapRows[LocalCurrentMapIndex])
+            {
+                if (!AllMapRows[LocalCurrentMapIndex]->MapPath.IsEmpty())
+                {
+                    SelectedMapPath = AllMapRows[LocalCurrentMapIndex]->MapPath;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 선택된 Row(%d)의 MapPath가 비어있어 기본 맵으로 진행합니다."), LocalCurrentMapIndex);
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] 선택된 맵 인덱스(%d)가 데이터 테이블 범위를 벗어났습니다"), LocalCurrentMapIndex);
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] MapDataTable이 할당되어 있지 않아 기본 맵 경로를 사용합니다."));
+        }
+
+        // Listen 서버 옵션(?listen) 결합
+        FString TravelURL = FString::Printf(TEXT("%s?listen"), *SelectedMapPath);
+        
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 확정 ➔ 선택된 맵(%s)으로 강제 트래블(ServerTravel) 개시 URL: %s"), 
+            *SelectedMapPath, *TravelURL);
+
+        // 동적 경로로 ServerTravel 실행
+        if (UWorld* World = GetWorld())
+        {
+            World->ServerTravel(TravelURL);
+        }
     }
 }
 

@@ -5,6 +5,7 @@
 #include "GameFramework/Character.h"
 #include "TimerManager.h"
 #include "Engine/DataTable.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "ParcelCharacter.generated.h"
 
 class UParcelPlayerStateComponent;
@@ -56,6 +57,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
     TObjectPtr<UAnimMontage> GetUpFrontMontage;
+	
+	UFUNCTION(BlueprintCallable, Category = "Minimap")
+	UTextureRenderTarget2D* GetMinimapRenderTarget();
 
 protected:
     
@@ -102,6 +106,12 @@ protected:
     
     UFUNCTION()
     void OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags);
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Minimap")
+	TObjectPtr<UTextureRenderTarget2D> MinimapRenderTarget;
+	
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> DynamicMinimapRenderTarget;
     
 protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character|Input", meta = (AllowPrivateAccess = "true"))
@@ -141,7 +151,8 @@ public:
 	FORCEINLINE UDFKnockbackComponent* GetKnockbackComponent() const { return KnockbackComponent; }
 	UFUNCTION(BlueprintPure, Category = "Character|Components")
 	FORCEINLINE UParcelStaminaComponent* GetParcelStaminaComponent() const { return StaminaComp; }
-
+	
+	
 private:
 	// 총 히트스캔 — Server_UseSlot에서 Gun 아이템일 때 호출
 	void DoGunLineTrace();
@@ -155,6 +166,7 @@ private:
 	// 점프 시작 시점과 지면 착지 타이밍 이식
 	virtual void OnJumped_Implementation() override;
 	virtual void Landed(const FHitResult& Hit) override;
+	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Minimap", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USpringArmComponent> MinimapSpringArm;

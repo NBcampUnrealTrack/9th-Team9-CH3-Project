@@ -15,6 +15,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Sound/SoundAttenuation.h"
+#include "Character/RagdollComponent.h"
+#include "Camera/CameraShakeBase.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -59,6 +61,13 @@ ADeliveryBox::ADeliveryBox()
 	if (DefaultConveyorAttenuation.Succeeded())
 	{
 		DestroySoundAttenuation = DefaultConveyorAttenuation.Object;
+	}
+
+	// 상자 플레이어 피격 카메라 쉐이크 에셋 (CS_BoxImpact) 경로 자동 연결
+	static ConstructorHelpers::FClassFinder<UCameraShakeBase> DefaultImpactCameraShake(TEXT("/Game/UI/Common/CS_BoxImpact"));
+	if (DefaultImpactCameraShake.Succeeded())
+	{
+		BoxImpactCameraShakeClass = DefaultImpactCameraShake.Class;
 	}
 }
 
@@ -355,6 +364,21 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 						TargetCarry->ForceDropByTrap(VelocityChange * 0.5f);
 					}
 				}
+
+				// 4) 즉시 래그돌(Ragdoll) 상태 전환 ➔ 3인칭 카메라 전환 및 이동/입력 조작 차단 연동
+				if (URagdollComponent* TargetRagdoll = HitCharacter->GetRagdollComponent())
+				{
+					TargetRagdoll->StartRagdoll();
+				}
+
+				// 5) 피격당한 플레이어의 로컬 화면에 카메라 쉐이크 연동 (CS_BoxImpact)
+				if (APlayerController* TargetPC = Cast<APlayerController>(HitCharacter->GetController()))
+				{
+					if (BoxImpactCameraShakeClass)
+					{
+						TargetPC->ClientStartCameraShake(BoxImpactCameraShakeClass);
+					}
+				}
 			}
 		}
 	}
@@ -490,17 +514,49 @@ void ADeliveryBox::Tick(float DeltaTime)
 
 	if (HPWidgetVisualizer && GetWorld())
 	{
-		// 들려있는 상자(HoldingCarrier가 있거나 Held 태그 보유)인 경우 3D 위젯을 보이지 않게 처리
 		bool bIsHeld = (HoldingCarrier != nullptr) || HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
-		
-		if (HealthComponent && HealthComponent->GetHP() <= 0.0f)
+		bool bIsDead = (HealthComponent && HealthComponent->GetHP() <= 0.0f);
+		bool bIsOccluded = false;
+
+		// 들려있거나 파손된 상태가 아니라면 시선 차폐(LineTrace) 검사 진행
+		if (!bIsHeld && !bIsDead)
 		{
-			HPWidgetVisualizer->SetVisibility(false);
+			if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+			{
+				FVector CameraLocation;
+				FRotator CameraRotation;
+				PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+				FVector TargetWidgetLocation = GetActorLocation() + FVector(0.f, 0.f, 50.f);
+
+				// 거리 제한 (20미터/2000유닛 이상 멀어지면 자동 숨김)
+				float Distance = FVector::Dist(CameraLocation, TargetWidgetLocation);
+				if (Distance > 2000.f)
+				{
+					bIsOccluded = true;
+				}
+				else
+				{
+					FCollisionQueryParams QueryParams;
+					QueryParams.AddIgnoredActor(this);
+					if (APawn* LocalPawn = PC->GetPawn())
+					{
+						QueryParams.AddIgnoredActor(LocalPawn);
+					}
+
+					FHitResult HitResult;
+					bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, CameraLocation, TargetWidgetLocation, ECC_Visibility, QueryParams);
+					if (bHit && HitResult.GetActor() && HitResult.GetActor() != this)
+					{
+						bIsOccluded = true; // 벽이나 구조물에 시선이 가려짐
+					}
+				}
+			}
 		}
-		else
-		{
-			HPWidgetVisualizer->SetVisibility(!bIsHeld);
-		}
+
+		// 최종 가시성 결정 (들림, 사망, 벽 가림 상태가 모두 아닐 때만 켬)
+		bool bShouldShow = (!bIsHeld) && (!bIsDead) && (!bIsOccluded);
+		HPWidgetVisualizer->SetVisibility(bShouldShow);
 
 		// 상자가 뒹굴거나 회전해도 위젯의 위치는 언제나 상자 중심 기준 세계 좌표(World) Z축 방향으로 고정
 		FVector BoxLocation = GetActorLocation();
@@ -520,7 +576,6 @@ void ADeliveryBox::UpdateHPText(float CurrentHP, float MaxHP)
 			HPWidgetVisualizer->SetVisibility(false);
 			return;
 		}
-		HPWidgetVisualizer->SetVisibility(true);
 	}
 
 	// 목적지 구역 태그 파싱 (예: "Zone.Type.A" ➔ "A")
