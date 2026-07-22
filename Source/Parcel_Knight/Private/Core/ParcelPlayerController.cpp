@@ -10,6 +10,7 @@
 #include "GameFramework/GameState.h"
 #include "GameFramework/PlayerState.h"
 #include "UI/ParcelLobbyHUDWidget.h"
+#include "Core/ParcelGameMode.h"
 #include "Core/ParcelGameState.h"
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelPlayerState.h"
@@ -445,14 +446,25 @@ void AParcelPlayerController::Client_ReceiveLobbyChatMessage_Implementation(cons
 
 bool AParcelPlayerController::Server_RequestChangeLobbyMap_Validate(int32 NewMapIndex)
 {
-	return IsLocalController();
+	// Authorization failures are ordinary request rejections, not malformed RPCs.
+	// Returning false here would route the connection through RPC_ValidateFailed.
+	return true;
 }
 
 void AParcelPlayerController::Server_RequestChangeLobbyMap_Implementation(int32 NewMapIndex)
 {
-	if (AParcelGameState* ParcelGS = GetWorld() ? GetWorld()->GetGameState<AParcelGameState>() : nullptr)
+	AParcelGameMode* ParcelGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AParcelGameMode>() : nullptr;
+	if (!ParcelGameMode || !ParcelGameMode->RequestLobbyMapSelection(this, NewMapIndex))
 	{
-		ParcelGS->SetSelectedMapIndex(NewMapIndex);
-		UE_LOG(LogTemp, Warning, TEXT("[Server PC] 방장 권한 확인 완료. 월드 맵 인덱스를 %d번으로 강제 변조합니다."), NewMapIndex);
+		CONTROLLER_LOG(Warning, TEXT("Lobby map request rejected for index %d."), NewMapIndex);
+	}
+}
+
+void AParcelPlayerController::Server_RequestStartLobbyGame_Implementation()
+{
+	AParcelGameMode* ParcelGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AParcelGameMode>() : nullptr;
+	if (!ParcelGameMode || !ParcelGameMode->RequestStartLobbyGame(this))
+	{
+		CONTROLLER_LOG(Warning, TEXT("Lobby start request rejected."));
 	}
 }

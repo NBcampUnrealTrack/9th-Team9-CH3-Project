@@ -341,55 +341,11 @@ void UParcelLobbyHUDWidget::HandleSelectMapClicked()
 void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
 {
     PlayButtonClickSound();
-    
-    APlayerController* PC = GetOwningPlayer();
-    
-    if (PC && PC->HasAuthority())
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(GetOwningPlayer()))
     {
-        // 기본 폴백(Fallback) 맵 경로 설정
-        FString SelectedMapPath = TEXT("/Game/Maps/LV_DF_Stage01");
-
-        // MapDataTable에서 현재 선택된 인덱스의 MapPath 동적 추출
-        if (MapDataTable)
-        {
-            TArray<FParcelMapStageData*> AllMapRows;
-            MapDataTable->GetAllRows<FParcelMapStageData>(TEXT("StartGameMapContext"), AllMapRows);
-
-            if (AllMapRows.IsValidIndex(LocalCurrentMapIndex) && AllMapRows[LocalCurrentMapIndex])
-            {
-                if (!AllMapRows[LocalCurrentMapIndex]->MapPath.IsEmpty())
-                {
-                    SelectedMapPath = AllMapRows[LocalCurrentMapIndex]->MapPath;
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 선택된 Row(%d)의 MapPath가 비어있어 기본 맵으로 진행합니다."), LocalCurrentMapIndex);
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] 선택된 맵 인덱스(%d)가 데이터 테이블 범위를 벗어났습니다"), LocalCurrentMapIndex);
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] MapDataTable이 할당되어 있지 않아 기본 맵 경로를 사용합니다."));
-        }
-
-        if (UGameInstance* GI = GetGameInstance())
-        {
-            if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
-            {
-                SessionSubsystem->StartGame(SelectedMapPath);
-                return;
-            }
-        }
-        
-        FString TravelURL = FString::Printf(TEXT("%s?listen"), *SelectedMapPath);
-        if (UWorld* World = GetWorld())
-        {
-            World->ServerTravel(TravelURL);
-        }
+        // The client sends only start intent; the server resolves the replicated index.
+        ParcelPC->Server_RequestStartLobbyGame();
     }
 }
 
@@ -641,12 +597,6 @@ void UParcelLobbyHUDWidget::SelectMapByIndex(int32 NewMapIndex)
     if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
     {
         ParcelPC->Server_RequestChangeLobbyMap(NewMapIndex);
-        
-        if (PC->HasAuthority())
-        {
-            HandleOnLobbyMapChanged(NewMapIndex);
-            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 로컬 화면 즉시 동기화 가동 ➔ %d번 맵 반영."), NewMapIndex);
-        }
     }
 }
 

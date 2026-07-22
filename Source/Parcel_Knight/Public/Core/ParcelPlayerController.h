@@ -102,4 +102,8 @@ public:
 public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_RequestChangeLobbyMap(int32 NewMapIndex);
+
+	/** Requests lobby start without accepting a client-provided map path. */
+	UFUNCTION(Server, Reliable)
+	void Server_RequestStartLobbyGame();
 };

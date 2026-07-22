@@ -12,6 +12,8 @@ class URespawnComponent;
 class AParcelGameState;
 class UStageData;
 class UParcelCheatManager;
+class UDataTable;
+class USessionSubsystem;
 
 /**
  * 게임 룰을 관리하는 GameMode — 함수의 실행만 담당
@@ -40,6 +42,12 @@ public:
 	void OnDeliveryCompleted(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount);
 	void OnDeliveryFailed(APlayerController* Deliverer, const FString& BoxName, int32 ScoreAmount = 0);
 
+	/** Server-authoritative lobby map selection. Rejects non-owners and invalid catalog indices. */
+	bool RequestLobbyMapSelection(APlayerController* RequestingController, int32 NewMapIndex);
+
+	/** Server-authoritative lobby start. Resolves the selected map from the trusted catalog. */
+	bool RequestStartLobbyGame(APlayerController* RequestingController);
+
 	// [All] 부활 컴포넌트 반환 — PlayerState::HandleDeath에서 사용
 	URespawnComponent* GetRespawnComponent() const;
 
@@ -49,6 +57,12 @@ protected:
 	virtual void HandleMatchHasEnded() override;
 
 private:
+	friend class USessionSubsystem;
+
+	bool IsAuthorizedLobbyHost(const APlayerController* RequestingController) const;
+	bool IsSelectedLobbyMapPath(const FString& CandidateMapPath) const;
+	bool ResolveLobbyMapPath(int32 MapIndex, FString& OutMapPath) const;
+
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UDeliveryRuleComponent> DeliveryRuleComp;
 
@@ -58,4 +72,8 @@ private:
 	// 현재 스테이지 데이터 — 에디터(BP_ParcelGameMode)에서 지정하거나 레벨 BP에서 설정
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UStageData> CurrentStageData;
+
+	/** Existing DT_LobbyMapData, promoted to the server-owned allowlist for lobby travel. */
+	UPROPERTY(EditDefaultsOnly, Category = "Lobby|Map", meta=(AllowPrivateAccess="true"))
+	TSoftObjectPtr<UDataTable> LobbyMapCatalog;
 };
