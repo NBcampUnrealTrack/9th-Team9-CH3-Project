@@ -16,6 +16,7 @@ class UNiagaraSystem;
 class USoundBase;
 class USoundAttenuation;
 class UWidgetComponent;
+class UCameraShakeBase;
 
 UCLASS()
 class PARCEL_KNIGHT_API ADeliveryBox : public AActor, public ICarryableInterface, public IInteractableInterface
@@ -130,6 +131,10 @@ protected:
 	// 상자 파손 소멸 사운드용 거리 감쇄 설정
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
 	TObjectPtr<USoundAttenuation> DestroySoundAttenuation;
+
+	// 상자 플레이어 피격 시 연동할 카메라 쉐이크 에셋
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Delivery Box Visual")
+	TSubclassOf<UCameraShakeBase> BoxImpactCameraShakeClass;
 
 	// 모든 클라이언트에서 나이아가라 이펙트 및 사운드 재생을 위한 멀티캐스트 RPC
 	UFUNCTION(NetMulticast, Reliable)

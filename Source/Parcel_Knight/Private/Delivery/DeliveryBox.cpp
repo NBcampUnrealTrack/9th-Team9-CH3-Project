@@ -15,6 +15,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Sound/SoundAttenuation.h"
+#include "Character/RagdollComponent.h"
+#include "Camera/CameraShakeBase.h"
 
 DEFINE_LOG_CATEGORY(LogDeliveryBox);
 
@@ -59,6 +61,13 @@ ADeliveryBox::ADeliveryBox()
 	if (DefaultConveyorAttenuation.Succeeded())
 	{
 		DestroySoundAttenuation = DefaultConveyorAttenuation.Object;
+	}
+
+	// 상자 플레이어 피격 카메라 쉐이크 에셋 (CS_BoxImpact) 경로 자동 연결
+	static ConstructorHelpers::FClassFinder<UCameraShakeBase> DefaultImpactCameraShake(TEXT("/Game/UI/Common/CS_BoxImpact"));
+	if (DefaultImpactCameraShake.Succeeded())
+	{
+		BoxImpactCameraShakeClass = DefaultImpactCameraShake.Class;
 	}
 }
 
@@ -353,6 +362,21 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 					if (TargetCarry->IsCarrying())
 					{
 						TargetCarry->ForceDropByTrap(VelocityChange * 0.5f);
+					}
+				}
+
+				// 4) 즉시 래그돌(Ragdoll) 상태 전환 ➔ 3인칭 카메라 전환 및 이동/입력 조작 차단 연동
+				if (URagdollComponent* TargetRagdoll = HitCharacter->GetRagdollComponent())
+				{
+					TargetRagdoll->StartRagdoll();
+				}
+
+				// 5) 피격당한 플레이어의 로컬 화면에 카메라 쉐이크 연동 (CS_BoxImpact)
+				if (APlayerController* TargetPC = Cast<APlayerController>(HitCharacter->GetController()))
+				{
+					if (BoxImpactCameraShakeClass)
+					{
+						TargetPC->ClientStartCameraShake(BoxImpactCameraShakeClass);
 					}
 				}
 			}
