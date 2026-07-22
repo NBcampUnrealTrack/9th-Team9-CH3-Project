@@ -98,6 +98,19 @@ void UHealthComponent::IncreaseMaxHP(float Amount)
 	OnHPChanged.Broadcast(HP, MaxHP);
 }
 
+void UHealthComponent::SetMaxHPPreservingRatio(float InMaxHP)
+{
+	if (!GetOwner()->HasAuthority()) return;
+
+	const float HealthRatio = MaxHP > KINDA_SMALL_NUMBER
+		? FMath::Clamp(HP / MaxHP, 0.f, 1.f)
+		: (bIsDead ? 0.f : 1.f);
+
+	MaxHP = FMath::Max(1.f, InMaxHP);
+	HP = bIsDead ? 0.f : MaxHP * HealthRatio;
+	OnHPChanged.Broadcast(HP, MaxHP);
+}
+
 void UHealthComponent::InitializeHP(float InMaxHP)
 {
 	if (GetOwner()->HasAuthority())

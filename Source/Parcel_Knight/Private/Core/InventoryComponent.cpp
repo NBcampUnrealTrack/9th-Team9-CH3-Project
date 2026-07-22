@@ -26,10 +26,9 @@ void UInventoryComponent::InitFromGameInstance(UParcelGameInstance* GI)
 {
 	if (!GI) return;
 
-	Items = GI->GetLoadout();
-
-	// 비어있는 슬롯(EmptyTag) 제거
-	Items.RemoveAll([](const FGameplayTag& Tag) { return !Tag.IsValid(); });
+	TArray<FGameplayTag> LocalLoadout = GI->GetLoadout();
+	LocalLoadout.RemoveAll([](const FGameplayTag& Tag) { return !Tag.IsValid(); });
+	SetValidatedLoadout(LocalLoadout);
 }
 
 // ========================= 조회 =========================
@@ -151,15 +150,31 @@ void UInventoryComponent::ApplyPassiveEffects(APawn* Pawn)
 	if (!GetOwner()->HasAuthority() || !Pawn) return;
 
 	static const FGameplayTag TAG_Consumable = FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
+	float MaxHPBonus = 0.f;
 
 	for (const FGameplayTag& ItemTag : Items)
 	{
 		if (!ItemTag.MatchesTag(TAG_Consumable)) continue;
 
-		FItemData* Data = FindItemData(ItemTag);
+		const FItemData* Data = FindItemData(ItemTag);
 		if (!Data || Data->ActivationType != EItemActivationType::Passive) continue;
 
-		ApplyEffects(Data, Pawn);
+		for (const FItemEffect& Effect : Data->Effects)
+		{
+			if (Effect.EffectTag == ParcelGameplayTags::Effect_Stat_HP)
+			{
+				MaxHPBonus += Effect.Value;
+			}
+		}
+	}
+
+	if (UHealthComponent* HealthComponent = Pawn->FindComponentByClass<UHealthComponent>())
+	{
+		const float TargetMaxHP = HealthComponent->GetBaseMaxHP() + MaxHPBonus;
+		if (!FMath::IsNearlyEqual(TargetMaxHP, HealthComponent->GetMaxHP()))
+		{
+			HealthComponent->SetMaxHPPreservingRatio(TargetMaxHP);
+		}
 	}
 }
 
