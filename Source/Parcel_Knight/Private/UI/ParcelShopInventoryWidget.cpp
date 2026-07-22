@@ -1,5 +1,4 @@
 #include "UI/ParcelShopInventoryWidget.h"
-
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/UniformGridPanel.h"
@@ -9,6 +8,8 @@
 #include "Engine/DataTable.h"
 #include "UI/ParcelInventoryItemEntryWidget.h"
 #include "UI/ParcelShopItemEntryWidget.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogParcelShopUI, Log, All);
 
@@ -357,6 +358,8 @@ const FItemData* UParcelShopInventoryWidget::FindItemData(FGameplayTag ItemId) c
 
 void UParcelShopInventoryWidget::HandleCloseClicked()
 {
+	PlayButtonClickSound();
+	
 	if (OnCloseRequested.IsBound())
 	{
 		OnCloseRequested.Broadcast();
@@ -364,5 +367,14 @@ void UParcelShopInventoryWidget::HandleCloseClicked()
 	else
 	{
 		SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void UParcelShopInventoryWidget::PlayButtonClickSound()
+{
+	if (ButtonClickSound)
+	{
+		// 뷰포트에 2D로 UI 효과음 출력
+		UGameplayStatics::PlaySound2D(this, ButtonClickSound);
 	}
 }

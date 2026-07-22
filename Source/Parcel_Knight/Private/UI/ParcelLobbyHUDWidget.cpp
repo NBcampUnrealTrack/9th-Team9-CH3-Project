@@ -28,6 +28,8 @@
 #include "Core/InventoryComponent.h"
 #include "Data/ItemData.h"
 #include "Engine/DataTable.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 void UParcelLobbyHUDWidget::NativeConstruct()
 {
@@ -246,6 +248,8 @@ void UParcelLobbyHUDWidget::AddChatLog(const FString& SenderName, const FText& M
 
 void UParcelLobbyHUDWidget::HandleOptionsClicked()
 {
+    PlayButtonClickSound();
+    
     if (OptionsWidgetInstance && OptionsWidgetInstance->IsInViewport())
     {
         OptionsWidgetInstance->RemoveFromParent();
@@ -267,6 +271,8 @@ void UParcelLobbyHUDWidget::HandleOptionsClicked()
 
 void UParcelLobbyHUDWidget::HandleFriendsClicked()
 {
+    PlayButtonClickSound();
+    
     if (FriendListWidgetInstance && FriendListWidgetInstance->IsInViewport())
     {
         FriendListWidgetInstance->CloseFriendList();
@@ -288,6 +294,8 @@ void UParcelLobbyHUDWidget::HandleFriendsClicked()
 
 void UParcelLobbyHUDWidget::HandleLeaveLobbyClicked()
 {
+    PlayButtonClickSound();
+    
     UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 로비 탈출 명령 감지. 안전 세션 철거 시퀀스 개시."));
 
     if (UGameInstance* GI = GetGameInstance())
@@ -318,6 +326,8 @@ void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
 
 void UParcelLobbyHUDWidget::HandleSelectMapClicked()
 {
+    PlayButtonClickSound();
+    
     APlayerController* PC = GetOwningPlayer();
 
     if (PC && PC->HasAuthority() && MapDataTable)
@@ -330,6 +340,8 @@ void UParcelLobbyHUDWidget::HandleSelectMapClicked()
 
 void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
 {
+    PlayButtonClickSound();
+    
     APlayerController* PC = GetOwningPlayer();
     
     if (PC && PC->HasAuthority())
@@ -628,4 +640,13 @@ bool UParcelLobbyHUDWidget::GetItemDataByTag(FGameplayTag ItemTag, FItemData& Ou
         }
     }
     return false;
+}
+
+void UParcelLobbyHUDWidget::PlayButtonClickSound()
+{
+    if (ButtonClickSound)
+    {
+        // 뷰포트에 2D로 UI 효과음 출력
+        UGameplayStatics::PlaySound2D(this, ButtonClickSound);
+    }
 }

@@ -7,6 +7,7 @@
 class UButton;
 class UParcelOptionsWidget;
 class UParcelShopInventoryWidget;
+class USoundBase;
 
 /**
  * UParcelMainMenuWidget
@@ -20,6 +21,9 @@ class PARCEL_KNIGHT_API UParcelMainMenuWidget : public UParcelSessionWidget
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|Sound")
+	TObjectPtr<USoundBase> ButtonClickSound;
 
 	// UMG 위젯 버튼 바인딩
 	UPROPERTY(meta = (BindWidget))
@@ -64,6 +68,8 @@ protected:
 	
 	
 private:
+	void PlayButtonClickSound();
+	
 	// 버튼 클릭 핸들러 함수
 	UFUNCTION()
 	void HandleSinglePlayClicked();
