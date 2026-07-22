@@ -79,6 +79,18 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
     float AutoRecoveryDelay = 5.0f;
 
+    // 공중이라 자동 기상이 미뤄질 때, 무한 대기하지 않고 강제로 기상시키기까지의 최대 추가 대기 시간 (초)
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
+    float MaxAirRecoveryWait = 5.0f;
+
+    // 래그돌 토글(진입/해제) 재입력 쿨타임 시간 (초)
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
+    float RagdollCooldown = 2.0f;
+
+    // 래그돌 해제 후 이동 불가 시간 (초)
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
+    float RecoveryLockDuration = 1.0f;
+
 private:
     // 앞/뒤 상태에 맞는 일어나기 몽타주를 반환합니다.
     UAnimMontage* GetSelectedGetUpMontage(bool bFront) const;
@@ -98,7 +110,22 @@ private:
     // 상태이상이 없을 때 강제 기상을 시도하는 함수 (서버 전용)
     void AttemptAutoRecovery();
 
+    // 쿨타임이 아니면 소비하고 true, 쿨타임 중이면 false (ToggleRagdoll 재입력 방지용, 서버 전용)
+    bool TryConsumeToggleCooldown();
+
     FTimerHandle AutoRecoveryTimerHandle;
+
+    // 래그돌 해제 후 이동 불가 타이머
+    FTimerHandle RecoveryLockTimerHandle;
+
+    // 래그돌 재진입 쿨타임 타이머
+    FTimerHandle RagdollCooldownTimerHandle;
+
+    // 래그돌 쿨타임 진행 중 여부 (서버 전용)
+    bool bRagdollOnCooldown = false;
+
+    // AttemptAutoRecovery가 공중 체크로 재시도를 시작한 뒤 누적된 대기 시간 (서버 전용)
+    float AirRecoveryWaitElapsed = 0.f;
 
     // 이 컴포넌트를 소유한 캐릭터 캐싱 변수
     UPROPERTY()

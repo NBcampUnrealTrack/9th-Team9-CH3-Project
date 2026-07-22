@@ -148,6 +148,10 @@ protected:
 	void UseSlot(int32 SlotIndex);
 	
 private:
+	// InitializePlayerInput 중복 호출 시 액션 바인딩이 중첩 등록되는 것을 막는 플래그
+	// (SetupPlayerInputComponent가 재호출되면 BindAction이 중복 등록되어 R키 등이 한 번 입력에 두 번 실행되는 문제 방지)
+	bool bInputBound = false;
+
 	// 달리기 기능을 위한 Server RPC
 	UFUNCTION(Server, Reliable)
 	void ServerSetSprinting(bool bNewIsSprinting);
