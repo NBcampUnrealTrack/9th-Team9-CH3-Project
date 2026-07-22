@@ -107,20 +107,16 @@ bool UParcelGameUserSettings::ApplyMasterVolume(const UObject* WorldContextObjec
 		return false;
 	}
 
-	if (!bSettingsSoundMixPushed)
-	{
-		UGameplayStatics::PushSoundMixModifier(WorldContextObject, CachedSettingsSoundMix);
-		bSettingsSoundMixPushed = true;
-	}
+	UGameplayStatics::PushSoundMixModifier(WorldContextObject, CachedSettingsSoundMix);
 
 	UGameplayStatics::SetSoundMixClassOverride(
-		WorldContextObject,
-		CachedSettingsSoundMix,
-		CachedMasterSoundClass,
-		MasterVolume,
-		1.0f,
-		0.0f,
-		true);
+	   WorldContextObject,
+	   CachedSettingsSoundMix,
+	   CachedMasterSoundClass,
+	   MasterVolume,
+	   1.0f,
+	   0.0f,
+	   true); // bApplyToChildren = true
 
 	UE_LOG(LogParcelGameUserSettings, Log, TEXT("Applied local MasterVolume=%.2f"), MasterVolume);
 	return true;
@@ -132,4 +128,24 @@ void UParcelGameUserSettings::SetMouseSensitivity(float NewMouseSensitivity)
 		NewMouseSensitivity,
 		ParcelSettingsDefaults::MinMouseSensitivity,
 		ParcelSettingsDefaults::MaxMouseSensitivity);
+}
+
+void UParcelGameUserSettings::ApplyNonResolutionSettings()
+{
+	Super::ApplyNonResolutionSettings();
+	
+	if (GEngine && GEngine->GetWorldContexts().Num() > 0)
+	{
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			if (UWorld* World = Context.World())
+			{
+				if (World->IsGameWorld() && World->GetNetMode() != NM_DedicatedServer)
+				{
+					ApplyMasterVolume(World);
+					break;
+				}
+			}
+		}
+	}
 }

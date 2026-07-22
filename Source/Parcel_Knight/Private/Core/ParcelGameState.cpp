@@ -66,3 +66,11 @@ void AParcelGameState::OnRep_SelectedMapIndex()
     
 	UE_LOG(LogTemp, Log, TEXT("[GameState Synced] 서버로부터 신규 맵 인덱스(%d) 패킷 동동기화 완료 -> HUD 브로드캐스트 전송"), SelectedMapIndex);
 }
+
+void AParcelGameState::Multicast_NotifyStageResult_Implementation(FGameplayTag StageGrade, int32 EarnedMoney, float TransitionDelay)
+{
+	if (OnStageResultReceived.IsBound())
+	{
+		OnStageResultReceived.Broadcast(StageGrade, EarnedMoney, TransitionDelay);
+	}
+}

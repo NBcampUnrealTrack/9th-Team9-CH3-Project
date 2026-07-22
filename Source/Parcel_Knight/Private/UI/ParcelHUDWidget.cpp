@@ -101,6 +101,8 @@ void UParcelHUDWidget::TryBindUIEvents()
 	bool bInventoryBound = false;
 	
 	// GameState와 TeamScore 바인딩
+	
+	// GameState와 TeamScore 바인딩
 	if (!CachedGameState.IsValid())
 	{
 		CachedGameState = Cast<AParcelGameState>(GetWorld()->GetGameState());
@@ -128,6 +130,10 @@ void UParcelHUDWidget::TryBindUIEvents()
        
 		CachedGameState->OnDeliveryLogReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
 		CachedGameState->OnDeliveryLogReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+		
+		CachedGameState->OnStageResultReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnStageResultReceived);
+		CachedGameState->OnStageResultReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnStageResultReceived);
+
 		bLogBound = true;
 	}
 
@@ -476,4 +482,43 @@ bool UParcelHUDWidget::GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItem
 	}
 
 	return false;
+}
+
+void UParcelHUDWidget::HandleOnStageResultReceived(FGameplayTag StageGrade, int32 EarnedMoney, float TransitionDelay)
+{
+	// 1. WBP 연출 실행 (오늘의 일당 UI, Sound 등)
+	K2_OnStageResultStarted(StageGrade, EarnedMoney, TransitionDelay);
+
+	// 2. 1초 단위 실시간 카운트다운 타이머 시작
+	if (GetWorld() && TransitionDelay > 0.0f)
+	{
+		TransitionEndTime = GetWorld()->GetTimeSeconds() + TransitionDelay;
+
+		GetWorld()->GetTimerManager().ClearTimer(ResultCountdownTimerHandle);
+		GetWorld()->GetTimerManager().SetTimer(
+			ResultCountdownTimerHandle,
+			this,
+			&UParcelHUDWidget::UpdateTransitionCountdown,
+			1.0f,
+			true
+		);
+
+		UpdateTransitionCountdown(); // 즉시 10초 갱신
+	}
+}
+
+void UParcelHUDWidget::UpdateTransitionCountdown()
+{
+	if (!GetWorld()) return;
+
+	float Remaining = TransitionEndTime - GetWorld()->GetTimeSeconds();
+	int32 Seconds = FMath::Max(0, FMath::CeilToInt(Remaining));
+
+	// WBP로 초 단위 노출 (10, 9, 8...)
+	K2_OnTransitionCountdownUpdated(Seconds);
+
+	if (Remaining <= 0.0f)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(ResultCountdownTimerHandle);
+	}
 }

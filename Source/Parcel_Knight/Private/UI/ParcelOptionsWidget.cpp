@@ -216,18 +216,20 @@ void UParcelOptionsWidget::PopulateResolutionOptions()
 void UParcelOptionsWidget::HandleVolumeChanged(float Value)
 {
 	const float ClampedVolume = FMath::Clamp(Value, 0.0f, 1.0f);
-    if (Edit_Volume)
-    {
-        FNumberFormattingOptions FormatOptions;
-        FormatOptions.MaximumFractionalDigits = 2;
+	if (Edit_Volume)
+	{
+		FNumberFormattingOptions FormatOptions;
+		FormatOptions.MaximumFractionalDigits = 2;
 		FormatOptions.MinimumFractionalDigits = 2;
 		Edit_Volume->SetText(FText::AsNumber(ClampedVolume, &FormatOptions));
-    }
+	}
 
 	if (UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
 	{
 		Settings->SetMasterVolume(ClampedVolume);
+		
 		Settings->ApplyMasterVolume(this);
+        
 		bLocalSettingsDirty |= !bInitializingSettings;
 	}
 }
@@ -295,35 +297,36 @@ void UParcelOptionsWidget::HandleSensitivityTextCommitted(const FText& Text, ETe
 void UParcelOptionsWidget::HandleApplyClicked()
 {
 	PlayButtonClickSound();
-	
-	if (UGameUserSettings* Settings = UGameUserSettings::GetGameUserSettings())
-    {
-        if (Combo_ScreenMode)
-        {
-            FString SelectedMode = Combo_ScreenMode->GetSelectedOption();
-            if (SelectedMode == TEXT("전체 화면"))
-                Settings->SetFullscreenMode(EWindowMode::Fullscreen);
-            else if (SelectedMode == TEXT("전체 창 모드"))
-                Settings->SetFullscreenMode(EWindowMode::WindowedFullscreen);
-            else if (SelectedMode == TEXT("창 모드"))
-                Settings->SetFullscreenMode(EWindowMode::Windowed);
-        }
-
-        if (Combo_Resolution)
-        {
-            FString SelectedRes = Combo_Resolution->GetSelectedOption();
-            FString LeftStr, RightStr;
-            if (SelectedRes.Split(TEXT("x"), &LeftStr, &RightStr))
-            {
-                int32 Width = FCString::Atoi(*LeftStr);
-                int32 Height = FCString::Atoi(*RightStr);
-                Settings->SetScreenResolution(FIntPoint(Width, Height));
-            }
-        }
     
-        Settings->ApplySettings(false);
+	if (UParcelGameUserSettings* Settings = UParcelGameUserSettings::GetParcelGameUserSettings())
+	{
+		if (Combo_ScreenMode)
+		{
+			FString SelectedMode = Combo_ScreenMode->GetSelectedOption();
+			if (SelectedMode == TEXT("전체 화면"))
+				Settings->SetFullscreenMode(EWindowMode::Fullscreen);
+			else if (SelectedMode == TEXT("전체 창 모드"))
+				Settings->SetFullscreenMode(EWindowMode::WindowedFullscreen);
+			else if (SelectedMode == TEXT("창 모드"))
+				Settings->SetFullscreenMode(EWindowMode::Windowed);
+		}
+
+		if (Combo_Resolution)
+		{
+			FString SelectedRes = Combo_Resolution->GetSelectedOption();
+			FString LeftStr, RightStr;
+			if (SelectedRes.Split(TEXT("x"), &LeftStr, &RightStr))
+			{
+				int32 Width = FCString::Atoi(*LeftStr);
+				int32 Height = FCString::Atoi(*RightStr);
+				Settings->SetScreenResolution(FIntPoint(Width, Height));
+			}
+		}
+		
+		Settings->ApplyMasterVolume(this);
+		Settings->ApplySettings(false);
 		bLocalSettingsDirty = false;
-    }
+	}
 
 	SaveLocalSettingsIfDirty();
 }

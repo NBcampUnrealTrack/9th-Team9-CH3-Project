@@ -21,6 +21,8 @@
 #include "Data/ItemData.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Kismet/KismetRenderingLibrary.h"
+#include "Engine/TextureRenderTarget2D.h"
 
 DEFINE_LOG_CATEGORY(LogCharacter);
 
@@ -65,29 +67,31 @@ AParcelCharacter::AParcelCharacter()
     }
 
     // 미니맵용 스프링 암 및 씬 캡처 컴포넌트 생성 및 설정
-    MinimapSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("MinimapSpringArm"));
-    if (MinimapSpringArm)
-    {
-        MinimapSpringArm->SetupAttachment(RootComponent);
-        MinimapSpringArm->TargetArmLength = 1200.f; // 미니맵 카메라 높이
-        MinimapSpringArm->bUsePawnControlRotation = false; // 마우스 회전에 영향받지 않음
-        MinimapSpringArm->bInheritPitch = false;
-        MinimapSpringArm->bInheritRoll = false;
-        MinimapSpringArm->bInheritYaw = false; // 기본값은 North-up 고정 (회전을 원하면 true로 설정 가능)
-        MinimapSpringArm->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f)); // 수직 하강 촬영
-    }
+	MinimapSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("MinimapSpringArm"));
+	if (MinimapSpringArm)
+	{
+		MinimapSpringArm->SetupAttachment(RootComponent);
+		MinimapSpringArm->TargetArmLength = 800.f;
+		MinimapSpringArm->bUsePawnControlRotation = false;
+		MinimapSpringArm->bInheritPitch = false;
+		MinimapSpringArm->bInheritRoll = false;
+		MinimapSpringArm->bInheritYaw = false;
+		MinimapSpringArm->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
+		MinimapSpringArm->bDoCollisionTest = false;
+	}
 
-    MinimapCaptureComponent = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("MinimapCaptureComponent"));
-    if (MinimapCaptureComponent)
-    {
-        MinimapCaptureComponent->SetupAttachment(MinimapSpringArm);
-        MinimapCaptureComponent->ProjectionType = ECameraProjectionMode::Orthographic;
-        MinimapCaptureComponent->OrthoWidth = 2500.f; // 캡처 반경 가로폭 범위
-        MinimapCaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR; // 최적화 LDR 캡처
-        MinimapCaptureComponent->bCaptureEveryFrame = true;
-        MinimapCaptureComponent->bCaptureOnMovement = true;
-        MinimapCaptureComponent->bAutoActivate = false; // 로컬 플레이어 확인 후 활성화 처리
-    }
+	// 미니맵 씬 캡처 컴포넌트 설정
+	MinimapCaptureComponent = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("MinimapCaptureComponent"));
+	if (MinimapCaptureComponent)
+	{
+		MinimapCaptureComponent->SetupAttachment(MinimapSpringArm);
+		MinimapCaptureComponent->ProjectionType = ECameraProjectionMode::Orthographic;
+		MinimapCaptureComponent->OrthoWidth = 2500.f;
+		MinimapCaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+		MinimapCaptureComponent->bCaptureEveryFrame = true;
+		MinimapCaptureComponent->bCaptureOnMovement = true;
+		MinimapCaptureComponent->bAutoActivate = false;
+	}
 
     bIsRagdoll = false;
     bIsGettingUp = false;
@@ -424,27 +428,48 @@ void AParcelCharacter::HandleCharacterDeath()
 
 void AParcelCharacter::UpdateMinimapCaptureState()
 {
-    // 로컬 컨트롤러가 제어하는 캐릭터인지 체크
-    if (IsLocallyControlled())
-    {
-        if (MinimapCaptureComponent)
-        {
-            MinimapCaptureComponent->Activate(true);
-            MinimapCaptureComponent->SetComponentTickEnabled(true);
-        }
-    }
-    else
-    {
-        // 로컬이 아니라면 미니맵 스프링 암과 씬 캡처 컴포넌트를 파괴하여 프레임 드랍 및 메모리 오버헤드 원천 차단
-        if (MinimapCaptureComponent)
-        {
-            MinimapCaptureComponent->Deactivate();
-            MinimapCaptureComponent->SetComponentTickEnabled(false);
-            MinimapCaptureComponent->DestroyComponent();
-        }
-        if (MinimapSpringArm)
-        {
-            MinimapSpringArm->DestroyComponent();
-        }
-    }
+	if (!GetController())
+	{
+		return;
+	}
+	
+	if (IsLocallyControlled())
+	{
+		if (MinimapCaptureComponent)
+		{
+			// 로컬 전용 동적 렌더 타겟 안전 생성
+			if (!DynamicMinimapRenderTarget && GetWorld())
+			{
+				DynamicMinimapRenderTarget = UKismetRenderingLibrary::CreateRenderTarget2D(
+				   this, 512, 512, ETextureRenderTargetFormat::RTF_RGBA8
+				);
+			}
+
+			if (DynamicMinimapRenderTarget)
+			{
+				MinimapCaptureComponent->TextureTarget = DynamicMinimapRenderTarget;
+				MinimapCaptureComponent->Activate(true);
+				MinimapCaptureComponent->SetComponentTickEnabled(true);
+				MinimapCaptureComponent->CaptureScene();
+			}
+		}
+	}
+	else
+	{
+		if (MinimapCaptureComponent)
+		{
+			MinimapCaptureComponent->TextureTarget = nullptr;
+			MinimapCaptureComponent->Deactivate();
+			MinimapCaptureComponent->SetComponentTickEnabled(false);
+		}
+	}
+}
+
+UTextureRenderTarget2D* AParcelCharacter::GetMinimapRenderTarget()
+{
+	if (!DynamicMinimapRenderTarget && IsLocallyControlled())
+	{
+		UpdateMinimapCaptureState();
+	}
+	return DynamicMinimapRenderTarget;
 }
