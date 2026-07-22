@@ -19,7 +19,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogParcelSession, Log, All);
 namespace ParcelSessionMaps
 {
 	const FString Lobby = TEXT("/Game/Maps/LV_DF_Lobby_Stage00");
-	const FString Frontend = TEXT("/Game/Maps/TestMaps/Testing_DF_Stage01");
+	const FString Frontend = TEXT("/Game/Maps/MainMenuLevel");
 	const FName SteamSubsystem = FName(TEXT("STEAM"));
 
 	const TCHAR* JoinResultToString(EOnJoinSessionCompleteResult::Type Result)

@@ -7,6 +7,10 @@
 #include "Engine/DataTable.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/PlayerState.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundBase.h"
 
 DEFINE_LOG_CATEGORY(LogItem);
 
@@ -192,6 +196,7 @@ bool UInventoryComponent::UseItem(FGameplayTag ItemTag)
 
 	APlayerState* PS = Cast<APlayerState>(GetOwner());
 	ApplyEffects(Data, PS ? PS->GetPawn() : nullptr);
+	Multicast_PlayItemFX(ItemTag);
 
 	if (Data->bIsPermanent)
 	{
@@ -207,6 +212,31 @@ bool UInventoryComponent::UseItem(FGameplayTag ItemTag)
 void UInventoryComponent::Server_UseItem_Implementation(FGameplayTag ItemTag)
 {
 	UseItem(ItemTag);
+}
+
+void UInventoryComponent::Multicast_PlayItemFX_Implementation(FGameplayTag ItemTag)
+{
+	const FItemData* Data = FindItemData(ItemTag);
+	if (!Data) return;
+
+	APawn* Pawn = nullptr;
+	if (const APlayerState* PS = Cast<APlayerState>(GetOwner()))
+		Pawn = PS->GetPawn();
+
+	const FVector Location = Pawn ? Pawn->GetActorLocation() : FVector::ZeroVector;
+
+	if (!Data->UseSound.IsNull())
+		if (USoundBase* Sound = Data->UseSound.LoadSynchronous())
+			UGameplayStatics::PlaySoundAtLocation(this, Sound, Location);
+
+	if (!Data->UseEffect.IsNull())
+		if (UNiagaraSystem* FX = Data->UseEffect.LoadSynchronous())
+		{
+			if (Pawn)
+				UNiagaraFunctionLibrary::SpawnSystemAttached(FX, Pawn->GetRootComponent(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, true);
+			else
+				UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), FX, Location);
+		}
 }
 
 // ========================= 복제 콜백 =========================
