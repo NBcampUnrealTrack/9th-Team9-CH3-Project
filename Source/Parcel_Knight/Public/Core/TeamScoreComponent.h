@@ -40,7 +40,7 @@ public:
 	// [All] 최종 등급 태그 반환 — 결과 화면 표시용 (Grade.A / Grade.B / Grade.C / Grade.F)
 	FGameplayTag GetGrade() const;
 	// [Server Only] 팀 점수 증감
-	void AddTeamScore(int32 Amount);
+	void AddTeamScore(int32 Amount, bool bApplyCombo = false);
 	// [Server Only] 남은 시간 감소 — OnEverySecond에서 호출
 	void DecreaseRemainingTime(float Amount);
 	// [Server Only] 남은 시간 초기화 — StartRound에서 호출

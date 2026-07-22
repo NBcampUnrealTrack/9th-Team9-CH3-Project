@@ -62,6 +62,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Status Effect")
 	bool HasActiveStatusEffect() const { return MoveSpeedEffectState.bIsActive || InputInvertEffectState.bIsActive; }
 
+	float GetMoveSpeedMultiplier() const
+	{
+		return MoveSpeedEffectState.bIsActive ? MoveSpeedEffectState.Multiplier : 1.0f;
+	}
+
 protected:
 	virtual void BeginPlay() override;
 

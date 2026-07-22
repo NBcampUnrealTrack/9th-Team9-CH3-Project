@@ -29,6 +29,7 @@ public:
 	AActor* SpawnRandomBox(FVector SpawnLocation, FRotator SpawnRotation);
 
 	void DespawnBox(AActor* Box);
+	void UnregisterBox(AActor* Box);
 	int32 GenerateBoxID();
 
 	FORCEINLINE UStageData* GetCurrentStageData() const { return CurrentStageData; }
