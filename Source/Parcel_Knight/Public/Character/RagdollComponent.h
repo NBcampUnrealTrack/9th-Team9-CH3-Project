@@ -17,6 +17,7 @@ class PARCEL_KNIGHT_API URagdollComponent : public UActorComponent
 
 public:
     URagdollComponent();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
     // 래그돌을 시작합니다.
     UFUNCTION(BlueprintCallable, Category = "Ragdoll")
@@ -103,6 +104,9 @@ private:
     UFUNCTION(NetMulticast, Reliable)
     void Multicast_SetRagdoll(bool bNewIsRagdoll);
 
+	UFUNCTION()
+	void OnRep_RagdollState();
+
     // 실제 래그돌 내부 처리 로직
     void ApplyStartRagdoll();
     void ApplyStopRagdoll();
@@ -112,6 +116,11 @@ private:
 
     // 쿨타임이 아니면 소비하고 true, 쿨타임 중이면 false (ToggleRagdoll 재입력 방지용, 서버 전용)
     bool TryConsumeToggleCooldown();
+	void HandleClientRagdollRequest_ServerOnly(bool bRequestedRagdoll);
+	void SetRagdollState_ServerOnly(bool bNewIsRagdoll);
+	void ApplyReplicatedRagdollState(bool bNewIsRagdoll);
+	void FinishRecoveryLock_ServerOnly();
+	void ResetRagdollCooldown_ServerOnly();
 
     FTimerHandle AutoRecoveryTimerHandle;
 
@@ -123,6 +132,13 @@ private:
 
     // 래그돌 쿨타임 진행 중 여부 (서버 전용)
     bool bRagdollOnCooldown = false;
+
+	// 서버가 강제한 래그돌은 클라이언트 해제 요청으로 취소할 수 없다.
+	bool bClientInitiatedRagdoll = false;
+	bool bRagdollAppliedLocally = false;
+
+	UPROPERTY(ReplicatedUsing = OnRep_RagdollState)
+	bool bReplicatedRagdollState = false;
 
     // AttemptAutoRecovery가 공중 체크로 재시도를 시작한 뒤 누적된 대기 시간 (서버 전용)
     float AirRecoveryWaitElapsed = 0.f;

@@ -28,8 +28,8 @@ public:
 
 	// ========================= 초기화 =========================
 
-	// [Server] 스테이지 시작 시 GameInstance의 EquippedLoadout을 복사해 인벤토리 초기화
-	// TODO: 원격 클라이언트는 PlayerController에서 Server RPC로 로드아웃을 전달받아 별도 초기화 필요
+	// [Server] 스테이지 시작 시 로컬 GameInstance 로드아웃을 서버 검증 경로로 초기화
+	// 원격 클라이언트는 ParcelPlayerController의 Server_SubmitLoadout을 통해 같은 검증 경로를 사용한다.
 	void InitFromGameInstance(UParcelGameInstance* GI);
 
 	// ========================= 조회 =========================
@@ -54,7 +54,7 @@ public:
 	// [Server] 아이템 추가 — 치트·보상 지급용
 	void AddItem(FGameplayTag ItemTag);
 
-	// [Server] 스폰 시 패시브 소모품 효과 일괄 적용 — PossessedBy에서 호출
+	// [Server] 현재 장착 목록을 기준으로 패시브 최종 스탯 재구축 — PossessedBy에서 호출
 	void ApplyPassiveEffects(APawn* Pawn);
 
 	// [Server] 아이템 사용 — 쿨타임·효과 적용, 비영구 아이템은 제거. 실패 시 false

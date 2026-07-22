@@ -1,6 +1,7 @@
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/ParcelCharacter.h"
+#include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Components/ActorComponent.h" 
 #include "GameFramework/Character.h"
@@ -59,6 +60,11 @@ void UCharacterCarryComponent::Drop()
        return;
     }
 
+	if (UParcelHeroComponent* HeroComp = GetOwner()->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->CancelServerThrowCharge();
+	}
+
     if (!CarriedBox) return;
 
 	if (CarriedBox->GetClass()->ImplementsInterface(UCarryableInterface::StaticClass()))
@@ -91,7 +97,17 @@ void UCharacterCarryComponent::Throw(FVector Force)
        return;
     }
 
-    if (!CarriedBox) return;
+    if (!CarriedBox || !bIsCarrying || CarriedBox->GetOwner() != GetOwner()) return;
+
+	if (!FMath::IsFinite(Force.X) || !FMath::IsFinite(Force.Y) || !FMath::IsFinite(Force.Z))
+	{
+		return;
+	}
+
+	if (UParcelHeroComponent* HeroComp = GetOwner()->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->CancelServerThrowCharge();
+	}
 
     ADeliveryBox* BoxToThrow = CarriedBox;
 
@@ -219,4 +235,8 @@ void UCharacterCarryComponent::SyncWeightToMovement()
 bool UCharacterCarryComponent::Server_Drop_Validate() { return true; }
 void UCharacterCarryComponent::Server_Drop_Implementation() { Drop(); }
 bool UCharacterCarryComponent::Server_Throw_Validate(FVector Force) { return true; }
-void UCharacterCarryComponent::Server_Throw_Implementation(FVector Force) { Throw(Force); }
+void UCharacterCarryComponent::Server_Throw_Implementation(FVector Force)
+{
+	// Legacy numeric RPC: the client-provided force is intentionally never consumed.
+	UE_LOG(LogTemp, Verbose, TEXT("[Carry] Client numeric throw request rejected for %s"), *GetNameSafe(GetOwner()));
+}
