@@ -74,7 +74,7 @@ void UHealthComponent::OnRep_HP()
 
 void UHealthComponent::OnDeath()
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead) return;
 	bIsDead = true;
 	OnDeathDelegate.Broadcast();
 	Multicast_OnDeath();
