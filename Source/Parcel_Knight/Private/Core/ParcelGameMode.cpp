@@ -34,11 +34,28 @@ AParcelGameMode::AParcelGameMode()
 	RespawnComp      = CreateDefaultSubobject<URespawnComponent>("RespawnComponent");
 	LobbyMapCatalog = TSoftObjectPtr<UDataTable>(
 		FSoftObjectPath(TEXT("/Game/Data/DataTables/DT_LobbyMapData.DT_LobbyMapData")));
+	
+	bUseSeamlessTravel = true;
 }
 
 void AParcelGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
+	
+	// [핵심] 서버에 플레이어가 진입할 때 방장(Listen Server Host) 여부를 판별하여 PlayerState에 세팅
+	if (AParcelPlayerState* PS = NewPlayer->GetPlayerState<AParcelPlayerState>())
+	{
+		if (NewPlayer->IsLocalController())
+		{
+			PS->SetIsHostPlayer(true);
+			UE_LOG(LogParcelLobbyAuthority, Log, TEXT("[GameMode PostLogin] 방장(%s, ID:%d) PlayerState에 bIsHostPlayer = true 설정 완료."), *PS->GetPlayerName(), PS->GetPlayerId());
+		}
+		else
+		{
+			PS->SetIsHostPlayer(false);
+			UE_LOG(LogParcelLobbyAuthority, Log, TEXT("[GameMode PostLogin] 클라이언트(%s, ID:%d) PlayerState에 bIsHostPlayer = false 설정 완료."), *PS->GetPlayerName(), PS->GetPlayerId());
+		}
+	}
 }
 
 void AParcelGameMode::Logout(AController* Exiting)
