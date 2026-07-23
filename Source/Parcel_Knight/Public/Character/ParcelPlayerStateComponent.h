@@ -41,6 +41,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character|State")
 	void RemoveStateTag(FGameplayTag StateTag);
 
+	UFUNCTION(BlueprintCallable, Category = "Character|State")
+	void ResetStateTags();
+
 	UFUNCTION(BlueprintPure, Category = "Character|State")
 	bool HasStateTag(FGameplayTag StateTag) const;
 

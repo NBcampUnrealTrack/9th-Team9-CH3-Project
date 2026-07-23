@@ -209,6 +209,11 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 
 	BindAuthoritativeDeathHandler();
 
+	if (PlayerStateComp)
+	{
+		PlayerStateComp->ResetStateTags();
+	}
+
 	if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
 	{
 		if (UInventoryComponent* InvComp = PS->GetInventoryComponent())

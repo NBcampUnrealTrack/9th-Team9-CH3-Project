@@ -44,6 +44,17 @@ void UParcelPlayerStateComponent::RemoveStateTag(FGameplayTag StateTag)
 	}
 }
 
+void UParcelPlayerStateComponent::ResetStateTags()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+
+	if (!CharacterStateTags.IsEmpty())
+	{
+		CharacterStateTags.Reset();
+		OnRep_CharacterStateTags();
+	}
+}
+
 bool UParcelPlayerStateComponent::HasStateTag(FGameplayTag StateTag) const
 {
 	return CharacterStateTags.HasTag(StateTag);
