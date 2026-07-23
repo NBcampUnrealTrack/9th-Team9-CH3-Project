@@ -35,6 +35,10 @@ ADeliveryBox::ADeliveryBox()
 	
 	CollisionComponent->SetSimulatePhysics(true);
 	CollisionComponent->SetCollisionProfileName(TEXT("PhysicsBody"));
+	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	CollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+	CollisionComponent->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
+	CollisionComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	CollisionComponent->SetNotifyRigidBodyCollision(true);
 	
 	// 상자가 가볍게 붕 뜨거나 무한히 굴러다니는 현상을 제어하기 위해 선형/회전 감쇄 적용
@@ -362,8 +366,8 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 				}
 			}
 
-			// 자신이 던진 상자가 아니고, 충분히 빠른 속도로 충돌했을 때만 데미지 적용
-			if (!bIsSelfHit && VelocityChange >= 150.f)
+			// 자신이 던진 상자가 아니고, 적당한 속도로 충돌했을 때 데미지 및 래그돌 적용 (기존 150.f에서 60.f로 완화하여 스폰/낙하 상자에 피격되도록 보장)
+			if (!bIsSelfHit && VelocityChange >= 60.f)
 			{
 				// 1) 체력 차감
 				if (UHealthComponent* TargetHealth = HitCharacter->FindComponentByClass<UHealthComponent>())
