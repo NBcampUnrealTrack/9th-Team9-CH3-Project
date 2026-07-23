@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#07111d">
+  <title>Parcel Knight — 15분 프로젝트 발표</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#slide-1">첫 슬라이드로 이동</a>
+
+  <div class="viewport" id="fullscreenRoot">
+    <div class="presentation" id="presentation" aria-label="Parcel Knight 프로젝트 발표 자료">
+      <header class="presentation-header">
+        <a class="brand" href="#slide-1" aria-label="첫 슬라이드로 이동">
+          <span class="brand-mark" aria-hidden="true">PK</span>
+          <span>
+            <strong>PARCEL KNIGHT</strong>
+            <small>PROJECT PRESENTATION</small>
+          </span>
+        </a>
+
+        <nav class="section-nav" aria-label="발표 섹션">
+          <button type="button" data-section-target="INTRO"><span>INTRO</span><small>01′</small></button>
+          <button type="button" data-section-target="DEMO"><span>DEMO</span><small>05′</small></button>
+          <button type="button" data-section-target="PROCESS"><span>PROCESS</span><small>02′</small></button>
+          <button type="button" data-section-target="TECH"><span>TECH</span><small>05′</small></button>
+          <button type="button" data-section-target="WRAP-UP"><span>WRAP-UP</span><small>02′</small></button>
+        </nav>
+
+        <button class="icon-button" id="fullscreenButton" type="button" aria-label="전체 화면으로 보기" title="전체 화면">
+          <span aria-hidden="true">⛶</span>
+        </button>
+      </header>
+
+      <main class="deck" id="deck">
+        <!-- 슬라이드 1 용도: 발표 시작 전 프로젝트명과 발표 정보를 빠르게 전달하는 표지 -->
+        <section class="slide slide-cover is-active" id="slide-1" data-section="INTRO" data-title="표지" aria-labelledby="slide-1-title">
+          <span class="ghost-number" aria-hidden="true">01</span>
+          <div class="cover-copy">
+            <p class="eyebrow">15 MINUTE · PROJECT PRESENTATION</p>
+            <h1 id="slide-1-title">Parcel<br><em>Knight</em></h1>
+            <p class="lead">[게임 한 줄 소개를 입력하세요]</p>
+            <dl class="cover-meta">
+              <div><dt>TEAM</dt><dd>[팀명]</dd></div>
+              <div><dt>SPEAKER</dt><dd>[발표자]</dd></div>
+              <div><dt>DATE</dt><dd>[발표 날짜]</dd></div>
+            </dl>
+          </div>
+          <figure class="media-placeholder cover-visual ratio-16-9" role="img" aria-label="대표 이미지 삽입 영역">
+            <!-- 이미지 교체: 아래 div 대신 <img class="media-fill cover" src="./assets/images/cover.jpg" alt="게임 대표 장면"> 사용 -->
+            <div class="placeholder-inner">
+              <span class="placeholder-index">KEY VISUAL</span>
+              <strong>대표 이미지 삽입</strong>
+              <small>권장 비율 16:9 · 1920×1080</small>
+            </div>
+          </figure>
+        </section>
+
+        <!-- 슬라이드 2 용도: 게임의 기본 정의와 팀 구성을 1분 안에 소개 -->
+        <section class="slide slide-overview" id="slide-2" data-section="INTRO" data-title="게임 개요와 개발 목표" aria-labelledby="slide-2-title" aria-hidden="true">
+          <header class="slide-heading">
+            <p class="eyebrow">INTRO · GAME OVERVIEW</p>
+            <h2 id="slide-2-title">게임 개요와 개발 목표</h2>
+            <p>[이 프로젝트가 어떤 경험을 목표로 하는지 한 문장으로 정리]</p>
+          </header>
+          <div class="overview-layout">
+            <div class="statement-block">
+              <span class="label">CORE EXPERIENCE</span>
+              <p>[플레이어가 가장 선명하게 느끼길 바란 핵심 경험]</p>
+            </div>
+            <dl class="fact-list">
+              <div><dt>장르</dt><dd>[게임 장르]</dd></div>
+              <div><dt>개발 목표</dt><dd>[프로젝트의 핵심 목표]</dd></div>
+              <div><dt>플레이 방식</dt><dd>[플레이 인원·진행 방식]</dd></div>
+            </dl>
+            <div class="team-panel">
+              <div class="panel-title"><span>TEAM ROLES</span><small>[이름과 역할을 교체]</small></div>
+              <div class="role-grid">
+                <span>[팀원 / 담당]</span><span>[팀원 / 담당]</span>
+                <span>[팀원 / 담당]</span><span>[팀원 / 담당]</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 슬라이드 3 용도: 시연 전에 관객이 주목할 핵심 기능을 예고 -->
+        <section class="slide slide-features" id="slide-3" data-section="DEMO" data-title="핵심 기능 한눈에 보기" aria-labelledby="slide-3-title" aria-hidden="true">
+          <header class="slide-heading compact-heading">
+            <p class="eyebrow">DEMO · FEATURE MAP</p>
+            <h2 id="slide-3-title">핵심 기능 한눈에 보기</h2>
+          </header>
+          <div class="feature-strip">
+            <article class="feature-item">
+              <!-- 이미지 교체: .feature-thumb 안에 <img class="media-fill cover" ...> 삽입 -->
+              <div class="feature-thumb"><span>01</span><small>이미지 4:3</small></div>
+              <h3>[핵심 기능 1]</h3><p>[한 줄 설명]</p>
+            </article>
+            <article class="feature-item">
+              <div class="feature-thumb"><span>02</span><small>이미지 4:3</small></div>
+              <h3>[핵심 기능 2]</h3><p>[한 줄 설명]</p>
+            </article>
+            <article class="feature-item">
+              <div class="feature-thumb"><span>03</span><small>이미지 4:3</small></div>
+              <h3>[핵심 기능 3]</h3><p>[한 줄 설명]</p>
+            </article>
+            <article class="feature-item feature-challenge">
+              <div class="feature-thumb"><span>+</span><small>도전 기능</small></div>
+              <h3>[차별화 기능]</h3><p>[한 줄 설명]</p>
+            </article>
+          </div>
+          <p class="slide-note"><span aria-hidden="true">↳</span> [시연에서 위 기능들이 어떤 순서로 등장하는지 안내]</p>
+        </section>
+
+        <!-- 슬라이드 4 용도: 16:9 시연 영상을 가장 크게 보여주는 발표 중심 슬라이드 -->
+        <section class="slide slide-demo" id="slide-4" data-section="DEMO" data-title="게임 시연" aria-labelledby="slide-4-title" aria-hidden="true">
+          <div class="demo-heading">
+            <div>
+              <p class="eyebrow">DEMO · GAMEPLAY</p>
+              <h2 id="slide-4-title">게임 시연</h2>
+            </div>
+            <span class="time-badge">약 3–4분</span>
+          </div>
+          <div class="demo-layout">
+            <figure class="media-placeholder video-placeholder ratio-16-9" role="img" aria-label="게임 시연 영상 삽입 영역">
+              <!-- 영상 교체: 이 div 대신 <video class="media-fill contain" controls preload="metadata"><source src="./assets/videos/demo.mp4" type="video/mp4"></video> 사용 -->
+              <div class="placeholder-inner">
+                <span class="play-symbol" aria-hidden="true">▶</span>
+                <strong>시연 영상 삽입</strong>
+                <small>16:9 · MP4 권장</small>
+              </div>
+            </figure>
+            <aside class="watch-list" aria-label="시연 관찰 포인트">
+              <span class="label">WATCH FOR</span>
+              <ol>
+                <li><span>01</span><p>[시연에서 확인할 포인트 1]</p></li>
+                <li><span>02</span><p>[시연에서 확인할 포인트 2]</p></li>
+                <li><span>03</span><p>[시연에서 확인할 포인트 3]</p></li>
+              </ol>
+            </aside>
+          </div>
+        </section>
+
+        <!-- 슬라이드 5 용도: 플레이 흐름을 두 장면으로 나눠 순서대로 설명 -->
+        <section class="slide slide-scenes" id="slide-5" data-section="DEMO" data-title="주요 게임 장면" aria-labelledby="slide-5-title" aria-hidden="true">
+          <header class="slide-heading compact-heading">
+            <p class="eyebrow">DEMO · PLAY FLOW</p>
+            <h2 id="slide-5-title">주요 게임 장면</h2>
+          </header>
+          <div class="scene-grid">
+            <article class="scene-card">
+              <div class="flow-number">01</div>
+              <figure class="media-placeholder ratio-16-9" role="img" aria-label="첫 번째 주요 장면 이미지 영역">
+                <!-- 이미지 교체: <img class="media-fill cover" src="./assets/images/scene-01.jpg" alt="첫 번째 주요 장면"> -->
+                <div class="placeholder-inner"><strong>스크린샷 1</strong><small>16:9</small></div>
+              </figure>
+              <div><h3>[장면 제목]</h3><p>[플레이 흐름과 장면 설명]</p></div>
+            </article>
+            <article class="scene-card">
+              <div class="flow-number">02</div>
+              <figure class="media-placeholder ratio-16-9" role="img" aria-label="두 번째 주요 장면 이미지 영역">
+                <!-- 이미지 교체: <img class="media-fill cover" src="./assets/images/scene-02.jpg" alt="두 번째 주요 장면"> -->
+                <div class="placeholder-inner"><strong>스크린샷 2</strong><small>16:9</small></div>
+              </figure>
+              <div><h3>[장면 제목]</h3><p>[플레이 흐름과 장면 설명]</p></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 슬라이드 6 용도: 한 가지 기능을 플레이 경험과 기술 관점에서 깊게 강조 -->
+        <section class="slide slide-spotlight" id="slide-6" data-section="DEMO" data-title="강조할 핵심 기능" aria-labelledby="slide-6-title" aria-hidden="true">
+          <div class="spotlight-media">
+            <figure class="media-placeholder ratio-4-3" role="img" aria-label="핵심 기능 영상 또는 이미지 영역">
+              <!-- 이미지/GIF 교체: <img class="media-fill contain" src="./assets/images/feature.gif" alt="핵심 기능 동작"> -->
+              <div class="placeholder-inner"><span class="placeholder-index">FEATURE CLIP</span><strong>영상 · GIF · 이미지</strong><small>권장 비율 4:3</small></div>
+            </figure>
+          </div>
+          <div class="spotlight-copy">
+            <p class="eyebrow">DEMO · FEATURE SPOTLIGHT</p>
+            <h2 id="slide-6-title">[기능명]</h2>
+            <div class="reason-list">
+              <article><span>WHY</span><h3>중요한 이유</h3><p>[이 기능이 중요한 이유]</p></article>
+              <article><span>IMPACT</span><h3>플레이 경험</h3><p>[플레이어 경험의 변화]</p></article>
+              <article><span>HOW</span><h3>기술적 특징</h3><p>[발표에서 강조할 구현 특징]</p></article>
+            </div>
+          </div>
+        </section>
+
+        <!-- 슬라이드 7 용도: 프로젝트 진행 과정을 5단계 타임라인으로 설명 -->
+        <section class="slide slide-process" id="slide-7" data-section="PROCESS" data-title="개발 과정" aria-labelledby="slide-7-title" aria-hidden="true">
+          <header class="slide-heading">
+            <p class="eyebrow">PROCESS · 5 STEPS</p>
+            <h2 id="slide-7-title">개발 과정</h2>
+            <p>[프로젝트가 어떤 흐름으로 발전했는지 한 문장으로 요약]</p>
+          </header>
+          <ol class="timeline">
+            <li><span>01</span><h3>아이디어 구상</h3><p>[초기 목표]</p></li>
+            <li><span>02</span><h3>설계</h3><p>[설계 기준]</p></li>
+            <li><span>03</span><h3>구현</h3><p>[구현 범위]</p></li>
+            <li><span>04</span><h3>통합</h3><p>[통합 과정]</p></li>
+            <li><span>05</span><h3>테스트</h3><p>[검증 방식]</p></li>
+          </ol>
+          <div class="timeline-caption"><span>START</span><i></i><span>ITERATE</span></div>
+        </section>
+
+        <!-- 슬라이드 8 용도: 대표 문제 하나의 변화 과정을 Before–Process–After로 정리 -->
+        <section class="slide slide-troubleshoot" id="slide-8" data-section="PROCESS" data-title="트러블슈팅" aria-labelledby="slide-8-title" aria-hidden="true">
+          <header class="slide-heading compact-heading">
+            <p class="eyebrow">PROCESS · TROUBLESHOOTING</p>
+            <h2 id="slide-8-title">트러블슈팅</h2>
+          </header>
+          <div class="trouble-flow">
+            <article class="trouble-card before">
+              <span class="state-label">BEFORE</span>
+              <figure class="media-placeholder trouble-media" role="img" aria-label="오류 화면 또는 로그 영역">
+                <!-- 이미지 교체: 오류 화면이나 핵심 로그 캡처 삽입 -->
+                <div class="placeholder-inner"><strong>오류 화면 · 로그</strong><small>[캡처 삽입]</small></div>
+              </figure>
+              <p>[문제가 보였던 상태]</p>
+            </article>
+            <article class="trouble-card process-card">
+              <span class="state-label">PROCESS</span>
+              <div class="process-steps">
+                <p><b>01</b>[원인 가설]</p>
+                <p><b>02</b>[검증 방법]</p>
+                <p><b>03</b>[해결 과정]</p>
+              </div>
+            </article>
+            <article class="trouble-card after">
+              <span class="state-label">AFTER</span>
+              <figure class="media-placeholder trouble-media" role="img" aria-label="개선 결과 이미지 영역">
+                <!-- 이미지 교체: 개선 결과 화면 또는 비교 캡처 삽입 -->
+                <div class="placeholder-inner"><strong>개선 결과</strong><small>[캡처 삽입]</small></div>
+              </figure>
+              <p>[해결 후 달라진 상태]</p>
+            </article>
+          </div>
+        </section>
+
+        <!-- 슬라이드 9 용도: 실제 구조도를 나중에 넣을 수 있는 넓은 기술 구조 프레임 -->
+        <section class="slide slide-architecture" id="slide-9" data-section="TECH" data-title="전체 기술 구조" aria-labelledby="slide-9-title" aria-hidden="true">
+          <header class="slide-heading compact-heading architecture-heading">
+            <div><p class="eyebrow">TECH · ARCHITECTURE</p><h2 id="slide-9-title">전체 기술 구조</h2></div>
+            <p>[구조를 이해하기 위한 핵심 설명]</p>
+          </header>
+          <figure class="architecture-frame" role="img" aria-label="시스템 구조도 삽입 영역">
+            <!-- 구조도 교체: 이 figure 안에 <img class="media-fill contain" src="./assets/images/architecture.png" alt="전체 시스템 구조도"> 삽입 -->
+            <div class="architecture-grid" aria-hidden="true"></div>
+            <div class="placeholder-inner">
+              <span class="placeholder-index">SYSTEM MAP</span>
+              <strong>구조도 삽입</strong>
+              <small>PNG · SVG를 이미지로 내보낸 파일 · Blueprint 캡처</small>
+            </div>
+            <figcaption>[구조도에서 먼저 읽어야 할 흐름을 한 문장으로 작성]</figcaption>
+          </figure>
+        </section>
+
+        <!-- 슬라이드 10 용도: 팀이 집중한 기술 문제와 판단 축을 한 화면에 정리 -->
+        <section class="slide slide-focus" id="slide-10" data-section="TECH" data-title="우리 팀이 집중한 기술적 문제" aria-labelledby="slide-10-title" aria-hidden="true">
+          <div class="focus-question">
+            <p class="eyebrow">TECH · FOCUS QUESTION</p>
+            <h2 id="slide-10-title">우리 팀이 집중한<br>기술적 문제</h2>
+            <blockquote>“[핵심 문제를 질문 형태로 작성]”</blockquote>
+          </div>
+          <div class="focus-grid">
+            <article><span>01</span><h3>문제 상황</h3><p>[어떤 상황에서 문제가 발생했는지]</p></article>
+            <article><span>02</span><h3>어려웠던 이유</h3><p>[기술적으로 어려웠던 이유]</p></article>
+            <article><span>03</span><h3>판단 기준</h3><p>[대안을 평가한 기준]</p></article>
+            <article><span>04</span><h3>최종 접근</h3><p>[선택한 접근 방식]</p></article>
+          </div>
+        </section>
+
+        <!-- 슬라이드 11 용도: 핵심 시스템의 객체, 데이터, 서버·클라이언트 역할을 설명 -->
+        <section class="slide slide-system" id="slide-11" data-section="TECH" data-title="핵심 시스템 상세" aria-labelledby="slide-11-title" aria-hidden="true">
+          <header class="slide-heading compact-heading">
+            <p class="eyebrow">TECH · SYSTEM DETAIL</p>
+            <h2 id="slide-11-title">핵심 시스템 상세</h2>
+          </header>
+          <div class="system-layout">
+            <div class="system-summary">
+              <article><span>PURPOSE</span><h3>시스템 목적</h3><p>[이 시스템이 해결하는 문제]</p></article>
+              <article><span>OBJECTS</span><h3>주요 객체·컴포넌트</h3><p>[객체 또는 컴포넌트 이름]</p></article>
+            </div>
+            <div class="data-flow">
+              <span class="label">DATA FLOW</span>
+              <div class="flow-track"><b>[입력]</b><i>→</i><b>[처리]</b><i>→</i><b>[결과]</b></div>
+              <div class="network-roles">
+                <p><span>SERVER</span>[서버의 역할]</p>
+                <p><span>CLIENT</span>[클라이언트의 역할]</p>
+              </div>
+            </div>
+            <figure class="media-placeholder code-shot" role="img" aria-label="코드 또는 Blueprint 캡처 영역">
+              <!-- 이미지 교체: 코드 또는 Blueprint 캡처를 contain 방식으로 삽입 -->
+              <div class="placeholder-inner"><span class="placeholder-index">SOURCE VIEW</span><strong>코드 · Blueprint 캡처</strong><small>가독성을 위해 핵심 부분만</small></div>
+            </figure>
+          </div>
+        </section>
+
+        <!-- 슬라이드 12 용도: 코드 캡처와 의사결정 근거를 좌우로 비교 -->
+        <section class="slide slide-decision" id="slide-12" data-section="TECH" data-title="핵심 로직과 의사결정" aria-labelledby="slide-12-title" aria-hidden="true">
+          <header class="slide-heading compact-heading">
+            <p class="eyebrow">TECH · DECISION</p>
+            <h2 id="slide-12-title">핵심 로직과 의사결정</h2>
+          </header>
+          <div class="decision-layout">
+            <figure class="media-placeholder decision-code" role="img" aria-label="핵심 로직 코드 또는 Blueprint 캡처 영역">
+              <!-- 이미지 교체: <img class="media-fill contain" src="./assets/images/core-logic.png" alt="핵심 로직 캡처"> -->
+              <div class="placeholder-inner"><span class="placeholder-index">LOGIC CAPTURE</span><strong>코드 · Blueprint</strong><small>핵심 로직 캡처</small></div>
+            </figure>
+            <div class="decision-list">
+              <article><span>SELECTED</span><h3>[선택한 방식]</h3></article>
+              <article><span>ALTERNATIVE</span><h3>[검토한 대안]</h3></article>
+              <article><span>WHY</span><h3>[선택 이유]</h3></article>
+              <article><span>LIMIT</span><h3>[현재 제한사항]</h3></article>
+            </div>
+          </div>
+        </section>
+
+        <!-- 슬라이드 13 용도: 임의 수치 없이 테스트 방법과 전후 변화를 기록 -->
+        <section class="slide slide-results" id="slide-13" data-section="TECH" data-title="테스트와 개선 결과" aria-labelledby="slide-13-title" aria-hidden="true">
+          <header class="slide-heading compact-heading results-heading">
+            <div><p class="eyebrow">TECH · VALIDATION</p><h2 id="slide-13-title">테스트와 개선 결과</h2></div>
+            <p class="no-fake-data">수치는 실제 측정 후 입력</p>
+          </header>
+          <div class="results-layout">
+            <div class="results-table" role="table" aria-label="테스트 결과 입력 표">
+              <div class="table-row table-head" role="row"><span>항목</span><span>수정 전</span><span>수정 후</span></div>
+              <div class="table-row" role="row"><span>[테스트 항목 1]</span><span>[결과]</span><span>[결과]</span></div>
+              <div class="table-row" role="row"><span>[테스트 항목 2]</span><span>[결과]</span><span>[결과]</span></div>
+              <div class="table-row" role="row"><span>[테스트 항목 3]</span><span>[결과]</span><span>[결과]</span></div>
+            </div>
+            <figure class="media-placeholder result-media" role="img" aria-label="수치 표 또는 스크린샷 영역">
+              <!-- 이미지 교체: 실제 표, 프로파일러, 테스트 전후 스크린샷 삽입 -->
+              <div class="placeholder-inner"><strong>표 · 수치 · 스크린샷</strong><small>[실제 검증 자료 삽입]</small></div>
+            </figure>
+            <div class="result-notes">
+              <p><span>METHOD</span>[테스트 방법]</p>
+              <p><span>FOUND</span>[발견한 문제]</p>
+              <p><span>NEXT</span>[남은 개선점]</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 슬라이드 14 용도: 팀 회고, 핵심 결론, Q&A로 발표를 마무리 -->
+        <section class="slide slide-wrap" id="slide-14" data-section="WRAP-UP" data-title="팀 회고와 마무리" aria-labelledby="slide-14-title" aria-hidden="true">
+          <div class="wrap-heading">
+            <p class="eyebrow">WRAP-UP · RETROSPECTIVE</p>
+            <h2 id="slide-14-title">팀 회고와 마무리</h2>
+            <p class="conclusion">[발표 핵심 결론을 한 문장으로 작성]</p>
+          </div>
+          <div class="retro-grid">
+            <article><span>01</span><h3>잘된 점</h3><p>[잘된 점]</p></article>
+            <article><span>02</span><h3>아쉬운 점</h3><p>[아쉬운 점]</p></article>
+            <article><span>03</span><h3>배운 점</h3><p>[배운 점]</p></article>
+            <article><span>04</span><h3>다음 개선</h3><p>[다음 개선 방향]</p></article>
+          </div>
+          <div class="qa-block"><span>Q&amp;A</span><p>질문을 받겠습니다.</p></div>
+        </section>
+      </main>
+
+      <button class="edge-button edge-prev" id="prevButton" type="button" aria-label="이전 슬라이드" title="이전 슬라이드">
+        <span aria-hidden="true">←</span>
+      </button>
+      <button class="edge-button edge-next" id="nextButton" type="button" aria-label="다음 슬라이드" title="다음 슬라이드">
+        <span aria-hidden="true">→</span>
+      </button>
+
+      <footer class="presentation-footer">
+        <button class="list-button" id="listButton" type="button" aria-label="슬라이드 목록 열기" aria-haspopup="dialog">
+          <span aria-hidden="true">☷</span> 슬라이드 목록
+        </button>
+        <div class="jump-status" id="jumpStatus" aria-live="polite"></div>
+        <div class="slide-counter" aria-live="polite"><strong id="currentNumber">01</strong><span>/</span><span id="totalNumber">14</span></div>
+      </footer>
+
+      <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
+    </div>
+  </div>
+
+  <dialog class="slide-dialog" id="slideDialog" aria-labelledby="slideDialogTitle">
+    <div class="dialog-header">
+      <div><span class="eyebrow">NAVIGATE</span><h2 id="slideDialogTitle">슬라이드 목록</h2></div>
+      <button class="dialog-close" id="dialogCloseButton" type="button" aria-label="슬라이드 목록 닫기">×</button>
+    </div>
+    <ol id="slideList"></ol>
+    <p class="dialog-hint">숫자 키를 연속 입력해도 바로 이동할 수 있습니다. 예: <kbd>1</kbd><kbd>4</kbd></p>
+  </dialog>
+
+  <noscript>이 프레젠테이션의 슬라이드 이동 기능을 사용하려면 JavaScript를 활성화하세요.</noscript>
+  <script src="./presentation.js"></script>
+</body>
+</html>
