@@ -1088,13 +1088,13 @@ bool USessionSubsystem::IsSessionOwnerController(const APlayerController* Player
 		return false;
 	}
 
-	// 🆕 [Fix 1] ListenServer 환경의 로컬 방장 컨트롤러이면 무조건 세션 소유자로 인정 (PIE/LAN 테스트 완벽 보장)
+	// [Fix 1] ListenServer 환경의 로컬 방장 컨트롤러이면 무조건 세션 소유자로 인정 (PIE/LAN 테스트 완벽 보장)
 	if (World->GetNetMode() == NM_ListenServer && PlayerController->IsLocalController())
 	{
 		return true;
 	}
 
-	// 🆕 [Fix 2] PostLogin 시점에 검증 및 복제된 ParcelPlayerState의 IsHostPlayer() 확인
+	// [Fix 2] PostLogin 시점에 검증 및 복제된 ParcelPlayerState의 IsHostPlayer() 확인
 	const AParcelPlayerState* ParcelPS = PlayerController->GetPlayerState<AParcelPlayerState>();
 	if (ParcelPS && ParcelPS->IsHostPlayer())
 	{
