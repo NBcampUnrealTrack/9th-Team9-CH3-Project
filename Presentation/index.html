@@ -4,391 +4,409 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#07111d">
-  <title>Parcel Knight — 15분 프로젝트 발표</title>
-  <link rel="stylesheet" href="./styles.css">
+  <meta name="theme-color" content="#08111f">
+  <title>Parcel Knight — 프로젝트 발표</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#slide-1">첫 슬라이드로 이동</a>
-
-  <div class="viewport" id="fullscreenRoot">
-    <div class="presentation" id="presentation" aria-label="Parcel Knight 프로젝트 발표 자료">
-      <header class="presentation-header">
-        <a class="brand" href="#slide-1" aria-label="첫 슬라이드로 이동">
-          <span class="brand-mark" aria-hidden="true">PK</span>
-          <span>
-            <strong>PARCEL KNIGHT</strong>
-            <small>PROJECT PRESENTATION</small>
-          </span>
-        </a>
-
-        <nav class="section-nav" aria-label="발표 섹션">
-          <button type="button" data-section-target="INTRO"><span>INTRO</span><small>01′</small></button>
-          <button type="button" data-section-target="DEMO"><span>DEMO</span><small>05′</small></button>
-          <button type="button" data-section-target="PROCESS"><span>PROCESS</span><small>02′</small></button>
-          <button type="button" data-section-target="TECH"><span>TECH</span><small>05′</small></button>
-          <button type="button" data-section-target="WRAP-UP"><span>WRAP-UP</span><small>02′</small></button>
-        </nav>
-
-        <button class="icon-button" id="fullscreenButton" type="button" aria-label="전체 화면으로 보기" title="전체 화면">
+  <div class="presentation-shell">
+    <header class="presentation-header" aria-label="발표 도구 모음">
+      <a class="brand" href="#slide-1" aria-label="첫 슬라이드로 이동">
+        <span class="brand-mark" aria-hidden="true">PK</span>
+        <span>PARCEL KNIGHT</span>
+      </a>
+      <nav class="section-nav" id="sectionNav" aria-label="발표 섹션"></nav>
+      <div class="header-actions">
+        <button class="text-button" id="openSlideList" type="button" aria-label="슬라이드 목록 열기">목록</button>
+        <button class="icon-button" id="fullscreenButton" type="button" aria-label="전체 화면 시작" title="전체 화면">
           <span aria-hidden="true">⛶</span>
         </button>
-      </header>
+      </div>
+    </header>
 
-      <main class="deck" id="deck">
-        <!-- 슬라이드 1 용도: 발표 시작 전 프로젝트명과 발표 정보를 빠르게 전달하는 표지 -->
-        <section class="slide slide-cover is-active" id="slide-1" data-section="INTRO" data-title="표지" aria-labelledby="slide-1-title">
-          <span class="ghost-number" aria-hidden="true">01</span>
-          <div class="cover-copy">
-            <p class="eyebrow">15 MINUTE · PROJECT PRESENTATION</p>
-            <h1 id="slide-1-title">Parcel<br><em>Knight</em></h1>
-            <p class="lead">[게임 한 줄 소개를 입력하세요]</p>
-            <dl class="cover-meta">
-              <div><dt>TEAM</dt><dd>[팀명]</dd></div>
-              <div><dt>SPEAKER</dt><dd>[발표자]</dd></div>
-              <div><dt>DATE</dt><dd>[발표 날짜]</dd></div>
-            </dl>
-          </div>
-          <figure class="media-placeholder cover-visual ratio-16-9" role="img" aria-label="대표 이미지 삽입 영역">
-            <!-- 이미지 교체: 아래 div 대신 <img class="media-fill cover" src="./assets/images/cover.jpg" alt="게임 대표 장면"> 사용 -->
-            <div class="placeholder-inner">
-              <span class="placeholder-index">KEY VISUAL</span>
-              <strong>대표 이미지 삽입</strong>
-              <small>권장 비율 16:9 · 1920×1080</small>
-            </div>
-          </figure>
-        </section>
+    <main class="deck-viewport" id="deckViewport">
+      <div class="deck-scaler" id="deckScaler">
+        <article class="deck" id="deck" aria-live="polite">
 
-        <!-- 슬라이드 2 용도: 게임의 기본 정의와 팀 구성을 1분 안에 소개 -->
-        <section class="slide slide-overview" id="slide-2" data-section="INTRO" data-title="게임 개요와 개발 목표" aria-labelledby="slide-2-title" aria-hidden="true">
-          <header class="slide-heading">
-            <p class="eyebrow">INTRO · GAME OVERVIEW</p>
-            <h2 id="slide-2-title">게임 개요와 개발 목표</h2>
-            <p>[이 프로젝트가 어떤 경험을 목표로 하는지 한 문장으로 정리]</p>
-          </header>
-          <div class="overview-layout">
-            <div class="statement-block">
-              <span class="label">CORE EXPERIENCE</span>
-              <p>[플레이어가 가장 선명하게 느끼길 바란 핵심 경험]</p>
-            </div>
-            <dl class="fact-list">
-              <div><dt>장르</dt><dd>[게임 장르]</dd></div>
-              <div><dt>개발 목표</dt><dd>[프로젝트의 핵심 목표]</dd></div>
-              <div><dt>플레이 방식</dt><dd>[플레이 인원·진행 방식]</dd></div>
-            </dl>
-            <div class="team-panel">
-              <div class="panel-title"><span>TEAM ROLES</span><small>[이름과 역할을 교체]</small></div>
-              <div class="role-grid">
-                <span>[팀원 / 담당]</span><span>[팀원 / 담당]</span>
-                <span>[팀원 / 담당]</span><span>[팀원 / 담당]</span>
+          <!-- 슬라이드 1: 실제 대표 화면을 확보하면 아래 media-placeholder를 img 요소로 교체하세요. -->
+          <section class="slide slide-cover is-active" id="slide-1" data-section="INTRO" aria-labelledby="slide-1-title">
+            <div class="cover-grid">
+              <div class="cover-copy">
+                <p class="eyebrow">UNREAL ENGINE MULTIPLAYER PROJECT</p>
+                <h1 id="slide-1-title">Parcel Knight</h1>
+                <p class="cover-summary">Steam 리슨 서버에서 택배 상자를 운반하고 목표 구역에 배송해 팀 점수를 쌓는 멀티플레이 게임</p>
+                <div class="meta-row">
+                  <span>[팀 입력 필요: 팀명]</span>
+                  <span>[팀 입력 필요: 발표자]</span>
+                  <span>[팀 입력 필요: 발표 날짜]</span>
+                </div>
+                <div class="team-strip" aria-label="팀원과 담당 역할">
+                  <span>[팀원 1 이름] — [담당 역할]</span>
+                  <span>[팀원 2 이름] — [담당 역할]</span>
+                  <span>[팀원 3 이름] — [담당 역할]</span>
+                  <span>[팀원 4 이름] — [담당 역할]</span>
+                  <span>[팀원 5 이름] — [담당 역할]</span>
+                </div>
+              </div>
+              <!-- 이미지 교체 위치: assets/images/cover.webp를 추가한 뒤 이 div를 <img src="assets/images/cover.webp" alt="게임 대표 화면">으로 바꾸세요. -->
+              <div class="media-placeholder cover-media" role="img" aria-label="게임 대표 화면 자리">
+                <span class="placeholder-index">01</span>
+                <strong>게임 대표 화면</strong>
+                <small>권장 16:10 · 실제 플레이 캡처 필요</small>
               </div>
             </div>
-          </div>
-        </section>
+            <footer class="slide-evidence"><span>근거</span><code>Parcel_Knight.uproject</code><code>Config/DefaultEngine.ini</code><code>Config/Tags/</code></footer>
+          </section>
 
-        <!-- 슬라이드 3 용도: 시연 전에 관객이 주목할 핵심 기능을 예고 -->
-        <section class="slide slide-features" id="slide-3" data-section="DEMO" data-title="핵심 기능 한눈에 보기" aria-labelledby="slide-3-title" aria-hidden="true">
-          <header class="slide-heading compact-heading">
-            <p class="eyebrow">DEMO · FEATURE MAP</p>
-            <h2 id="slide-3-title">핵심 기능 한눈에 보기</h2>
-          </header>
-          <div class="feature-strip">
-            <article class="feature-item">
-              <!-- 이미지 교체: .feature-thumb 안에 <img class="media-fill cover" ...> 삽입 -->
-              <div class="feature-thumb"><span>01</span><small>이미지 4:3</small></div>
-              <h3>[핵심 기능 1]</h3><p>[한 줄 설명]</p>
-            </article>
-            <article class="feature-item">
-              <div class="feature-thumb"><span>02</span><small>이미지 4:3</small></div>
-              <h3>[핵심 기능 2]</h3><p>[한 줄 설명]</p>
-            </article>
-            <article class="feature-item">
-              <div class="feature-thumb"><span>03</span><small>이미지 4:3</small></div>
-              <h3>[핵심 기능 3]</h3><p>[한 줄 설명]</p>
-            </article>
-            <article class="feature-item feature-challenge">
-              <div class="feature-thumb"><span>+</span><small>도전 기능</small></div>
-              <h3>[차별화 기능]</h3><p>[한 줄 설명]</p>
-            </article>
-          </div>
-          <p class="slide-note"><span aria-hidden="true">↳</span> [시연에서 위 기능들이 어떤 순서로 등장하는지 안내]</p>
-        </section>
-
-        <!-- 슬라이드 4 용도: 16:9 시연 영상을 가장 크게 보여주는 발표 중심 슬라이드 -->
-        <section class="slide slide-demo" id="slide-4" data-section="DEMO" data-title="게임 시연" aria-labelledby="slide-4-title" aria-hidden="true">
-          <div class="demo-heading">
-            <div>
-              <p class="eyebrow">DEMO · GAMEPLAY</p>
-              <h2 id="slide-4-title">게임 시연</h2>
-            </div>
-            <span class="time-badge">약 3–4분</span>
-          </div>
-          <div class="demo-layout">
-            <figure class="media-placeholder video-placeholder ratio-16-9" role="img" aria-label="게임 시연 영상 삽입 영역">
-              <!-- 영상 교체: 이 div 대신 <video class="media-fill contain" controls preload="metadata"><source src="./assets/videos/demo.mp4" type="video/mp4"></video> 사용 -->
-              <div class="placeholder-inner">
-                <span class="play-symbol" aria-hidden="true">▶</span>
-                <strong>시연 영상 삽입</strong>
-                <small>16:9 · MP4 권장</small>
+          <!-- 슬라이드 2: 장르와 팀 목표는 공식 합의 후 대괄호 부분만 교체하세요. -->
+          <section class="slide" id="slide-2" data-section="INTRO" aria-labelledby="slide-2-title">
+            <header class="slide-heading">
+              <p class="eyebrow">PROJECT OVERVIEW</p>
+              <h2 id="slide-2-title">게임 개요와 코드로 확인한 플레이 루프</h2>
+            </header>
+            <div class="overview-layout">
+              <div class="loop-panel">
+                <div class="loop-node"><span>1</span><strong>세션</strong><small>방 생성·초대·참가</small></div>
+                <div class="loop-arrow" aria-hidden="true">→</div>
+                <div class="loop-node"><span>2</span><strong>운반</strong><small>상자 상호작용·Carry</small></div>
+                <div class="loop-arrow" aria-hidden="true">→</div>
+                <div class="loop-node"><span>3</span><strong>배송</strong><small>목표 ZoneTag 판정</small></div>
+                <div class="loop-arrow" aria-hidden="true">→</div>
+                <div class="loop-node"><span>4</span><strong>결과</strong><small>팀 점수·콤보·등급</small></div>
               </div>
-            </figure>
-            <aside class="watch-list" aria-label="시연 관찰 포인트">
-              <span class="label">WATCH FOR</span>
-              <ol>
-                <li><span>01</span><p>[시연에서 확인할 포인트 1]</p></li>
-                <li><span>02</span><p>[시연에서 확인할 포인트 2]</p></li>
-                <li><span>03</span><p>[시연에서 확인할 포인트 3]</p></li>
-              </ol>
-            </aside>
-          </div>
-        </section>
-
-        <!-- 슬라이드 5 용도: 플레이 흐름을 두 장면으로 나눠 순서대로 설명 -->
-        <section class="slide slide-scenes" id="slide-5" data-section="DEMO" data-title="주요 게임 장면" aria-labelledby="slide-5-title" aria-hidden="true">
-          <header class="slide-heading compact-heading">
-            <p class="eyebrow">DEMO · PLAY FLOW</p>
-            <h2 id="slide-5-title">주요 게임 장면</h2>
-          </header>
-          <div class="scene-grid">
-            <article class="scene-card">
-              <div class="flow-number">01</div>
-              <figure class="media-placeholder ratio-16-9" role="img" aria-label="첫 번째 주요 장면 이미지 영역">
-                <!-- 이미지 교체: <img class="media-fill cover" src="./assets/images/scene-01.jpg" alt="첫 번째 주요 장면"> -->
-                <div class="placeholder-inner"><strong>스크린샷 1</strong><small>16:9</small></div>
-              </figure>
-              <div><h3>[장면 제목]</h3><p>[플레이 흐름과 장면 설명]</p></div>
-            </article>
-            <article class="scene-card">
-              <div class="flow-number">02</div>
-              <figure class="media-placeholder ratio-16-9" role="img" aria-label="두 번째 주요 장면 이미지 영역">
-                <!-- 이미지 교체: <img class="media-fill cover" src="./assets/images/scene-02.jpg" alt="두 번째 주요 장면"> -->
-                <div class="placeholder-inner"><strong>스크린샷 2</strong><small>16:9</small></div>
-              </figure>
-              <div><h3>[장면 제목]</h3><p>[플레이 흐름과 장면 설명]</p></div>
-            </article>
-          </div>
-        </section>
-
-        <!-- 슬라이드 6 용도: 한 가지 기능을 플레이 경험과 기술 관점에서 깊게 강조 -->
-        <section class="slide slide-spotlight" id="slide-6" data-section="DEMO" data-title="강조할 핵심 기능" aria-labelledby="slide-6-title" aria-hidden="true">
-          <div class="spotlight-media">
-            <figure class="media-placeholder ratio-4-3" role="img" aria-label="핵심 기능 영상 또는 이미지 영역">
-              <!-- 이미지/GIF 교체: <img class="media-fill contain" src="./assets/images/feature.gif" alt="핵심 기능 동작"> -->
-              <div class="placeholder-inner"><span class="placeholder-index">FEATURE CLIP</span><strong>영상 · GIF · 이미지</strong><small>권장 비율 4:3</small></div>
-            </figure>
-          </div>
-          <div class="spotlight-copy">
-            <p class="eyebrow">DEMO · FEATURE SPOTLIGHT</p>
-            <h2 id="slide-6-title">[기능명]</h2>
-            <div class="reason-list">
-              <article><span>WHY</span><h3>중요한 이유</h3><p>[이 기능이 중요한 이유]</p></article>
-              <article><span>IMPACT</span><h3>플레이 경험</h3><p>[플레이어 경험의 변화]</p></article>
-              <article><span>HOW</span><h3>기술적 특징</h3><p>[발표에서 강조할 구현 특징]</p></article>
-            </div>
-          </div>
-        </section>
-
-        <!-- 슬라이드 7 용도: 프로젝트 진행 과정을 5단계 타임라인으로 설명 -->
-        <section class="slide slide-process" id="slide-7" data-section="PROCESS" data-title="개발 과정" aria-labelledby="slide-7-title" aria-hidden="true">
-          <header class="slide-heading">
-            <p class="eyebrow">PROCESS · 5 STEPS</p>
-            <h2 id="slide-7-title">개발 과정</h2>
-            <p>[프로젝트가 어떤 흐름으로 발전했는지 한 문장으로 요약]</p>
-          </header>
-          <ol class="timeline">
-            <li><span>01</span><h3>아이디어 구상</h3><p>[초기 목표]</p></li>
-            <li><span>02</span><h3>설계</h3><p>[설계 기준]</p></li>
-            <li><span>03</span><h3>구현</h3><p>[구현 범위]</p></li>
-            <li><span>04</span><h3>통합</h3><p>[통합 과정]</p></li>
-            <li><span>05</span><h3>테스트</h3><p>[검증 방식]</p></li>
-          </ol>
-          <div class="timeline-caption"><span>START</span><i></i><span>ITERATE</span></div>
-        </section>
-
-        <!-- 슬라이드 8 용도: 대표 문제 하나의 변화 과정을 Before–Process–After로 정리 -->
-        <section class="slide slide-troubleshoot" id="slide-8" data-section="PROCESS" data-title="트러블슈팅" aria-labelledby="slide-8-title" aria-hidden="true">
-          <header class="slide-heading compact-heading">
-            <p class="eyebrow">PROCESS · TROUBLESHOOTING</p>
-            <h2 id="slide-8-title">트러블슈팅</h2>
-          </header>
-          <div class="trouble-flow">
-            <article class="trouble-card before">
-              <span class="state-label">BEFORE</span>
-              <figure class="media-placeholder trouble-media" role="img" aria-label="오류 화면 또는 로그 영역">
-                <!-- 이미지 교체: 오류 화면이나 핵심 로그 캡처 삽입 -->
-                <div class="placeholder-inner"><strong>오류 화면 · 로그</strong><small>[캡처 삽입]</small></div>
-              </figure>
-              <p>[문제가 보였던 상태]</p>
-            </article>
-            <article class="trouble-card process-card">
-              <span class="state-label">PROCESS</span>
-              <div class="process-steps">
-                <p><b>01</b>[원인 가설]</p>
-                <p><b>02</b>[검증 방법]</p>
-                <p><b>03</b>[해결 과정]</p>
-              </div>
-            </article>
-            <article class="trouble-card after">
-              <span class="state-label">AFTER</span>
-              <figure class="media-placeholder trouble-media" role="img" aria-label="개선 결과 이미지 영역">
-                <!-- 이미지 교체: 개선 결과 화면 또는 비교 캡처 삽입 -->
-                <div class="placeholder-inner"><strong>개선 결과</strong><small>[캡처 삽입]</small></div>
-              </figure>
-              <p>[해결 후 달라진 상태]</p>
-            </article>
-          </div>
-        </section>
-
-        <!-- 슬라이드 9 용도: 실제 구조도를 나중에 넣을 수 있는 넓은 기술 구조 프레임 -->
-        <section class="slide slide-architecture" id="slide-9" data-section="TECH" data-title="전체 기술 구조" aria-labelledby="slide-9-title" aria-hidden="true">
-          <header class="slide-heading compact-heading architecture-heading">
-            <div><p class="eyebrow">TECH · ARCHITECTURE</p><h2 id="slide-9-title">전체 기술 구조</h2></div>
-            <p>[구조를 이해하기 위한 핵심 설명]</p>
-          </header>
-          <figure class="architecture-frame" role="img" aria-label="시스템 구조도 삽입 영역">
-            <!-- 구조도 교체: 이 figure 안에 <img class="media-fill contain" src="./assets/images/architecture.png" alt="전체 시스템 구조도"> 삽입 -->
-            <div class="architecture-grid" aria-hidden="true"></div>
-            <div class="placeholder-inner">
-              <span class="placeholder-index">SYSTEM MAP</span>
-              <strong>구조도 삽입</strong>
-              <small>PNG · SVG를 이미지로 내보낸 파일 · Blueprint 캡처</small>
-            </div>
-            <figcaption>[구조도에서 먼저 읽어야 할 흐름을 한 문장으로 작성]</figcaption>
-          </figure>
-        </section>
-
-        <!-- 슬라이드 10 용도: 팀이 집중한 기술 문제와 판단 축을 한 화면에 정리 -->
-        <section class="slide slide-focus" id="slide-10" data-section="TECH" data-title="우리 팀이 집중한 기술적 문제" aria-labelledby="slide-10-title" aria-hidden="true">
-          <div class="focus-question">
-            <p class="eyebrow">TECH · FOCUS QUESTION</p>
-            <h2 id="slide-10-title">우리 팀이 집중한<br>기술적 문제</h2>
-            <blockquote>“[핵심 문제를 질문 형태로 작성]”</blockquote>
-          </div>
-          <div class="focus-grid">
-            <article><span>01</span><h3>문제 상황</h3><p>[어떤 상황에서 문제가 발생했는지]</p></article>
-            <article><span>02</span><h3>어려웠던 이유</h3><p>[기술적으로 어려웠던 이유]</p></article>
-            <article><span>03</span><h3>판단 기준</h3><p>[대안을 평가한 기준]</p></article>
-            <article><span>04</span><h3>최종 접근</h3><p>[선택한 접근 방식]</p></article>
-          </div>
-        </section>
-
-        <!-- 슬라이드 11 용도: 핵심 시스템의 객체, 데이터, 서버·클라이언트 역할을 설명 -->
-        <section class="slide slide-system" id="slide-11" data-section="TECH" data-title="핵심 시스템 상세" aria-labelledby="slide-11-title" aria-hidden="true">
-          <header class="slide-heading compact-heading">
-            <p class="eyebrow">TECH · SYSTEM DETAIL</p>
-            <h2 id="slide-11-title">핵심 시스템 상세</h2>
-          </header>
-          <div class="system-layout">
-            <div class="system-summary">
-              <article><span>PURPOSE</span><h3>시스템 목적</h3><p>[이 시스템이 해결하는 문제]</p></article>
-              <article><span>OBJECTS</span><h3>주요 객체·컴포넌트</h3><p>[객체 또는 컴포넌트 이름]</p></article>
-            </div>
-            <div class="data-flow">
-              <span class="label">DATA FLOW</span>
-              <div class="flow-track"><b>[입력]</b><i>→</i><b>[처리]</b><i>→</i><b>[결과]</b></div>
-              <div class="network-roles">
-                <p><span>SERVER</span>[서버의 역할]</p>
-                <p><span>CLIENT</span>[클라이언트의 역할]</p>
+              <div class="fact-grid">
+                <article class="fact-card"><span>엔진 연결</span><strong>Unreal Engine 5.5</strong><small><code>EngineAssociation: 5.5</code></small></article>
+                <article class="fact-card"><span>네트워크</span><strong>Steam OnlineSubsystem</strong><small>리슨 서버 생성·참가 흐름</small></article>
+                <article class="fact-card"><span>도메인 데이터</span><strong>Tags + DataAssets + Tables</strong><small>상자·구역·아이템·트랩</small></article>
+                <article class="fact-card pending"><span>팀 입력</span><strong>[팀 확인 필요: 공식 장르]</strong><small>[팀 입력 필요: 개발 목표]</small></article>
               </div>
             </div>
-            <figure class="media-placeholder code-shot" role="img" aria-label="코드 또는 Blueprint 캡처 영역">
-              <!-- 이미지 교체: 코드 또는 Blueprint 캡처를 contain 방식으로 삽입 -->
-              <div class="placeholder-inner"><span class="placeholder-index">SOURCE VIEW</span><strong>코드 · Blueprint 캡처</strong><small>가독성을 위해 핵심 부분만</small></div>
-            </figure>
-          </div>
-        </section>
+            <aside class="speaker-note">발표 포인트: 이 슬라이드에서는 코드에서 확인된 루프만 설명하고, 기획 문구는 팀 합의 후 채웁니다.</aside>
+            <footer class="slide-evidence"><span>근거</span><code>Source/Parcel_Knight/</code><code>Config/DefaultEngine.ini</code><code>Config/Tags/</code><code>Content/Delivery/</code></footer>
+          </section>
 
-        <!-- 슬라이드 12 용도: 코드 캡처와 의사결정 근거를 좌우로 비교 -->
-        <section class="slide slide-decision" id="slide-12" data-section="TECH" data-title="핵심 로직과 의사결정" aria-labelledby="slide-12-title" aria-hidden="true">
-          <header class="slide-heading compact-heading">
-            <p class="eyebrow">TECH · DECISION</p>
-            <h2 id="slide-12-title">핵심 로직과 의사결정</h2>
-          </header>
-          <div class="decision-layout">
-            <figure class="media-placeholder decision-code" role="img" aria-label="핵심 로직 코드 또는 Blueprint 캡처 영역">
-              <!-- 이미지 교체: <img class="media-fill contain" src="./assets/images/core-logic.png" alt="핵심 로직 캡처"> -->
-              <div class="placeholder-inner"><span class="placeholder-index">LOGIC CAPTURE</span><strong>코드 · Blueprint</strong><small>핵심 로직 캡처</small></div>
-            </figure>
-            <div class="decision-list">
-              <article><span>SELECTED</span><h3>[선택한 방식]</h3></article>
-              <article><span>ALTERNATIVE</span><h3>[검토한 대안]</h3></article>
-              <article><span>WHY</span><h3>[선택 이유]</h3></article>
-              <article><span>LIMIT</span><h3>[현재 제한사항]</h3></article>
+          <!-- 슬라이드 3: 서버·복제·소유 클라이언트 경계를 현재 클래스 책임으로 표현합니다. -->
+          <section class="slide" id="slide-3" data-section="ARCHITECTURE" aria-labelledby="slide-3-title">
+            <header class="slide-heading compact">
+              <p class="eyebrow">SYSTEM MAP</p>
+              <h2 id="slide-3-title">전체 기술 구조 — 권한과 복제의 경계</h2>
+            </header>
+            <div class="architecture-map" aria-label="프로젝트 기술 구조도">
+              <div class="arch-column server-column">
+                <h3>SERVER AUTHORITY</h3>
+                <div class="arch-box"><strong>AParcelGameMode</strong><span>DeliveryRule · Respawn</span></div>
+                <div class="arch-box"><strong>World Subsystems</strong><span>Delivery · PhysicsJudge</span></div>
+                <div class="arch-box"><strong>Gameplay Actors</strong><span>Zone · Box · Trap 판정</span></div>
+              </div>
+              <div class="arch-flow" aria-hidden="true"><span>state</span><b>⇄</b><span>intent</span></div>
+              <div class="arch-column shared-column">
+                <h3>REPLICATED STATE</h3>
+                <div class="arch-box"><strong>AParcelGameState</strong><span>TeamScore · Shop · MapIndex</span></div>
+                <div class="arch-box"><strong>AParcelPlayerState</strong><span>Stats · Inventory · Customization</span></div>
+                <div class="arch-box"><strong>AParcelCharacter</strong><span>State · Health · Movement</span></div>
+                <div class="replication-rail"><span>ReplicatedUsing</span><span>OnRep</span><span>RPC</span></div>
+              </div>
+              <div class="arch-flow" aria-hidden="true"><span>delegates</span><b>→</b><span>input</span></div>
+              <div class="arch-column client-column">
+                <h3>OWNING CLIENT</h3>
+                <div class="arch-box"><strong>AParcelPlayerController</strong><span>입력 · HUD · 로드아웃 제출</span></div>
+                <div class="arch-box"><strong>UMG Widgets</strong><span>OnRep 결과를 Delegate로 표시</span></div>
+                <div class="arch-box"><strong>USessionSubsystem</strong><span>프로세스별 세션 API 접점</span></div>
+              </div>
             </div>
-          </div>
-        </section>
+            <div class="architecture-legend"><span class="legend-server">서버 판정</span><span class="legend-shared">복제 상태</span><span class="legend-client">로컬 표현</span><span class="pending-label">Blueprint 기본값은 [에디터 확인 필요]</span></div>
+            <footer class="slide-evidence"><span>근거</span><code>Public/Core/ParcelGameMode.h</code><code>Public/Core/ParcelGameState.h</code><code>Public/Core/ParcelPlayerState.h</code><code>Private/Character/ParcelCharacter.cpp</code></footer>
+          </section>
 
-        <!-- 슬라이드 13 용도: 임의 수치 없이 테스트 방법과 전후 변화를 기록 -->
-        <section class="slide slide-results" id="slide-13" data-section="TECH" data-title="테스트와 개선 결과" aria-labelledby="slide-13-title" aria-hidden="true">
-          <header class="slide-heading compact-heading results-heading">
-            <div><p class="eyebrow">TECH · VALIDATION</p><h2 id="slide-13-title">테스트와 개선 결과</h2></div>
-            <p class="no-fake-data">수치는 실제 측정 후 입력</p>
-          </header>
-          <div class="results-layout">
-            <div class="results-table" role="table" aria-label="테스트 결과 입력 표">
-              <div class="table-row table-head" role="row"><span>항목</span><span>수정 전</span><span>수정 후</span></div>
-              <div class="table-row" role="row"><span>[테스트 항목 1]</span><span>[결과]</span><span>[결과]</span></div>
-              <div class="table-row" role="row"><span>[테스트 항목 2]</span><span>[결과]</span><span>[결과]</span></div>
-              <div class="table-row" role="row"><span>[테스트 항목 3]</span><span>[결과]</span><span>[결과]</span></div>
+          <!-- 슬라이드 4: 이어지는 세 장의 핵심 기능을 요약합니다. -->
+          <section class="slide" id="slide-4" data-section="FEATURES" aria-labelledby="slide-4-title">
+            <header class="slide-heading">
+              <p class="eyebrow">CORE FEATURES · 3</p>
+              <h2 id="slide-4-title">플레이 경험을 지탱하는 세 가지 흐름</h2>
+            </header>
+            <div class="feature-summary-grid">
+              <article class="number-card cyan"><span>01</span><h3>세션 생명주기</h3><p>Steam 세션 생성부터 로비 이동, 초대 수락, 참가 주소 이동까지 이어지는 흐름</p><small>다음: SessionSubsystem</small></article>
+              <article class="number-card amber"><span>02</span><h3>배송과 점수</h3><p>상자 상태와 ZoneTag를 서버가 판정하고 팀 점수·콤보·UI 상태로 전달</p><small>다음: Delivery pipeline</small></article>
+              <article class="number-card violet"><span>03</span><h3>로드아웃 전달</h3><p>로컬 선택을 서버에 제출한 뒤 카탈로그와 슬롯 규칙으로 검증해 복제</p><small>다음: InventoryComponent</small></article>
             </div>
-            <figure class="media-placeholder result-media" role="img" aria-label="수치 표 또는 스크린샷 영역">
-              <!-- 이미지 교체: 실제 표, 프로파일러, 테스트 전후 스크린샷 삽입 -->
-              <div class="placeholder-inner"><strong>표 · 수치 · 스크린샷</strong><small>[실제 검증 자료 삽입]</small></div>
-            </figure>
-            <div class="result-notes">
-              <p><span>METHOD</span>[테스트 방법]</p>
-              <p><span>FOUND</span>[발견한 문제]</p>
-              <p><span>NEXT</span>[남은 개선점]</p>
+            <aside class="speaker-note">세 기능은 각각 “접속 → 핵심 플레이 → 플레이어 구성”을 담당하며, 이후 슬라이드에서 실제 함수 단위로 추적합니다.</aside>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Core/SessionSubsystem.cpp</code><code>Private/Delivery/DeliveryZone.cpp</code><code>Private/Core/InventoryComponent.cpp</code></footer>
+          </section>
+
+          <!-- 슬라이드 5: 세션 참가 코드 발췌는 실제 함수에서 가져왔습니다. -->
+          <section class="slide" id="slide-5" data-section="FEATURES" aria-labelledby="slide-5-title">
+            <header class="slide-heading compact"><p class="eyebrow">FEATURE 01</p><h2 id="slide-5-title">Steam 세션 — 생성과 참가를 하나의 생명주기로</h2></header>
+            <div class="detail-grid code-right">
+              <div class="detail-copy">
+                <div class="flow-row small"><span>CreateSession</span><b>→</b><span>StartSession</span><b>→</b><span>Lobby?listen</span><b>→</b><span>Invite / Find</span><b>→</b><span>Join</span></div>
+                <dl class="detail-list">
+                  <div><dt>플레이어 경험</dt><dd>방을 만들거나 초대를 수락해 같은 로비로 진입</dd></div>
+                  <div><dt>실제 호출 흐름</dt><dd><code>UParcelGameInstance</code>가 초대 결과를 받고 <code>USessionSubsystem::JoinSessionResult</code>로 전달</dd></div>
+                  <div><dt>권한 경계</dt><dd>호스트는 <code>ServerTravel(...?listen)</code>, 참가자는 해석된 주소로 로컬 <code>ClientTravel</code></dd></div>
+                  <div><dt>실패 처리</dt><dd>세션·World·LocalPlayer·Controller를 확인하고 실패 delegate와 정리를 수행</dd></div>
+                </dl>
+                <div class="status-callout warning"><strong>검증 상태</strong><span>정적 흐름 확인 완료 · 실제 Steam 두 PC 연결은 [에디터 확인 필요]</span></div>
+              </div>
+              <div class="code-panel">
+                <div class="code-header"><span>OnJoinSessionComplete</span><code>SessionSubsystem.cpp</code></div>
+                <pre><code>FString ConnectString;
+const bool bResolved = Sessions-&gt;GetResolvedConnectString(
+    NAME_GameSession, ConnectString);
+if (!bResolved || ConnectString.IsEmpty())
+{
+    OnSessionJoinComplete.Broadcast(false);
+    CleanupNamedSession();
+    return;
+}
+PlayerController-&gt;ClientTravel(
+    ConnectString, ETravelType::TRAVEL_Absolute);</code></pre>
+                <p class="code-caption">가독성을 위해 동일 함수의 실패 로그만 생략한 실제 흐름</p>
+              </div>
             </div>
-          </div>
-        </section>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Core/SessionSubsystem.cpp</code><code>Private/Core/ParcelGameInstance.cpp</code><code>Public/Core/SessionSubsystem.h</code><code>Config/DefaultEngine.ini</code></footer>
+          </section>
 
-        <!-- 슬라이드 14 용도: 팀 회고, 핵심 결론, Q&A로 발표를 마무리 -->
-        <section class="slide slide-wrap" id="slide-14" data-section="WRAP-UP" data-title="팀 회고와 마무리" aria-labelledby="slide-14-title" aria-hidden="true">
-          <div class="wrap-heading">
-            <p class="eyebrow">WRAP-UP · RETROSPECTIVE</p>
-            <h2 id="slide-14-title">팀 회고와 마무리</h2>
-            <p class="conclusion">[발표 핵심 결론을 한 문장으로 작성]</p>
-          </div>
-          <div class="retro-grid">
-            <article><span>01</span><h3>잘된 점</h3><p>[잘된 점]</p></article>
-            <article><span>02</span><h3>아쉬운 점</h3><p>[아쉬운 점]</p></article>
-            <article><span>03</span><h3>배운 점</h3><p>[배운 점]</p></article>
-            <article><span>04</span><h3>다음 개선</h3><p>[다음 개선 방향]</p></article>
-          </div>
-          <div class="qa-block"><span>Q&amp;A</span><p>질문을 받겠습니다.</p></div>
-        </section>
-      </main>
+          <!-- 슬라이드 6: 배송 판정은 서버의 DeliveryZone에서 시작합니다. -->
+          <section class="slide" id="slide-6" data-section="FEATURES" aria-labelledby="slide-6-title">
+            <header class="slide-heading compact"><p class="eyebrow">FEATURE 02</p><h2 id="slide-6-title">배송 파이프라인 — 겹침 판정에서 복제 UI까지</h2></header>
+            <div class="detail-grid code-left">
+              <div class="code-panel">
+                <div class="code-header"><span>ADeliveryZone::ProcessDelivery</span><code>DeliveryZone.cpp</code></div>
+                <pre><code>if (!Box || !HasAuthority()) return;
+if (Box-&gt;HasStateTag(FGameplayTag::RequestGameplayTag(
+    TEXT("Box.State.Delivered"))) ||
+    Box-&gt;HasStateTag(FGameplayTag::RequestGameplayTag(
+    TEXT("Box.State.Failed"))))
+{
+    return;
+}
+FBoxData Data = Box-&gt;GetBoxData();
+bool bIsCorrectZone =
+    Data.TargetZoneTag.MatchesTagExact(ZoneTag);</code></pre>
+                <p class="code-caption">서버 권한·중복 상태·정확한 목적 태그를 차례로 검사</p>
+              </div>
+              <div class="detail-copy">
+                <div class="vertical-flow">
+                  <span><b>01</b> <code>OnZoneOverlap</code> — 서버에서 상자 식별</span>
+                  <span><b>02</b> <code>ProcessDelivery</code> — Delivered/Failed 중복 차단</span>
+                  <span><b>03</b> <code>GameMode</code> → <code>DeliveryRuleComponent</code></span>
+                  <span><b>04</b> <code>TeamScoreComponent</code> — 점수·콤보·시간</span>
+                  <span><b>05</b> <code>OnRep</code> / multicast delegate — HUD 표시</span>
+                </div>
+                <div class="two-column-notes">
+                  <article><h4>서버가 결정</h4><p>대상 ZoneTag, 성공/실패 상태, 점수 반영</p></article>
+                  <article><h4>데이터 순서</h4><p>BoxData → 판정 → GameState 복제 → UI delegate</p></article>
+                </div>
+                <p class="pending-inline">Box·Zone Blueprint의 태그와 DataTable 연결은 [에디터 확인 필요]</p>
+              </div>
+            </div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Delivery/DeliveryZone.cpp</code><code>Private/Core/DeliveryRuleComponent.cpp</code><code>Private/Core/TeamScoreComponent.cpp</code><code>Private/UI/ParcelHUDWidget.cpp</code></footer>
+          </section>
 
-      <button class="edge-button edge-prev" id="prevButton" type="button" aria-label="이전 슬라이드" title="이전 슬라이드">
-        <span aria-hidden="true">←</span>
-      </button>
-      <button class="edge-button edge-next" id="nextButton" type="button" aria-label="다음 슬라이드" title="다음 슬라이드">
-        <span aria-hidden="true">→</span>
-      </button>
+          <!-- 슬라이드 7: 로컬 저장값과 서버 검증 범위를 구분해 설명합니다. -->
+          <section class="slide" id="slide-7" data-section="FEATURES" aria-labelledby="slide-7-title">
+            <header class="slide-heading compact"><p class="eyebrow">FEATURE 03</p><h2 id="slide-7-title">로드아웃 — 로컬 선택을 서버 상태로 옮기는 경계</h2></header>
+            <div class="detail-grid code-right">
+              <div class="detail-copy">
+                <div class="trust-diagram">
+                  <div><small>LOCAL</small><strong>GameInstance SaveGame</strong><span>장착 태그 선택</span></div>
+                  <b>Server_SubmitLoadout</b>
+                  <div><small>SERVER</small><strong>InventoryComponent</strong><span>개수·태그·중복·DataTable 검증</span></div>
+                  <b>ReplicatedUsing</b>
+                  <div><small>CLIENTS</small><strong>OnRep_Items</strong><span>UI 갱신</span></div>
+                </div>
+                <div class="status-callout danger"><strong>확인된 한계</strong><span>서버 권한 소유 프로필이 없어 “실제로 보유한 아이템인지”는 보안 검증할 수 없음</span></div>
+                <dl class="mini-list"><div><dt>유지되는 것</dt><dd>3칸 제한, 소비 아이템 루트 태그, 중복 차단, 카탈로그 존재 여부</dd></div><div><dt>후속 필요</dt><dd>보안이 필요하면 서버 프로필·거래 기록·영수증 검증 설계</dd></div></dl>
+              </div>
+              <div class="code-panel">
+                <div class="code-header"><span>SetValidatedLoadout</span><code>InventoryComponent.cpp</code></div>
+                <pre><code>if (!GetOwner() || !GetOwner()-&gt;HasAuthority()
+    || !ConsumableDataTable)
+{
+    return false;
+}
+const int32 SafeMaxItems =
+    FMath::Clamp(MaxItems, 0, 3);
+if (RequestedItems.Num() &gt; SafeMaxItems)
+{
+    return false;
+}
+TArray&lt;FGameplayTag&gt; ValidatedItems;</code></pre>
+                <p class="code-caption">이후 루프에서 태그·중복·DataTable 행을 검증</p>
+              </div>
+            </div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Core/ParcelGameInstance.cpp</code><code>Private/Core/ParcelPlayerController.cpp</code><code>Private/Core/InventoryComponent.cpp</code><code>Public/Data/ItemData.h</code></footer>
+          </section>
 
-      <footer class="presentation-footer">
-        <button class="list-button" id="listButton" type="button" aria-label="슬라이드 목록 열기" aria-haspopup="dialog">
-          <span aria-hidden="true">☷</span> 슬라이드 목록
-        </button>
-        <div class="jump-status" id="jumpStatus" aria-live="polite"></div>
-        <div class="slide-counter" aria-live="polite"><strong id="currentNumber">01</strong><span>/</span><span id="totalNumber">14</span></div>
-      </footer>
+          <!-- 슬라이드 8: 현재 코드와 Git 이력으로 입증 가능한 세 문제만 요약합니다. -->
+          <section class="slide" id="slide-8" data-section="TROUBLESHOOTING" aria-labelledby="slide-8-title">
+            <header class="slide-heading"><p class="eyebrow">TROUBLESHOOTING · 3</p><h2 id="slide-8-title">중복·순서·상태 충돌을 제거한 세 가지 수정</h2></header>
+            <div class="issue-table" role="table" aria-label="트러블슈팅 요약">
+              <div class="issue-row issue-head" role="row"><span>문제</span><span>근본 원인</span><span>현재 방어선</span><span>검증 상태</span></div>
+              <div class="issue-row" role="row"><strong>01 사망 중복 경로</strong><span>Death delegate가 Character와 PlayerState 경로로 결합</span><span>단일 bind + <code>bDeathHandled</code></span><em>정적 확인</em></div>
+              <div class="issue-row" role="row"><strong>02 이동 속도 충돌</strong><span>Slow가 오래된 속도를 직접 복원</span><span>활성 상태 기반 한 곳 재계산</span><em>정적 확인</em></div>
+              <div class="issue-row" role="row"><strong>03 콤보 계산 순서</strong><span>증가 후 보상·모든 부호에 배율</span><span>양수 성공만 배율·그 뒤 증가</span><em>정적 확인</em></div>
+            </div>
+            <div class="validation-banner"><strong>공통 검증 한계</strong><span>수정 이후의 PIE 2인 실행 기록은 저장소에서 확인되지 않음 — 다음 세 슬라이드의 절차로 재검증 필요</span></div>
+            <footer class="slide-evidence"><span>근거</span><code>Git b9c6bfa</code><code>Git 7f27047</code><code>Private/Character/ParcelCharacter.cpp</code><code>Private/Core/TeamScoreComponent.cpp</code></footer>
+          </section>
 
+          <!-- 슬라이드 9: 사망 delegate 중복 경로의 이전 상태와 현재 상태를 비교합니다. -->
+          <section class="slide" id="slide-9" data-section="TROUBLESHOOTING" aria-labelledby="slide-9-title">
+            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 01</p><h2 id="slide-9-title">사망 처리를 서버의 단일 진입점으로</h2></header>
+            <div class="before-after-layout">
+              <article class="compare-panel before"><h3>BEFORE · b9c6bfa 이전</h3><ul><li>Health death delegate에 Character handler가 결합</li><li>Possess 시 PlayerState::HandleDeath와 별도 Character 경로도 결합 가능</li><li>래그돌·DeathCount·Respawn timer 중복 위험</li></ul><div class="cause"><b>원인</b> 권한 처리 주체가 delegate 연결에 분산</div></article>
+              <div class="solution-spine"><span>BindAuthoritativeDeathHandler</span><b>→</b><span>bDeathHandled</span><b>→</b><span>PlayerState::HandleDeath</span></div>
+              <article class="compare-panel after"><h3>AFTER · 현재</h3><pre><code>if (!HasAuthority() || bDeathHandled)
+{
+    return;
+}
+bDeathHandled = true;
+RagdollComp-&gt;StartRagdoll();
+PlayerStateComp-&gt;AddStateTag(DeadTag);
+PS-&gt;HandleDeath();</code></pre><div class="cause good"><b>효과</b> 새 Pawn마다 한 번만 사망 전이</div></article>
+            </div>
+            <div class="verification-strip"><strong>재현·검증</strong><span>서버에서 같은 death event 2회 호출 → DeathCount 1, timer 1, UI 1 확인</span><span>리스폰 후 새 Pawn에서 다시 1회 처리 확인</span><em>[에디터 확인 필요]</em></div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Character/ParcelCharacter.cpp</code><code>Public/Character/ParcelCharacter.h</code><code>Private/Core/HealthComponent.cpp</code><code>Private/Core/ParcelPlayerState.cpp</code></footer>
+          </section>
+
+          <!-- 슬라이드 10: 이동 속도는 이전 값 복원이 아니라 활성 상태 조합으로 계산됩니다. -->
+          <section class="slide" id="slide-10" data-section="TROUBLESHOOTING" aria-labelledby="slide-10-title">
+            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 02</p><h2 id="slide-10-title">Carry · Sprint · Slow 순서가 달라도 같은 최종 속도</h2></header>
+            <div class="speed-layout">
+              <div class="speed-formula"><span>BaseMaxWalkSpeed</span><b>×</b><span>SprintMod</span><b>×</b><span>CarryMod</span><b>×</b><span>StatusEffectMod</span><strong>= MaxWalkSpeed</strong></div>
+              <div class="speed-columns">
+                <article class="compare-panel before"><h3>BEFORE</h3><p>Slow 시작 시 기존 속도를 저장하고 종료 시 그 값을 직접 복원.</p><p class="risk">그 사이 Carry/Sprint가 변하면 최신 상태를 덮어쓸 수 있음.</p></article>
+                <article class="code-panel compact-code"><div class="code-header"><span>RefreshMoveSpeed</span><code>MovementStatComponent.cpp</code></div><pre><code>MaxWalkSpeed = BaseMaxWalkSpeed
+    * SprintMod
+    * CarryMod
+    * StatusEffectMod;
+ApplyStatsToMovement();
+
+void OnRep_MaxWalkSpeed()
+{
+    ApplyStatsToMovement();
+}</code></pre></article>
+                <article class="compare-panel after"><h3>AFTER</h3><p>각 컴포넌트는 현재 배율만 제공하고 한 컴포넌트가 최종값을 재계산.</p><p class="benefit">서버 계산값을 RepNotify로 클라이언트 이동 컴포넌트에 적용.</p></article>
+              </div>
+            </div>
+            <div class="verification-strip"><strong>순서 검증</strong><span>Carry → Slow → 해제</span><span>Sprint → Slow → Sprint 종료</span><span>Slow 반복 적용·반복 해제</span><em>[에디터 확인 필요]</em></div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Character/ParcelMovementStatComponent.cpp</code><code>Public/Character/ParcelMovementStatComponent.h</code><code>Private/Components/DFStatusEffectComponent.cpp</code><code>Private/Character/CharacterCarryComponent.cpp</code></footer>
+          </section>
+
+          <!-- 슬라이드 11: 성공 보상과 패널티의 콤보 정책을 현재 코드 순서로 설명합니다. -->
+          <section class="slide" id="slide-11" data-section="TROUBLESHOOTING" aria-labelledby="slide-11-title">
+            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 03</p><h2 id="slide-11-title">점수 부호와 콤보 순서를 명시적으로</h2></header>
+            <div class="score-layout">
+              <div class="score-sequence">
+                <div><span>성공</span><strong>AddTeamScore(Score, true)</strong><small>현재 콤보로 양수 보상 계산</small></div><b>→</b><div><span>다음 성공 준비</span><strong>OnDeliverySuccess()</strong><small>계산 뒤 ComboCount 증가</small></div>
+              </div>
+              <div class="score-grid">
+                <article class="compare-panel before"><h3>BEFORE</h3><ul><li>성공 콤보 증가 후 점수 계산</li><li>첫 성공부터 증가된 배율 가능</li><li>음수 패널티에도 같은 배율 적용</li><li>float 결과를 int에 암묵 변환</li></ul></article>
+                <article class="code-panel"><div class="code-header"><span>AddTeamScore</span><code>TeamScoreComponent.cpp</code></div><pre><code>const int32 AppliedAmount =
+    bApplyCombo &amp;&amp; Amount &gt; 0
+    ? static_cast&lt;int32&gt;(
+        static_cast&lt;float&gt;(Amount)
+        * GetComboMultiplier())
+    : Amount;
+TeamScore += AppliedAmount;
+TeamScore = FMath::Max(0, TeamScore);</code></pre></article>
+                <article class="compare-panel after"><h3>AFTER</h3><ul><li>첫 성공은 1.0배</li><li>성공 양수 보상만 콤보 적용</li><li>실패·시간 감소는 배율 없음</li><li>int 변환 의도를 코드로 표현</li></ul></article>
+              </div>
+            </div>
+            <div class="verification-strip"><strong>수치 검증</strong><span>첫 성공 1.0배</span><span>높은 콤보에서 시간 패널티 동일</span><span>실패 시 콤보 0</span><em>[에디터 확인 필요]</em></div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Core/TeamScoreComponent.cpp</code><code>Public/Core/TeamScoreComponent.h</code><code>Private/Core/DeliveryRuleComponent.cpp</code><code>Git 7f27047</code></footer>
+          </section>
+
+          <!-- 슬라이드 12: 이어지는 세 장의 기술 선택을 요약합니다. -->
+          <section class="slide" id="slide-12" data-section="DECISIONS" aria-labelledby="slide-12-title">
+            <header class="slide-heading"><p class="eyebrow">TECHNICAL DECISIONS · 3</p><h2 id="slide-12-title">코드 전반에서 반복되는 설계 원칙</h2></header>
+            <div class="decision-summary">
+              <article><span>01</span><h3>얇은 Framework 클래스</h3><p>GameMode·GameState·PlayerState·Character가 컴포넌트에 실제 책임을 위임</p></article>
+              <article><span>02</span><h3>서버 권한 + 복제 콜백</h3><p>판정은 서버, 지속 상태는 ReplicatedUsing, 표현은 OnRep·RPC로 분리</p></article>
+              <article><span>03</span><h3>Tags + 데이터 에셋</h3><p>문자열 분기 대신 도메인 태그와 DataAsset/DataTable로 설정을 구성</p></article>
+            </div>
+            <div class="decision-caveat"><strong>발표 시 구분</strong><span>“현재 코드가 채택한 구조”는 확인됨. 당시 검토한 대안과 선택 배경은 팀 기록이 없어 [팀 확인 필요].</span></div>
+            <footer class="slide-evidence"><span>근거</span><code>Public/Core/</code><code>Public/Character/</code><code>Public/Data/DFTrapDataAsset.h</code><code>Config/Tags/</code></footer>
+          </section>
+
+          <!-- 슬라이드 13: Framework와 ActorComponent의 실제 소유 관계를 설명합니다. -->
+          <section class="slide" id="slide-13" data-section="DECISIONS" aria-labelledby="slide-13-title">
+            <header class="slide-heading compact"><p class="eyebrow">DECISION 01</p><h2 id="slide-13-title">Framework는 조정하고, 컴포넌트가 책임진다</h2></header>
+            <div class="ownership-layout">
+              <div class="ownership-tree">
+                <div><strong>AParcelGameMode</strong><span>UDeliveryRuleComponent</span><span>URespawnComponent</span></div>
+                <div><strong>AParcelGameState</strong><span>UTeamScoreComponent</span><span>UShopComponent</span></div>
+                <div><strong>AParcelPlayerState</strong><span>UPlayerStatComponent</span><span>UInventoryComponent</span><span>UCustomizationComponent</span></div>
+                <div><strong>AParcelCharacter</strong><span>Carry · Movement · Health · Status · Ragdoll…</span></div>
+              </div>
+              <div class="decision-detail">
+                <dl class="detail-list">
+                  <div><dt>문제</dt><dd>게임 규칙·수명주기·캐릭터 행동을 한 클래스에 모으면 변경 영향이 커짐</dd></div>
+                  <div><dt>현재 방식</dt><dd>Framework 클래스가 진입점을 제공하고 실제 로직은 소유 컴포넌트로 위임</dd></div>
+                  <div><dt>비교 대안</dt><dd>GameMode/Character 중심의 단일 클래스 구성 — 실제 논의 여부 [팀 확인 필요]</dd></div>
+                  <div><dt>장점</dt><dd>복제 주체와 수명주기별 책임이 코드 위치에 드러남</dd></div>
+                  <div><dt>제한</dt><dd>컴포넌트 간 호출 순서와 Blueprint 기본값 연결은 별도 관리 필요</dd></div>
+                </dl>
+              </div>
+            </div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Core/ParcelGameMode.cpp</code><code>Private/Core/ParcelGameState.cpp</code><code>Private/Core/ParcelPlayerState.cpp</code><code>Private/Character/ParcelCharacter.cpp</code></footer>
+          </section>
+
+          <!-- 슬라이드 14: 네트워크 전달 수단을 데이터 수명에 따라 나눈 현재 구조입니다. -->
+          <section class="slide" id="slide-14" data-section="DECISIONS" aria-labelledby="slide-14-title">
+            <header class="slide-heading compact"><p class="eyebrow">DECISION 02</p><h2 id="slide-14-title">상태의 수명에 맞춰 Replication과 RPC를 선택</h2></header>
+            <div class="network-matrix">
+              <article class="matrix-card persistent"><span>지속 상태</span><h3>ReplicatedUsing</h3><p>팀 점수·콤보·남은 시간·인벤토리·선택 맵·이동 수치</p><code>OnRep → delegate / movement apply</code></article>
+              <article class="matrix-card intent"><span>행동 의도</span><h3>Server RPC</h3><p>로드아웃 제출·아이템 사용·로비 선택·게임 시작 요청</p><code>Authority → validation → mutation</code></article>
+              <article class="matrix-card transient"><span>일시 표현</span><h3>Client / Multicast RPC</h3><p>소유자 사망 UI·배송 로그·스테이지 결과·트랩 표현</p><code>trusted state → targeted feedback</code></article>
+            </div>
+            <div class="decision-bottom-grid">
+              <div><h4>판단 기준</h4><p>게임 규칙을 바꾸는 값은 서버가 생성·검증하고, 클라이언트는 복제 결과를 표현.</p></div>
+              <div><h4>비교 대안</h4><p>클라이언트 직접 상태 변경 — 실제 논의 여부 [팀 확인 필요]. 현재 코드는 권한 경계를 우선.</p></div>
+              <div><h4>현재 제한</h4><p>Reliable multicast 사용량과 전용 서버 동작은 별도 프로파일링·실행 검증 필요.</p></div>
+            </div>
+            <footer class="slide-evidence"><span>근거</span><code>Private/Core/TeamScoreComponent.cpp</code><code>Private/Core/InventoryComponent.cpp</code><code>Private/Delivery/DeliveryBox.cpp</code><code>Private/Delivery/Traps/DFTrapBase.cpp</code></footer>
+          </section>
+
+          <!-- 슬라이드 15: GameplayTag와 데이터 에셋 선택, 기술 원칙, Q&A를 한 장에 정리합니다. -->
+          <section class="slide slide-closing" id="slide-15" data-section="DECISIONS" aria-labelledby="slide-15-title">
+            <header class="slide-heading compact"><p class="eyebrow">DECISION 03 · TECH SUMMARY</p><h2 id="slide-15-title">태그와 데이터로 확장 지점을 만든다</h2></header>
+            <div class="closing-layout">
+              <div class="data-vocabulary">
+                <div class="tag-cloud" aria-label="GameplayTag 예시"><span>Character.State</span><span>Trap.Effect</span><span>Box.State</span><span>Zone.Type</span><span>Item.Consumables</span></div>
+                <div class="data-cards"><article><strong>UStageData</strong><small>시간·목표 점수·상자 목록·DataTable</small></article><article><strong>UDFTrapDataAsset</strong><small>타이밍·효과·피해·밀기·표현 설정</small></article><article><strong>FItemData / FBoxData</strong><small>태그를 키로 사용하는 도메인 데이터</small></article></div>
+                <p class="pending-inline">실제 DataAsset 값과 Blueprint 참조 연결은 [에디터 확인 필요]</p>
+              </div>
+              <div class="closing-summary">
+                <article><span>01</span><strong>서버가 판정한다</strong><small>클라이언트는 의도를 보내고 결과를 복제받음</small></article>
+                <article><span>02</span><strong>상태에서 다시 계산한다</strong><small>중복 호출과 순서 변화에도 같은 최종 상태</small></article>
+                <article><span>03</span><strong>데이터와 표현을 분리한다</strong><small>C++ 규칙과 에디터 설정의 경계를 명확히</small></article>
+                <div class="qa-block"><strong>Q&amp;A</strong><span>[팀 입력 필요: 발표 핵심 결론]</span></div>
+              </div>
+            </div>
+            <footer class="slide-evidence"><span>근거</span><code>Config/Tags/</code><code>Public/Delivery/StageData.h</code><code>Public/Data/DFTrapDataAsset.h</code><code>Public/Data/ItemData.h</code></footer>
+          </section>
+        </article>
+      </div>
+    </main>
+
+    <button class="edge-button edge-prev" id="prevButton" type="button" aria-label="이전 슬라이드"><span aria-hidden="true">‹</span></button>
+    <button class="edge-button edge-next" id="nextButton" type="button" aria-label="다음 슬라이드"><span aria-hidden="true">›</span></button>
+
+    <footer class="presentation-footer" aria-label="슬라이드 진행 상태">
+      <div class="shortcut-hint"><kbd>←</kbd><kbd>→</kbd><span>이동</span><kbd>F</kbd><span>전체 화면</span></div>
+      <div class="slide-counter"><strong id="currentSlideNumber">01</strong><span>/</span><span id="totalSlideNumber">15</span></div>
       <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
-    </div>
+    </footer>
+
+    <dialog class="slide-dialog" id="slideDialog" aria-labelledby="slideDialogTitle">
+      <div class="dialog-header"><h2 id="slideDialogTitle">슬라이드 목록</h2><button id="closeSlideList" type="button" aria-label="슬라이드 목록 닫기">×</button></div>
+      <nav id="slideList" aria-label="슬라이드 바로가기"></nav>
+    </dialog>
+
+    <p class="sr-only" id="slideAnnouncement" aria-live="assertive"></p>
   </div>
-
-  <dialog class="slide-dialog" id="slideDialog" aria-labelledby="slideDialogTitle">
-    <div class="dialog-header">
-      <div><span class="eyebrow">NAVIGATE</span><h2 id="slideDialogTitle">슬라이드 목록</h2></div>
-      <button class="dialog-close" id="dialogCloseButton" type="button" aria-label="슬라이드 목록 닫기">×</button>
-    </div>
-    <ol id="slideList"></ol>
-    <p class="dialog-hint">숫자 키를 연속 입력해도 바로 이동할 수 있습니다. 예: <kbd>1</kbd><kbd>4</kbd></p>
-  </dialog>
-
-  <noscript>이 프레젠테이션의 슬라이드 이동 기능을 사용하려면 JavaScript를 활성화하세요.</noscript>
-  <script src="./presentation.js"></script>
+  <script src="presentation.js"></script>
 </body>
 </html>

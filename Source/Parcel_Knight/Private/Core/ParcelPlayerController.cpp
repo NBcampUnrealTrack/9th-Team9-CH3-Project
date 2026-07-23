@@ -1,5 +1,6 @@
 #include "Core/ParcelPlayerController.h"
 #include "ParcelLog.h"
+#include "UI/ParcelInGameDeadHUDWidget.h"
 #include "Parcel_Knight/Public/UI/ParcelInGameDeadHUDWidget.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "UI/ParcelHUDWidget.h"
@@ -18,6 +19,7 @@
 #include "GameMapsSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
+#include "Framework/Application/SlateApplication.h"
 
 namespace ParcelFrontendMaps
 {
@@ -88,10 +90,10 @@ void AParcelPlayerController::InitHUDForCurrentLevel()
             {
                 LobbyHUDWidgetInstance->AddToViewport();
                 
-                FInputModeGameAndUI InputMode;
-                InputMode.SetWidgetToFocus(LobbyHUDWidgetInstance->TakeWidget());
-                SetInputMode(InputMode);
-                bShowMouseCursor = true;
+            	FInputModeGameOnly InputMode;
+            	SetInputMode(InputMode);
+            	bShowMouseCursor = false;
+            	FSlateApplication::Get().SetAllUserFocusToGameViewport();
                 
                 UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] C++ 컨트롤러가 레벨 전환 후 로비 HUD 안착 완료!"));
             }
@@ -105,6 +107,7 @@ void AParcelPlayerController::InitHUDForCurrentLevel()
     FInputModeGameOnly InputMode;
     SetInputMode(InputMode);
     bShowMouseCursor = false;
+	FSlateApplication::Get().SetAllUserFocusToGameViewport();
     
     if (HUDWidgetClass)
     {
@@ -312,6 +315,7 @@ void AParcelPlayerController::Client_NotifyRespawn_Implementation()
     FInputModeGameOnly InputMode;
     SetInputMode(InputMode);
     bShowMouseCursor = false;
+	FSlateApplication::Get().SetAllUserFocusToGameViewport();
 }
 
 void AParcelPlayerController::Client_PlayTrapActivationSound_Implementation(
