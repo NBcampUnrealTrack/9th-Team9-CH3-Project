@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "Character/ParcelCharacter.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Core/HealthComponent.h"
 #include "GameplayTagContainer.h"
 
 DEFINE_LOG_CATEGORY(LogParcelInteraction);
@@ -152,51 +153,14 @@ void UParcelInteractionComponent::PrimaryInteract()
     
 bool UParcelInteractionComponent::Server_RequestPrimaryInteract_Validate(AActor* TargetActor)
 {
-    if (!TargetActor) 
-    {
-        INTERACT_LOG(Warning, TEXT("서버 검증 실패: TargetActor가 nullptr입니다."));
-        return false;
-    }
-    
-    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-    if (!OwnerCharacter) 
-    {
-        INTERACT_LOG(Warning, TEXT("서버 검증 실패: 소유 캐릭터가 유효하지 않습니다."));
-        return false;
-    }
-    
-    if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
-    {
-        if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-        {
-            if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
-            {
-                INTERACT_LOG(Warning, TEXT("서버 보안 검증 실패: 캐릭터[%s]가 쓰러진 상태에서 조작을 시도했습니다."), *OwnerCharacter->GetName());
-                return false;
-            }
-        }
-    }
-
-    // 패킷 변조 핵 방어: 서버사이드에서 캐릭터와 타겟의 실제 거리를 역계산
-    float DistSq = FVector::DistSquared(OwnerCharacter->GetActorLocation(), TargetActor->GetActorLocation());
-    float MaxAllowedDistance = TraceDistance + 50.f;
-    
-    bool bIsValidDistance = DistSq <= FMath::Square(MaxAllowedDistance);
-
-    // 거리 검증 실패 시 불법적인 요청일 수 있으므로 Warning 로그로 기록
-    if (!bIsValidDistance)
-    {
-        INTERACT_LOG(Warning, TEXT("서버 거리 검증 실패! 캐릭터[%s]와 타겟[%s]의 거리가 너무 멉니다. (허용 거리 제곱: %f, 실제 거리 제곱: %f)"), 
-            *OwnerCharacter->GetName(), *TargetActor->GetName(), FMath::Square(MaxAllowedDistance), DistSq);
-    }
-
-    return bIsValidDistance;
+	// 일반적인 잘못된 요청은 연결 종료가 아니라 Implementation에서 거절한다.
+	return true;
 }
 
 void UParcelInteractionComponent::Server_RequestPrimaryInteract_Implementation(AActor* TargetActor)
 {
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-    if (!OwnerCharacter || !TargetActor) return;
+	if (!OwnerCharacter || !IsValidServerInteractionRequest(TargetActor)) return;
     
     if (TargetActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
     {
@@ -209,4 +173,83 @@ void UParcelInteractionComponent::Server_RequestPrimaryInteract_Implementation(A
             IInteractableInterface::Execute_Interact(TargetActor, OwnerCharacter);
         }
     }
+}
+
+bool UParcelInteractionComponent::IsValidServerInteractionRequest(AActor* TargetActor) const
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!IsValid(TargetActor) || !OwnerCharacter || TargetActor == OwnerCharacter || !GetWorld())
+	{
+		return false;
+	}
+
+	if (!TargetActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
+	{
+		return false;
+	}
+
+	if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return false;
+		}
+	}
+
+	if (const AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwnerCharacter))
+	{
+		if (const UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+		{
+			if (StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll"))))
+			{
+				return false;
+			}
+		}
+	}
+
+	if (!FMath::IsFinite(TraceDistance) || TraceDistance <= 0.0f)
+	{
+		return false;
+	}
+
+	const float MaxAllowedDistance = TraceDistance + 50.0f;
+	const float DistanceSquared = FVector::DistSquared(OwnerCharacter->GetActorLocation(), TargetActor->GetActorLocation());
+	if (!FMath::IsFinite(DistanceSquared) || DistanceSquared > FMath::Square(MaxAllowedDistance))
+	{
+		return false;
+	}
+
+	APlayerController* PlayerController = Cast<APlayerController>(OwnerCharacter->GetController());
+	if (!PlayerController)
+	{
+		return false;
+	}
+
+	const FVector TraceStart = OwnerCharacter->GetPawnViewLocation();
+	const FRotator TraceRotation = PlayerController->GetControlRotation();
+	const FVector TraceDirection = TraceRotation.Vector();
+	if (TraceStart.ContainsNaN() || TraceDirection.ContainsNaN())
+	{
+		return false;
+	}
+
+	const FVector TraceEnd = TraceStart + TraceDirection * MaxAllowedDistance;
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerCharacter);
+	FHitResult HitResult;
+	const FCollisionShape SweepSphere = FCollisionShape::MakeSphere(15.0f);
+	if (!GetWorld()->SweepSingleByChannel(
+		HitResult,
+		TraceStart,
+		TraceEnd,
+		FQuat::Identity,
+		ECC_Visibility,
+		SweepSphere,
+		QueryParams))
+	{
+		return false;
+	}
+
+	return HitResult.GetActor() == TargetActor;
 }

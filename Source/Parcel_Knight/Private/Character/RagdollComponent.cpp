@@ -12,6 +12,7 @@
 #include "Core/HealthComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Engine/World.h"
+#include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogRagdoll);
 
@@ -19,6 +20,12 @@ URagdollComponent::URagdollComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
     SetIsReplicatedByDefault(true);
+}
+
+void URagdollComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(URagdollComponent, bReplicatedRagdollState);
 }
 
 void URagdollComponent::BeginPlay()
@@ -38,6 +45,9 @@ void URagdollComponent::BeginPlay()
        DefaultMeshRelativeLocation = Mesh->GetRelativeLocation();
        DefaultMeshRelativeRotation = Mesh->GetRelativeRotation();
     }
+
+	// Initial replication can arrive before BeginPlay caches the owning character.
+	ApplyReplicatedRagdollState(bReplicatedRagdollState);
 }
 
 void URagdollComponent::StartRagdoll()
@@ -48,13 +58,21 @@ void URagdollComponent::StartRagdoll()
        return;
     }
 
-    if (bRagdollOnCooldown)
-    {
-        RAGDOLL_LOG(Log, TEXT("StartRagdoll 무시: 쿨타임 중"));
-        return;
-    }
+	// 권한 경로는 사망·서버 물리 충돌 같은 신뢰 가능한 강제 원인이다.
+	const bool bUpgradingClientRagdollToForced = bReplicatedRagdollState && bClientInitiatedRagdoll;
+	bClientInitiatedRagdoll = false;
+	if (bUpgradingClientRagdollToForced && GetWorld())
+	{
+		AirRecoveryWaitElapsed = 0.0f;
+		GetWorld()->GetTimerManager().SetTimer(
+			AutoRecoveryTimerHandle,
+			this,
+			&URagdollComponent::AttemptAutoRecovery,
+			AutoRecoveryDelay,
+			false);
+	}
 
-    Multicast_SetRagdoll(true);
+	SetRagdollState_ServerOnly(true);
 }
 
 void URagdollComponent::StopRagdoll()
@@ -64,12 +82,13 @@ void URagdollComponent::StopRagdoll()
        ServerSetRagdoll(false);
        return;
     }
-    Multicast_SetRagdoll(false);
+	bClientInitiatedRagdoll = false;
+	SetRagdollState_ServerOnly(false);
 }
 
 void URagdollComponent::ToggleRagdoll()
 {
-    bool bCurrentlyRagdoll = IsRagdoll();
+    const bool bCurrentlyRagdoll = IsRagdoll();
 
     if (!GetOwner() || !GetOwner()->HasAuthority())
     {
@@ -77,7 +96,7 @@ void URagdollComponent::ToggleRagdoll()
        return;
     }
 
-    Multicast_SetRagdoll(!bCurrentlyRagdoll);
+	HandleClientRagdollRequest_ServerOnly(!bCurrentlyRagdoll);
 }
 
 bool URagdollComponent::TryConsumeToggleCooldown()
@@ -87,7 +106,8 @@ bool URagdollComponent::TryConsumeToggleCooldown()
     bRagdollOnCooldown = true;
     GetWorld()->GetTimerManager().SetTimer(
         RagdollCooldownTimerHandle,
-        [this]() { bRagdollOnCooldown = false; },
+        this,
+        &URagdollComponent::ResetRagdollCooldown_ServerOnly,
         RagdollCooldown,
         false
     );
@@ -96,15 +116,7 @@ bool URagdollComponent::TryConsumeToggleCooldown()
 
 bool URagdollComponent::IsRagdoll() const
 {
-    // 완전히 게임플레이 태그 판단 방식으로 일원화 (bIsRagdoll 변수 제거)
-    if (const AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner()))
-    {
-       if (const UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-       {
-          return StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
-       }
-    }
-    return false;
+	return bRagdollAppliedLocally;
 }
 
 bool URagdollComponent::IsRagdollCloseToGround() const
@@ -152,13 +164,123 @@ UAnimMontage* URagdollComponent::GetSelectedGetUpMontage(bool bFront) const
 
 void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
 {
-    Multicast_SetRagdoll(bNewIsRagdoll);
+	HandleClientRagdollRequest_ServerOnly(bNewIsRagdoll);
 }
 
 void URagdollComponent::Multicast_SetRagdoll_Implementation(bool bNewIsRagdoll)
 {
-    if (bNewIsRagdoll) ApplyStartRagdoll();
-    else               ApplyStopRagdoll();
+	ApplyReplicatedRagdollState(bNewIsRagdoll);
+}
+
+void URagdollComponent::OnRep_RagdollState()
+{
+	ApplyReplicatedRagdollState(bReplicatedRagdollState);
+}
+
+void URagdollComponent::HandleClientRagdollRequest_ServerOnly(bool bRequestedRagdoll)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter)
+	{
+		return;
+	}
+
+	if (bRequestedRagdoll == bReplicatedRagdollState)
+	{
+		return;
+	}
+
+	if (UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return;
+		}
+	}
+
+	if (bRequestedRagdoll)
+	{
+		if (bRagdollOnCooldown)
+		{
+			return;
+		}
+
+		bClientInitiatedRagdoll = true;
+		SetRagdollState_ServerOnly(true);
+		return;
+	}
+
+	if (!bClientInitiatedRagdoll || !IsRagdollCloseToGround())
+	{
+		return;
+	}
+
+	if (UDFStatusEffectComponent* StatusComponent = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
+	{
+		if (StatusComponent->HasActiveStatusEffect())
+		{
+			return;
+		}
+	}
+
+	bClientInitiatedRagdoll = false;
+	SetRagdollState_ServerOnly(false);
+}
+
+void URagdollComponent::SetRagdollState_ServerOnly(bool bNewIsRagdoll)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bReplicatedRagdollState == bNewIsRagdoll)
+	{
+		return;
+	}
+
+	bReplicatedRagdollState = bNewIsRagdoll;
+	GetOwner()->ForceNetUpdate();
+	Multicast_SetRagdoll(bNewIsRagdoll);
+}
+
+void URagdollComponent::ApplyReplicatedRagdollState(bool bNewIsRagdoll)
+{
+	if (bRagdollAppliedLocally == bNewIsRagdoll)
+	{
+		return;
+	}
+
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
+	if (!Mesh || (bNewIsRagdoll && !Mesh->GetPhysicsAsset()))
+	{
+		return;
+	}
+
+	if (!bNewIsRagdoll)
+	{
+		if (!OwnerCharacter->GetCapsuleComponent())
+		{
+			return;
+		}
+
+		if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+		{
+			if (HealthComponent->IsDead())
+			{
+				return;
+			}
+		}
+	}
+
+	bRagdollAppliedLocally = bNewIsRagdoll;
+	if (bNewIsRagdoll)
+	{
+		ApplyStartRagdoll();
+	}
+	else
+	{
+		ApplyStopRagdoll();
+	}
 }
 
 void URagdollComponent::AttemptAutoRecovery()
@@ -224,6 +346,11 @@ void URagdollComponent::ApplyStartRagdoll()
        RAGDOLL_LOG(Warning, TEXT("Mesh or Physics Asset is missing."));
        return;
     }
+
+	if (GetOwner()->HasAuthority() && GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(RecoveryLockTimerHandle);
+	}
 
     // 1. 컴포넌트 기능 제어 및 콜리전 설정
     if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
@@ -354,12 +481,8 @@ void URagdollComponent::ApplyStopRagdoll()
     {
         GetWorld()->GetTimerManager().SetTimer(
             RecoveryLockTimerHandle,
-            [this]()
-            {
-                if (OwnerCharacter)
-                    if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-                        Movement->SetMovementMode(MOVE_Walking);
-            },
+            this,
+            &URagdollComponent::FinishRecoveryLock_ServerOnly,
             RecoveryLockDuration,
             false
         );
@@ -367,7 +490,8 @@ void URagdollComponent::ApplyStopRagdoll()
         bRagdollOnCooldown = true;
         GetWorld()->GetTimerManager().SetTimer(
             RagdollCooldownTimerHandle,
-            [this]() { bRagdollOnCooldown = false; },
+            this,
+            &URagdollComponent::ResetRagdollCooldown_ServerOnly,
             RagdollCooldown,
             false
         );
@@ -405,4 +529,30 @@ void URagdollComponent::ApplyStopRagdoll()
     PlayGetUpAnimation(true);
     
     RAGDOLL_LOG(Log, TEXT("Ragdoll stopped successfully."));
+}
+
+void URagdollComponent::FinishRecoveryLock_ServerOnly()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter || bReplicatedRagdollState)
+	{
+		return;
+	}
+
+	if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return;
+		}
+	}
+
+	if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
+	{
+		Movement->SetMovementMode(MOVE_Walking);
+	}
+}
+
+void URagdollComponent::ResetRagdollCooldown_ServerOnly()
+{
+	bRagdollOnCooldown = false;
 }

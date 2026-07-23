@@ -1,5 +1,6 @@
 #include "Components/DFStatusEffectComponent.h"
 
+#include "Core/HealthComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -36,7 +37,17 @@ void UDFStatusEffectComponent::ApplyMoveSpeedModifier(FGameplayTag EffectTag, fl
 
 	if (!Owner->HasAuthority())
 	{
-		Server_ApplyMoveSpeedModifier(EffectTag, Multiplier, Duration);
+		UE_LOG(LogTemp, Verbose, TEXT("[StatusEffect] Client move-speed request rejected for %s"), *GetNameSafe(Owner));
+		return;
+	}
+
+	if (!EffectTag.IsValid()
+		|| !FMath::IsFinite(Multiplier)
+		|| !FMath::IsFinite(Duration)
+		|| Multiplier < 0.0f
+		|| Duration <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StatusEffect] Invalid server move-speed configuration rejected for %s"), *GetNameSafe(Owner));
 		return;
 	}
 
@@ -49,6 +60,14 @@ void UDFStatusEffectComponent::ApplyMoveSpeedModifier(FGameplayTag EffectTag, fl
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[StatusEffect] ApplyMoveSpeedModifier failed: owner is not a Character (%s)"), *GetNameSafe(Owner));
 		return;
+	}
+
+	if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return;
+		}
 	}
 
 	UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement();
@@ -111,7 +130,7 @@ void UDFStatusEffectComponent::Server_ApplyMoveSpeedModifier_Implementation(
 	float Duration
 )
 {
-	ApplyMoveSpeedModifier(EffectTag, Multiplier, Duration);
+	UE_LOG(LogTemp, Verbose, TEXT("[StatusEffect] Legacy client move-speed RPC rejected for %s"), *GetNameSafe(GetOwner()));
 }
 
 void UDFStatusEffectComponent::ApplyInputInvert(FGameplayTag EffectTag, float Duration)
@@ -125,8 +144,32 @@ void UDFStatusEffectComponent::ApplyInputInvert(FGameplayTag EffectTag, float Du
 
 	if (!Owner->HasAuthority())
 	{
-		Server_ApplyInputInvert(EffectTag, Duration);
+		UE_LOG(LogTemp, Verbose, TEXT("[StatusEffect] Client input-invert request rejected for %s"), *GetNameSafe(Owner));
 		return;
+	}
+
+	if (!EffectTag.IsValid() || !FMath::IsFinite(Duration) || Duration <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StatusEffect] Invalid server input-invert configuration rejected for %s"), *GetNameSafe(Owner));
+		return;
+	}
+
+	if (!OwnerCharacter)
+	{
+		OwnerCharacter = Cast<ACharacter>(Owner);
+	}
+
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return;
+		}
 	}
 
 	const float SafeDuration = FMath::Max(0.0f, Duration);
@@ -172,7 +215,7 @@ void UDFStatusEffectComponent::ClearInputInvert()
 
 	if (!Owner->HasAuthority())
 	{
-		Server_ClearInputInvert();
+		UE_LOG(LogTemp, Verbose, TEXT("[StatusEffect] Client clear request rejected for %s"), *GetNameSafe(Owner));
 		return;
 	}
 
@@ -181,12 +224,12 @@ void UDFStatusEffectComponent::ClearInputInvert()
 
 void UDFStatusEffectComponent::Server_ApplyInputInvert_Implementation(FGameplayTag EffectTag, float Duration)
 {
-	ApplyInputInvert(EffectTag, Duration);
+	UE_LOG(LogTemp, Verbose, TEXT("[StatusEffect] Legacy client input-invert RPC rejected for %s"), *GetNameSafe(GetOwner()));
 }
 
 void UDFStatusEffectComponent::Server_ClearInputInvert_Implementation()
 {
-	ClearInputInvert();
+	UE_LOG(LogTemp, Verbose, TEXT("[StatusEffect] Legacy client clear RPC rejected for %s"), *GetNameSafe(GetOwner()));
 }
 
 void UDFStatusEffectComponent::Client_ApplyMoveSpeedEffectState_Implementation(FDFMoveSpeedEffectState NewState)
