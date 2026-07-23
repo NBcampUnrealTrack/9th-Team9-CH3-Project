@@ -36,6 +36,12 @@ void UParcelMainMenuWidget::NativeConstruct()
 		Btn_Shop->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleShopClicked);
 	}
 
+	if (Btn_Skin)
+	{
+		Btn_Skin->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleSkinClicked);
+		Btn_Skin->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleSkinClicked);
+	}
+
 	if (Btn_ExitGame)
 	{
 		Btn_ExitGame->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleExitGameClicked);
@@ -45,6 +51,12 @@ void UParcelMainMenuWidget::NativeConstruct()
 
 void UParcelMainMenuWidget::NativeDestruct()
 {
+	if (SkinCustomizationWidgetInstance)
+	{
+		SkinCustomizationWidgetInstance->RemoveFromParent();
+		SkinCustomizationWidgetInstance = nullptr;
+	}
+
 	if (ShopInventoryWidgetInstance)
 	{
 		ShopInventoryWidgetInstance->OnCloseRequested.RemoveDynamic(
@@ -69,6 +81,10 @@ void UParcelMainMenuWidget::NativeDestruct()
 	if (Btn_Shop)
 	{
 		Btn_Shop->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleShopClicked);
+	}
+	if (Btn_Skin)
+	{
+		Btn_Skin->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleSkinClicked);
 	}
 	if (Btn_ExitGame)
 	{
@@ -160,6 +176,28 @@ void UParcelMainMenuWidget::HandleShopClicked()
 		InputMode.SetWidgetToFocus(ShopInventoryWidgetInstance->TakeWidget());
 		PlayerController->SetInputMode(InputMode);
 		PlayerController->bShowMouseCursor = true;
+	}
+}
+
+void UParcelMainMenuWidget::HandleSkinClicked()
+{
+	PlayButtonClickSound();
+
+	K2_OnSkinMenuOpened();
+
+	if (!SkinCustomizationWidgetClass)
+	{
+		return;
+	}
+
+	if (!SkinCustomizationWidgetInstance)
+	{
+		SkinCustomizationWidgetInstance = CreateWidget<UUserWidget>(GetOwningPlayer(), SkinCustomizationWidgetClass);
+	}
+
+	if (SkinCustomizationWidgetInstance && !SkinCustomizationWidgetInstance->IsInViewport())
+	{
+		SkinCustomizationWidgetInstance->AddToViewport(120);
 	}
 }
 

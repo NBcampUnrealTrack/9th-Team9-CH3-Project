@@ -50,10 +50,13 @@ public:
 
 private:
 	UFUNCTION()
+	void OnRep_CurrentSkin();
+
+	UFUNCTION()
 	void OnRep_CurrentTitle();
 
 	// 현재 장착 중인 코스메틱 태그 — 다른 클라이언트에 복제되어 비주얼 적용에 사용
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentSkin)
 	FGameplayTag CurrentSkin;
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentTitle)

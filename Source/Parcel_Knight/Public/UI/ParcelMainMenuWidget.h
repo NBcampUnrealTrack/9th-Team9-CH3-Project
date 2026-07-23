@@ -39,6 +39,9 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> Btn_Shop;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> Btn_Skin;
+
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Btn_ExitGame;
 
@@ -52,10 +55,20 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "MainMenu|UI")
 	TObjectPtr<UParcelShopInventoryWidget> ShopInventoryWidgetInstance;
 
+	UPROPERTY(EditDefaultsOnly, Category = "MainMenu|UI")
+	TSubclassOf<UUserWidget> SkinCustomizationWidgetClass;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "MainMenu|UI")
+	TObjectPtr<UUserWidget> SkinCustomizationWidgetInstance;
+
 	// 블루프린트 UI 연출용 이벤트
 	/** 멀티플레이 버튼 클릭 시 RoomList 위젯 슬라이드 다운 애니메이션 재생을 요청 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "MainMenu|Events")
 	void K2_OnMultiPlayMenuOpened();
+
+	/** 스킨 버튼 클릭 시 블루프린트 UI 연출 요청 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "MainMenu|Events")
+	void K2_OnSkinMenuOpened();
 
 	// Todo : 상점 추가 후 열어주세요. 
 	/**
@@ -82,6 +95,9 @@ private:
 
 	UFUNCTION()
 	void HandleShopClicked();
+
+	UFUNCTION()
+	void HandleSkinClicked();
 
 	UFUNCTION()
 	void HandleShopCloseRequested();

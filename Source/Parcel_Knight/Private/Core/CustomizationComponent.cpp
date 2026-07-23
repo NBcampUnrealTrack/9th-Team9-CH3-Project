@@ -19,6 +19,15 @@ void UCustomizationComponent::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 	DOREPLIFETIME(UCustomizationComponent, CurrentEffect);
 }
 
+void UCustomizationComponent::OnRep_CurrentSkin()
+{
+	APlayerState* PS = Cast<APlayerState>(GetOwner());
+	if (!PS) return;
+	AParcelCharacter* Character = Cast<AParcelCharacter>(PS->GetPawn());
+	if (!Character) return;
+	Character->ApplySkin(CurrentSkin);
+}
+
 void UCustomizationComponent::OnRep_CurrentTitle()
 {
 	APlayerState* PS = Cast<APlayerState>(GetOwner());
@@ -45,7 +54,7 @@ void UCustomizationComponent::InitFromGameInstance(UParcelGameInstance* GI)
 void UCustomizationComponent::EquipSkin(FGameplayTag SkinTag)
 {
 	CurrentSkin = SkinTag;
-	// TODO: ApplySkin 호출 — 캐릭터 메시 구조 확정 후 추가
+	OnRep_CurrentSkin();
 }
 
 void UCustomizationComponent::EquipTitle(FGameplayTag TitleTag)

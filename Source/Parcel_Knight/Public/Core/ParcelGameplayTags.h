@@ -22,6 +22,17 @@ namespace ParcelGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Title)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Title_Ace)
 
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Red)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Orange)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Yellow)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Green)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Blue)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Indigo)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Purple)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_White)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Skin_Gold)
+
 	// ========================= Character =========================
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_State_GettingUp)
 }

@@ -113,17 +113,23 @@ public:
 	// ========================= 커스터마이징 =========================
 
 	// [All] 스킨 장착 — 미보유 시 무시, 성공하면 저장
+	UFUNCTION(BlueprintCallable, Category = "Parcel|Customization")
 	void EquipSkin   (FGameplayTag SkinTag);
 	// [All] 칭호 장착
+	UFUNCTION(BlueprintCallable, Category = "Parcel|Customization")
 	void EquipTitle  (FGameplayTag TitleTag);
 	// [All] 이펙트 장착
+	UFUNCTION(BlueprintCallable, Category = "Parcel|Customization")
 	void EquipEffect (FGameplayTag EffectTag);
 
 	// [All] 현재 장착된 스킨 태그 반환 — 미장착이면 Invalid 태그
+	UFUNCTION(BlueprintPure, Category = "Parcel|Customization")
 	FGameplayTag GetEquippedSkin()   const;
 	// [All] 현재 장착된 칭호 태그 반환
+	UFUNCTION(BlueprintPure, Category = "Parcel|Customization")
 	FGameplayTag GetEquippedTitle()  const;
 	// [All] 현재 장착된 이펙트 태그 반환
+	UFUNCTION(BlueprintPure, Category = "Parcel|Customization")
 	FGameplayTag GetEquippedEffect() const;
 
 private:
