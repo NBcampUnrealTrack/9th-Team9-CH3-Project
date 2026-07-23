@@ -31,7 +31,7 @@ UParcelHeroComponent::UParcelHeroComponent()
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
     SpringArm->TargetArmLength = 0.f;
-    SpringArm->bDoCollisionTest = false;
+    SpringArm->bDoCollisionTest = true;
     SpringArm->ProbeChannel = ECC_Camera;
     SpringArm->ProbeSize = CameraCollisionProbeSize;
     SpringArm->bUsePawnControlRotation = true;
@@ -312,27 +312,10 @@ void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 		return;
 	}
 
+    // 카메라/틱/메시 가시성 전환은 EnterRagdollCameraMode/ExitRagdollCameraMode가
+    // ApplyStartRagdoll/ApplyStopRagdoll 시점에 알아서 처리한다 (해제 쪽은 RecoveryLockDuration만큼 지연됨).
+    // 여기서 중복으로 즉시 처리하면 그 지연이 무력화되므로 손대지 않는다.
     RagdollComp->ToggleRagdoll();
-
-    if (RagdollComp->IsRagdoll())
-    {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 3인칭 카메라 전환 및 틱 활성화"));
-       if (SpringArm) SpringArm->TargetArmLength = 350.f;
-       Character->GetMesh()->SetOwnerNoSee(false);
-       PrimaryComponentTick.SetTickFunctionEnable(true);
-    }
-    else
-    {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 1인칭 카메라 복구 및 틱 비활성화"));
-       PrimaryComponentTick.SetTickFunctionEnable(false);
-       Character->GetMesh()->SetOwnerNoSee(true);
-       if (SpringArm)
-       {
-          SpringArm->TargetArmLength = 0.f;
-          SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-          SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
-       }
-    }
 }
 
 void UParcelHeroComponent::Interact(const FInputActionValue& Value)
@@ -482,9 +465,17 @@ void UParcelHeroComponent::ExitRagdollCameraMode()
 	if (SpringArm) SpringArm->TargetArmLength = 0.f;
 	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
 		Character->GetMesh()->SetOwnerNoSee(true);
+	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
+}
+
+void UParcelHeroComponent::ReattachCameraAfterRagdoll()
+{
+	// 래그돌 중에는 SpringArm이 매 틱 머리 위치를 따라 SetWorldLocation으로 옮겨져서
+	// 캐릭터 루트에서 떨어져 있는 상태다. 기상 애니메이션이 도는 동안 카메라가 허공에
+	// 멈춰 있지 않도록, 1인칭 전환(ExitRagdollCameraMode)을 기다리지 않고 즉시
+	// 캐릭터에 다시 붙여서 3인칭으로 자연스럽게 따라가게 한다.
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 	ResetCameraAttachment();
-	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
 }
 
 void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
