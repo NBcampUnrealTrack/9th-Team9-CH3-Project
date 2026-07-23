@@ -54,14 +54,15 @@ AParcelCharacter::AParcelCharacter()
     CarryComp = CreateDefaultSubobject<UCharacterCarryComponent>(TEXT("CarryComp"));
     StaminaComp = CreateDefaultSubobject<UParcelStaminaComponent>(TEXT("StaminaComp"));
     
-    NameplateWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("NameplateWidgetComp"));
-    if (NameplateWidgetComp)
-    {
-       NameplateWidgetComp->SetupAttachment(GetMesh());
-       NameplateWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
-       NameplateWidgetComp->SetDrawSize(FVector2D(250.f, 80.f));
-       NameplateWidgetComp->SetRelativeLocation(FVector(0.f, 0.f, 210.f));
-    }
+	NameplateWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("NameplateWidgetComp"));
+	if (NameplateWidgetComp)
+	{
+		NameplateWidgetComp->SetupAttachment(RootComponent); 
+		NameplateWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
+		NameplateWidgetComp->SetDrawSize(FVector2D(250.f, 80.f));
+		NameplateWidgetComp->SetPivot(FVector2D(0.5f, 1.0f));
+		NameplateWidgetComp->SetRelativeLocation(FVector(0.f, 0.f, 190.f));
+	}
     if (PlayerStateComp)
     {
        PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
@@ -100,30 +101,20 @@ AParcelCharacter::AParcelCharacter()
 
 void AParcelCharacter::BeginPlay()
 {
-    Super::BeginPlay();
+	Super::BeginPlay();
 
-    UpdateMinimapCaptureState();
+	UpdateMinimapCaptureState();
 
-    GetMesh()->SetOwnerNoSee(true);
-	
+	GetMesh()->SetOwnerNoSee(true);
+    
 	if (PlayerStateComp)
 	{
 		PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
 	}
-	
+    
 	BindAuthoritativeDeathHandler();
-	
-	if (GetWorld())
-	{
-		FTimerHandle StandaloneNameplateTimer;
-		GetWorldTimerManager().SetTimer(
-			StandaloneNameplateTimer, 
-			this, 
-			&AParcelCharacter::UpdateOverheadNameplate, 
-			0.2f, // 0.2초 뒤 안정적으로 데이터가 로드되었을 때 실행
-			false
-		);
-	}
+    
+	UpdateOverheadNameplate();
 }
 
 void AParcelCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode)
@@ -250,33 +241,79 @@ void AParcelCharacter::OnRep_PlayerState()
 
 void AParcelCharacter::UpdateOverheadNameplate()
 {
+    if (GetWorld())
+    {
+       GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+    }
+
+    if (!NameplateWidgetComp)
+    {
+       UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: NameplateWidgetComp가 nullptr입니다."), *GetName());
+       return;
+    }
+	
+    // if (IsLocallyControlled())
+    // {
+    //    NameplateWidgetComp->SetVisibility(false);
+    //    return;
+    // }
+
+    NameplateWidgetComp->SetVisibility(true);
+    NameplateWidgetComp->SetHiddenInGame(false);
+
+    // 1. PlayerState 검증
     APlayerState* PS = GetPlayerState();
     if (!PS)
     {
-       if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
+       UE_LOG(LogCharacter, Verbose, TEXT("[Nameplate Retry] %s: PlayerState가 아직 복제되지 않아 0.1초 후 재시도합니다."), *GetName());
+       if (GetWorld())
        {
           GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
        }
        return;
     }
 
-    if (NameplateWidgetComp)
+    // 2. Slate 위젯 인스턴스 강제 생성 및 검증
+    if (!NameplateWidgetComp->GetUserWidgetObject())
     {
-       if (UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject()))
+       NameplateWidgetComp->InitWidget(); // 렌더링 전 위젯 인스턴스 강제 생성
+    }
+
+    UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject());
+    if (!NameWidget)
+    {
+       UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: GetUserWidgetObject() 캐스팅 실패! BP_ParcelCharacter의 Widget Class 설정을 확인하세요."), *GetName());
+       if (GetWorld())
        {
-          FString Nickname = PS->GetPlayerName();
-          NameWidget->SetPlayerName(Nickname);
-          if (PlayerStateComp) NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
-          GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+          GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
        }
-       else
+       return;
+    }
+
+    // 3. 닉네임 적용
+    FString Nickname = PS->GetPlayerName();
+    if (Nickname.IsEmpty())
+    {
+       Nickname = FString::Printf(TEXT("Player %d"), PS->GetPlayerId());
+    }
+
+    NameWidget->SetPlayerName(Nickname);
+
+    // 4. 상태이상 및 칭호 적용
+    if (PlayerStateComp)
+    {
+       NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
+    }
+
+    if (AParcelPlayerState* ParcelPS = Cast<AParcelPlayerState>(PS))
+    {
+       if (UCustomizationComponent* CustComp = ParcelPS->GetCustomizationComponent())
        {
-          if (!NameplateRetryTimerHandle.IsValid() && GetWorld())
-          {
-             GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
-          }
+          ApplyTitle(CustComp->GetEquippedTitle());
        }
     }
+
+    UE_LOG(LogCharacter, Log, TEXT("[Nameplate Success] %s 머리 위 이름표 갱신 완료: %s"), *GetName(), *Nickname);
 }
 
 void AParcelCharacter::OnCharacterStateTagsChanged(const FGameplayTagContainer& ActiveTags)
@@ -292,11 +329,14 @@ void AParcelCharacter::OnCharacterStateTagsChanged(const FGameplayTagContainer& 
 
 void AParcelCharacter::OnRep_Controller()
 {
-    Super::OnRep_Controller();
+	Super::OnRep_Controller();
     
-    UpdateMinimapCaptureState();
+	UpdateMinimapCaptureState();
 
-    if (HeroComp) HeroComp->AddInputMappingContext();
+	if (HeroComp) HeroComp->AddInputMappingContext();
+
+	// 컨트롤러가 복제/빙의되는 시점에 네임플레이트 가시성 및 닉네임 최종 정렬
+	UpdateOverheadNameplate();
 }
 
 void AParcelCharacter::OnCharacterDeath()

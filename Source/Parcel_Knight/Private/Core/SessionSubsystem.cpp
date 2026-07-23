@@ -15,6 +15,7 @@
 #include "Misc/PackageName.h"
 #include "Online/OnlineSessionNames.h"
 #include "OnlineSubsystem.h"
+#include "Core/ParcelPlayerState.h"
 #include "UObject/UObjectGlobals.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogParcelSession, Log, All);
@@ -1087,9 +1088,22 @@ bool USessionSubsystem::IsSessionOwnerController(const APlayerController* Player
 		return false;
 	}
 
-	const APlayerState* PlayerState = PlayerController->GetPlayerState<APlayerState>();
+	// [Fix 1] ListenServer 환경의 로컬 방장 컨트롤러이면 무조건 세션 소유자로 인정 (PIE/LAN 테스트 완벽 보장)
+	if (World->GetNetMode() == NM_ListenServer && PlayerController->IsLocalController())
+	{
+		return true;
+	}
+
+	// [Fix 2] PostLogin 시점에 검증 및 복제된 ParcelPlayerState의 IsHostPlayer() 확인
+	const AParcelPlayerState* ParcelPS = PlayerController->GetPlayerState<AParcelPlayerState>();
+	if (ParcelPS && ParcelPS->IsHostPlayer())
+	{
+		return true;
+	}
+
+	// [기존 로직] Steam OnlineSubsystem UniqueNetId 검증 (실제 패키징/스팀 빌드용)
 	const TSharedPtr<const FUniqueNetId> RequestingUserId =
-		PlayerState ? PlayerState->GetUniqueId().GetUniqueNetId() : nullptr;
+	   ParcelPS ? ParcelPS->GetUniqueId().GetUniqueNetId() : nullptr;
 	if (!RequestingUserId.IsValid())
 	{
 		return false;

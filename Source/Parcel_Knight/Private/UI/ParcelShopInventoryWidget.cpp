@@ -29,6 +29,8 @@ void UParcelShopInventoryWidget::NativeConstruct()
 		BackButton->OnClicked.AddDynamic(this, &UParcelShopInventoryWidget::HandleCloseClicked);
 	}
 
+	BuildShopSlots();
+	BuildInventorySlots();
 }
 
 void UParcelShopInventoryWidget::NativeDestruct()
@@ -43,6 +45,7 @@ void UParcelShopInventoryWidget::NativeDestruct()
 		BackButton->OnClicked.RemoveDynamic(this, &UParcelShopInventoryWidget::HandleCloseClicked);
 	}
 
+	ShopEntries.Reset();
 	InventoryEntries.Reset();
 	Super::NativeDestruct();
 }
@@ -58,15 +61,20 @@ void UParcelShopInventoryWidget::RefreshShopUI()
 
 	if (!ItemTable || ItemTable->GetRowStruct() != FItemData::StaticStruct())
 	{
-		if (ShopItemGrid)
+		for (UParcelShopItemEntryWidget* Entry : ShopEntries)
 		{
-			ShopItemGrid->ClearChildren();
+			if (Entry)
+			{
+				Entry->SetEmpty();
+			}
 		}
-		if (InventoryItemGrid)
+		for (UParcelInventoryItemEntryWidget* Entry : InventoryEntries)
 		{
-			InventoryItemGrid->ClearChildren();
+			if (Entry)
+			{
+				Entry->SetEmpty();
+			}
 		}
-		InventoryEntries.Reset();
 		SetStatusMessage(FText::FromString(TEXT("ItemTable에 FItemData DataTable을 지정해 주세요.")), true);
 		UE_LOG(LogParcelShopUI, Error, TEXT("Shop refresh failed: invalid ItemTable=%s"), *GetNameSafe(ItemTable));
 		return;
@@ -140,16 +148,41 @@ void UParcelShopInventoryWidget::RequestToggleLoadoutItem(FGameplayTag ItemId)
 	}
 }
 
+void UParcelShopInventoryWidget::BuildShopSlots()
+{
+	ShopEntries.Reset();
+	if (!ShopItemGrid || !ShopItemEntryClass)
+	{
+		return;
+	}
+
+	ShopItemGrid->ClearChildren();
+
+	const int32 Columns = FMath::Max(1, ShopGridColumns);
+	for (int32 SlotIndex = 0; SlotIndex < ShopSlotCount; ++SlotIndex)
+	{
+		UParcelShopItemEntryWidget* Entry = CreateWidget<UParcelShopItemEntryWidget>(
+			GetOwningPlayer(), ShopItemEntryClass);
+		if (!Entry)
+		{
+			continue;
+		}
+
+		Entry->SetEmpty();
+		ShopItemGrid->AddChildToUniformGrid(Entry, SlotIndex / Columns, SlotIndex % Columns);
+		ShopEntries.Add(Entry);
+	}
+}
+
 void UParcelShopInventoryWidget::BuildShopEntries()
 {
-	if (!ShopItemGrid)
+	if (ShopEntries.Num() == 0)
 	{
 		SetStatusMessage(FText::FromString(TEXT("ShopItemGrid가 연결되지 않았습니다.")), true);
 		return;
 	}
 
-	ShopItemGrid->ClearChildren();
-	if (!ShopItemEntryClass || !ItemTable)
+	if (!ItemTable)
 	{
 		SetStatusMessage(FText::FromString(TEXT("ShopItemEntryClass를 지정해 주세요.")), true);
 		return;
@@ -163,7 +196,8 @@ void UParcelShopInventoryWidget::BuildShopEntries()
 
 	TArray<FItemData*> Rows;
 	ItemTable->GetAllRows<FItemData>(TEXT("BuildShopEntries"), Rows);
-	int32 EntryIndex = 0;
+
+	int32 SlotIndex = 0;
 	for (const FItemData* Row : Rows)
 	{
 		if (!Row || !Row->ItemTag.IsValid())
@@ -171,16 +205,15 @@ void UParcelShopInventoryWidget::BuildShopEntries()
 			continue;
 		}
 
-		UParcelShopItemEntryWidget* Entry = CreateWidget<UParcelShopItemEntryWidget>(
-			GetOwningPlayer(), ShopItemEntryClass);
-		if (!Entry)
+		if (!ShopEntries.IsValidIndex(SlotIndex))
 		{
-			continue;
+			UE_LOG(LogParcelShopUI, Warning, TEXT("[ShopInventory] Shop item count exceeds fixed slot count (%d)"), ShopEntries.Num());
+			break;
 		}
 
 		const bool bOwned = GI->HasOwnedConsumable(Row->ItemTag);
 		const bool bCanAfford = GI->GetMoney() >= Row->Price;
-		Entry->InitializeShopItem(
+		ShopEntries[SlotIndex]->InitializeShopItem(
 			Row->ItemTag,
 			Row->DisplayName,
 			Row->Icon,
@@ -188,28 +221,56 @@ void UParcelShopInventoryWidget::BuildShopEntries()
 			bOwned,
 			bCanAfford,
 			this);
+		++SlotIndex;
+	}
 
-		const int32 Columns = FMath::Max(1, ShopGridColumns);
-		ShopItemGrid->AddChildToUniformGrid(Entry, EntryIndex / Columns, EntryIndex % Columns);
-		++EntryIndex;
+	for (; SlotIndex < ShopEntries.Num(); ++SlotIndex)
+	{
+		ShopEntries[SlotIndex]->SetEmpty();
+	}
+}
+
+void UParcelShopInventoryWidget::BuildInventorySlots()
+{
+	InventoryEntries.Reset();
+	if (!InventoryItemGrid || !InventoryItemEntryClass)
+	{
+		UE_LOG(LogParcelShopUI, Error, TEXT("[ShopInventory] InventoryItemGrid or InventoryItemEntryClass is null"));
+		return;
+	}
+
+	InventoryItemGrid->ClearChildren();
+
+	const int32 Columns = FMath::Max(1, InventoryGridColumns);
+	for (int32 SlotIndex = 0; SlotIndex < InventorySlotCount; ++SlotIndex)
+	{
+		UParcelInventoryItemEntryWidget* Entry = CreateWidget<UParcelInventoryItemEntryWidget>(
+			GetOwningPlayer(), InventoryItemEntryClass);
+		if (!Entry)
+		{
+			UE_LOG(LogParcelShopUI, Error, TEXT("[ShopInventory] Failed to create inventory slot %d"), SlotIndex);
+			continue;
+		}
+
+		Entry->SetEmpty();
+
+		const int32 RowIndex = SlotIndex / Columns;
+		const int32 ColumnIndex = SlotIndex % Columns;
+		if (UUniformGridSlot* GridSlot = InventoryItemGrid->AddChildToUniformGrid(Entry, RowIndex, ColumnIndex))
+		{
+			GridSlot->SetHorizontalAlignment(HAlign_Fill);
+			GridSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+		InventoryEntries.Add(Entry);
 	}
 }
 
 void UParcelShopInventoryWidget::BuildInventoryEntries()
 {
-	InventoryEntries.Reset();
-	if (!InventoryItemGrid)
+	if (InventoryEntries.Num() == 0)
 	{
 		UE_LOG(LogParcelShopUI, Error, TEXT("[ShopInventory] InventoryItemGrid is null"));
 		SetStatusMessage(FText::FromString(TEXT("InventoryItemGrid가 연결되지 않았습니다.")), true);
-		return;
-	}
-
-	InventoryItemGrid->ClearChildren();
-	if (!InventoryItemEntryClass)
-	{
-		UE_LOG(LogParcelShopUI, Error, TEXT("[ShopInventory] InventoryItemEntryClass is null"));
-		SetStatusMessage(FText::FromString(TEXT("InventoryItemEntryClass를 지정해 주세요.")), true);
 		return;
 	}
 
@@ -222,7 +283,7 @@ void UParcelShopInventoryWidget::BuildInventoryEntries()
 
 	UE_LOG(LogParcelShopUI, Log, TEXT("[ShopInventory] Owned count: %d"), GI->GetOwnedConsumables().Num());
 
-	int32 EntryIndex = 0;
+	int32 SlotIndex = 0;
 	for (const FGameplayTag& OwnedItem : GI->GetOwnedConsumables())
 	{
 		UE_LOG(LogParcelShopUI, Log, TEXT("[ShopInventory] Building owned entry: %s"), *OwnedItem.ToString());
@@ -234,56 +295,39 @@ void UParcelShopInventoryWidget::BuildInventoryEntries()
 			continue;
 		}
 
-		UParcelInventoryItemEntryWidget* Entry = CreateWidget<UParcelInventoryItemEntryWidget>(
-			GetOwningPlayer(), InventoryItemEntryClass);
-		if (!Entry)
+		if (!InventoryEntries.IsValidIndex(SlotIndex))
 		{
-			UE_LOG(
-				LogParcelShopUI,
-				Error,
-				TEXT("[ShopInventory] Failed to create owned entry: Item=%s, Class=%s, OwningPlayer=%s"),
-				*OwnedItem.ToString(),
-				*GetNameSafe(InventoryItemEntryClass),
-				*GetNameSafe(GetOwningPlayer()));
-			continue;
+			UE_LOG(LogParcelShopUI, Warning, TEXT("[ShopInventory] Owned item count exceeds fixed slot count (%d)"), InventoryEntries.Num());
+			break;
 		}
 
-		Entry->InitializeInventoryItem(
+		InventoryEntries[SlotIndex]->InitializeInventoryItem(
 			OwnedItem,
 			Row->DisplayName,
 			Row->Icon,
 			GI->GetLoadout().Contains(OwnedItem),
 			this);
-		Entry->SetVisibility(ESlateVisibility::Visible);
-
-		const int32 Columns = FMath::Max(1, InventoryGridColumns);
-		const int32 RowIndex = EntryIndex / Columns;
-		const int32 ColumnIndex = EntryIndex % Columns;
-		UUniformGridSlot* GridSlot = InventoryItemGrid->AddChildToUniformGrid(Entry, RowIndex, ColumnIndex);
-		if (!GridSlot)
-		{
-			UE_LOG(LogParcelShopUI, Error, TEXT("[ShopInventory] Failed to add owned entry to grid: %s"), *OwnedItem.ToString());
-			continue;
-		}
-
-		GridSlot->SetHorizontalAlignment(HAlign_Fill);
-		GridSlot->SetVerticalAlignment(VAlign_Fill);
-		InventoryEntries.Add(Entry);
+		InventoryEntries[SlotIndex]->SetVisibility(ESlateVisibility::Visible);
 		UE_LOG(
 			LogParcelShopUI,
 			Log,
-			TEXT("[ShopInventory] Added owned entry: Item=%s, Row=%d, Column=%d"),
+			TEXT("[ShopInventory] Filled inventory slot: Item=%s, Slot=%d"),
 			*OwnedItem.ToString(),
-			RowIndex,
-			ColumnIndex);
-		++EntryIndex;
+			SlotIndex);
+		++SlotIndex;
+	}
+
+	const int32 FilledCount = SlotIndex;
+	for (; SlotIndex < InventoryEntries.Num(); ++SlotIndex)
+	{
+		InventoryEntries[SlotIndex]->SetEmpty();
 	}
 
 	UE_LOG(
 		LogParcelShopUI,
 		Log,
-		TEXT("[ShopInventory] Owned entry build complete: Created=%d, GridChildren=%d"),
-		InventoryEntries.Num(),
+		TEXT("[ShopInventory] Owned entry build complete: Filled=%d, GridChildren=%d"),
+		FilledCount,
 		InventoryItemGrid->GetChildrenCount());
 }
 
