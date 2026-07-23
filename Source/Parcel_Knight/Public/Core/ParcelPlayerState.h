@@ -26,6 +26,12 @@ public:
 
 	AParcelPlayerState();
 
+	// [All] 방장(HOST) 여부 반환 (HUD 등에서 호출)
+	bool IsHostPlayer() const { return bIsHostPlayer; }
+
+	// [Server Only] 방장(HOST) 여부 설정
+	void SetIsHostPlayer(bool bInIsHost) { bIsHostPlayer = bInIsHost; }
+	
 	// [All] 개인 누적 점수 반환
 	int32 GetPersonalScore() const;
 	// [All] 배달 성공 횟수 반환
@@ -83,6 +89,9 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	UPROPERTY(Replicated)
+	bool bIsHostPlayer = false;
+	
 	UPROPERTY()
 	TObjectPtr<UPlayerStatComponent> PlayerStatComp;
 

@@ -10,6 +10,7 @@
 #include "Core/ParcelPlayerController.h"
 #include "Core/RespawnComponent.h"
 #include "Core/ParcelPlayerController.h"
+#include "Net/UnrealNetwork.h"
 
 // ========================= 초기화 =========================
 
@@ -157,4 +158,11 @@ void AParcelPlayerState::EquipEffect(FGameplayTag EffectTag)
 		GI->EquipEffect(EffectTag);
 
 	CustomizationComp->EquipEffect(EffectTag);
+}
+
+void AParcelPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AParcelPlayerState, bIsHostPlayer);
 }
