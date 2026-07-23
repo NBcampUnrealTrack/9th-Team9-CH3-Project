@@ -33,6 +33,7 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
     // 서버에서 상태 태그를 제어하는 권한 전용 함수

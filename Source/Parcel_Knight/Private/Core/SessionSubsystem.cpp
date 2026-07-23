@@ -6,6 +6,7 @@
 #include "Engine/Engine.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
+#include "GameMapsSettings.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
@@ -21,8 +22,14 @@ DEFINE_LOG_CATEGORY_STATIC(LogParcelSession, Log, All);
 namespace ParcelSessionMaps
 {
 	const FString Lobby = TEXT("/Game/Maps/LV_DF_Lobby_Stage00");
-	const FString Frontend = TEXT("/Game/Maps/MainMenuLevel");
 	const FName SteamSubsystem = FName(TEXT("STEAM"));
+
+	FString GetFrontendPackageName()
+	{
+		const FString ConfiguredMap = UGameMapsSettings::GetGameDefaultMap();
+		const FString PackageName = FPackageName::ObjectPathToPackageName(ConfiguredMap);
+		return PackageName.IsEmpty() ? ConfiguredMap : PackageName;
+	}
 
 	const TCHAR* JoinResultToString(EOnJoinSessionCompleteResult::Type Result)
 	{
@@ -935,15 +942,23 @@ void USessionSubsystem::TravelToFrontend(bool bFinishLeaveFlow)
 		return;
 	}
 
-	UE_LOG(LogParcelSession, Log, TEXT("Returning to front-end map %s."), *ParcelSessionMaps::Frontend);
-	UGameplayStatics::OpenLevel(World, FName(*ParcelSessionMaps::Frontend));
+	const FString FrontendPackageName = ParcelSessionMaps::GetFrontendPackageName();
+	if (FrontendPackageName.IsEmpty())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("Cannot return to the front-end because GameDefaultMap is empty."));
+		bLeaveInProgress = false;
+		return;
+	}
+
+	UE_LOG(LogParcelSession, Log, TEXT("Returning to configured front-end map %s."), *FrontendPackageName);
+	UGameplayStatics::OpenLevel(World, FName(*FrontendPackageName));
 }
 
 bool USessionSubsystem::IsFrontendWorld(const UWorld* World) const
 {
 	return World &&
 		UGameplayStatics::GetCurrentLevelName(World, true) ==
-		FPackageName::GetShortName(ParcelSessionMaps::Frontend);
+		FPackageName::GetShortName(ParcelSessionMaps::GetFrontendPackageName());
 }
 
 bool USessionSubsystem::IsSessionTransitionLocked() const

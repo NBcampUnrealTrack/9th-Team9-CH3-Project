@@ -97,6 +97,7 @@ void UParcelLobbyHUDWidget::NativeConstruct()
     {
         if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
         {
+            SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
             SessionSubsystem->OnSessionDestroyComplete.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
         }
     }
@@ -108,6 +109,14 @@ void UParcelLobbyHUDWidget::NativeDestruct()
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
+    }
+
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
+        {
+            SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
+        }
     }
     
     Super::NativeDestruct();
@@ -302,14 +311,18 @@ void UParcelLobbyHUDWidget::HandleLeaveLobbyClicked()
     {
         if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
         {
-            SessionSubsystem->DestroySession();
+            SessionSubsystem->LeaveSession();
             if (Btn_Leave) Btn_Leave->SetIsEnabled(false);
             
             UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] OSS 서브시스템에 세션 파괴 요청 송신 완료 -> 비동기 응답 대기 중..."));
             return;
         }
+
+        GI->ReturnToMainMenu();
+        return;
     }
-    UGameplayStatics::OpenLevel(GetWorld(), TEXT("MainMenuLevel"), true);
+
+    UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] GameInstance is unavailable; cannot return to the configured front-end."));
 }
 
 void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
@@ -317,11 +330,7 @@ void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
     UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] OSS 세션 철거 완료 보고 수신 (성공 여부: %s) -> 메인 화면으로 전원 송환 처리!"), 
         bWasSuccessful ? TEXT("TRUE") : TEXT("FALSE"));
     
-    UWorld* World = GetWorld();
-    if (World)
-    {
-        UGameplayStatics::OpenLevel(World, TEXT("MainMenuLevel"), true);
-    }
+    // LeaveSession owns the single configured front-end travel path.
 }
 
 void UParcelLobbyHUDWidget::HandleSelectMapClicked()

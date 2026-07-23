@@ -8,6 +8,7 @@
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Character/CharacterCarryComponent.h"
+#include "Character/ParcelMovementStatComponent.h"
 #include "Components/DFStatusEffectComponent.h"
 #include "Core/HealthComponent.h"
 #include "Animation/AnimInstance.h"
@@ -382,6 +383,11 @@ void URagdollComponent::ApplyStartRagdoll()
                 StateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
                 StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting")));
             }
+
+			if (UParcelMovementStatComponent* MovementStat = ParcelChar->GetParcelMovementStatComponent())
+			{
+				MovementStat->RefreshMoveSpeed();
+			}
         }
 
         // 래그돌 진입 시 들고 있던 상자 강제 드롭
