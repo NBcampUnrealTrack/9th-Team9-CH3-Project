@@ -66,6 +66,6 @@ protected:
 
 private:
 	UPROPERTY(ReplicatedUsing = OnRep_SelectedMapIndex, BlueprintReadOnly, Category = "ParcelLobby", meta = (AllowPrivateAccess = "true"))
-	int32 SelectedMapIndex = 0;
+	int32 SelectedMapIndex = -1;
 };
 
