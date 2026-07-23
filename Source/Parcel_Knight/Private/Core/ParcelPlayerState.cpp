@@ -88,6 +88,8 @@ void AParcelPlayerState::OnDeliveryFail()
 
 void AParcelPlayerState::HandleDeath()
 {
+	if (!HasAuthority()) return;
+
 	PlayerStatComp->OnDeath();
 	Client_StartSpectating();
 

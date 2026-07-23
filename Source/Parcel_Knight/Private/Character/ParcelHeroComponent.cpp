@@ -12,8 +12,10 @@
 #include "Character/ParcelMovementStatComponent.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
+#include "Delivery/DeliveryBox.h"
 #include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
+#include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerController.h"
 #include "UI/ParcelLobbyHUDWidget.h"
 #include "Core/ParcelGameUserSettings.h"
@@ -29,7 +31,7 @@ UParcelHeroComponent::UParcelHeroComponent()
 
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
     SpringArm->TargetArmLength = 0.f;
-    SpringArm->bDoCollisionTest = false;
+    SpringArm->bDoCollisionTest = true;
     SpringArm->ProbeChannel = ECC_Camera;
     SpringArm->ProbeSize = CameraCollisionProbeSize;
     SpringArm->bUsePawnControlRotation = true;
@@ -310,27 +312,10 @@ void UParcelHeroComponent::TestRagdoll(const FInputActionValue& Value)
 		return;
 	}
 
+    // 카메라/틱/메시 가시성 전환은 EnterRagdollCameraMode/ExitRagdollCameraMode가
+    // ApplyStartRagdoll/ApplyStopRagdoll 시점에 알아서 처리한다 (해제 쪽은 RecoveryLockDuration만큼 지연됨).
+    // 여기서 중복으로 즉시 처리하면 그 지연이 무력화되므로 손대지 않는다.
     RagdollComp->ToggleRagdoll();
-
-    if (RagdollComp->IsRagdoll())
-    {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 진입: 3인칭 카메라 전환 및 틱 활성화"));
-       if (SpringArm) SpringArm->TargetArmLength = 350.f;
-       Character->GetMesh()->SetOwnerNoSee(false);
-       PrimaryComponentTick.SetTickFunctionEnable(true);
-    }
-    else
-    {
-       HEROCOMP_LOG(Log, TEXT("래그돌 상태 해제: 1인칭 카메라 복구 및 틱 비활성화"));
-       PrimaryComponentTick.SetTickFunctionEnable(false);
-       Character->GetMesh()->SetOwnerNoSee(true);
-       if (SpringArm)
-       {
-          SpringArm->TargetArmLength = 0.f;
-          SpringArm->AttachToComponent(Character->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-          SpringArm->SetRelativeLocation(FVector(0.f, 0.f, 70.f));
-       }
-    }
 }
 
 void UParcelHeroComponent::Interact(const FInputActionValue& Value)
@@ -480,9 +465,17 @@ void UParcelHeroComponent::ExitRagdollCameraMode()
 	if (SpringArm) SpringArm->TargetArmLength = 0.f;
 	if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
 		Character->GetMesh()->SetOwnerNoSee(true);
+	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
+}
+
+void UParcelHeroComponent::ReattachCameraAfterRagdoll()
+{
+	// 래그돌 중에는 SpringArm이 매 틱 머리 위치를 따라 SetWorldLocation으로 옮겨져서
+	// 캐릭터 루트에서 떨어져 있는 상태다. 기상 애니메이션이 도는 동안 카메라가 허공에
+	// 멈춰 있지 않도록, 1인칭 전환(ExitRagdollCameraMode)을 기다리지 않고 즉시
+	// 캐릭터에 다시 붙여서 3인칭으로 자연스럽게 따라가게 한다.
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 	ResetCameraAttachment();
-	HEROCOMP_LOG(Log, TEXT("카메라 래그돌 모드 해제"));
 }
 
 void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
@@ -495,6 +488,15 @@ void UParcelHeroComponent::StartThrow(const FInputActionValue& Value)
     UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
     if (CarryComp && CarryComp->IsCarrying())
     {
+		if (Character->HasAuthority())
+		{
+			BeginThrowChargeServerOnly();
+		}
+		else
+		{
+			Server_BeginThrowCharge();
+		}
+
         bIsChargingThrow = true;
         CurrentThrowChargeTime = 0.f;
         
@@ -525,17 +527,20 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
     UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
     if (CarryComp && CarryComp->IsCarrying())
     {
-        float ChargeRatio = FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f);
-        float ForceMag = FMath::Lerp(MinThrowForce, MaxThrowForce, ChargeRatio);
-        
-        // 카메라의 조준 방향 계산 (약간 위로 향해 포물선을 그리도록 보정)
-        FVector ThrowDir = FollowCamera->GetForwardVector();
-        ThrowDir.Z += 0.2f;
-        ThrowDir.Normalize();
-        
-        FVector ThrowForce = ThrowDir * ForceMag;
-        CarryComp->Throw(ThrowForce);
-        HEROCOMP_LOG(Log, TEXT("던지기 실행! 충전 비율: %f, 최종 힘: %f"), ChargeRatio, ForceMag);
+		const float LocalChargeRatio = MaxThrowChargeTime > KINDA_SMALL_NUMBER
+			? FMath::Clamp(CurrentThrowChargeTime / MaxThrowChargeTime, 0.f, 1.f)
+			: 0.f;
+
+		if (Character->HasAuthority())
+		{
+			ReleaseThrowServerOnly();
+		}
+		else
+		{
+			Server_ReleaseThrow();
+		}
+
+		HEROCOMP_LOG(Log, TEXT("던지기 요청! 로컬 충전 비율: %f (힘은 서버에서 계산)"), LocalChargeRatio);
     }
 
     // [UI] 던지기 차징 종료 브로드캐스트
@@ -558,6 +563,166 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
     {
         PrimaryComponentTick.SetTickFunctionEnable(false);
     }
+}
+
+void UParcelHeroComponent::Server_BeginThrowCharge_Implementation()
+{
+	BeginThrowChargeServerOnly();
+}
+
+void UParcelHeroComponent::Server_ReleaseThrow_Implementation()
+{
+	ReleaseThrowServerOnly();
+}
+
+void UParcelHeroComponent::BeginThrowChargeServerOnly()
+{
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	UWorld* World = GetWorld();
+	if (!Character || !Character->HasAuthority() || !World || bServerThrowChargeActive)
+	{
+		return;
+	}
+
+	UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+	ADeliveryBox* CarriedBox = CarryComp ? CarryComp->GetCarriedBox() : nullptr;
+	if (!CarryComp
+		|| !CarryComp->IsCarrying()
+		|| !IsValid(CarriedBox)
+		|| CarriedBox->GetOwner() != Character)
+	{
+		return;
+	}
+
+	if (const UHealthComponent* HealthComp = Character->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComp->IsDead())
+		{
+			return;
+		}
+	}
+
+	if (const URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>())
+	{
+		if (RagdollComp->IsRagdoll())
+		{
+			return;
+		}
+	}
+
+	if (!FMath::IsFinite(MinThrowForce)
+		|| !FMath::IsFinite(MaxThrowForce)
+		|| !FMath::IsFinite(MaxThrowChargeTime)
+		|| MinThrowForce < 0.f
+		|| MaxThrowForce < MinThrowForce
+		|| MaxThrowChargeTime <= KINDA_SMALL_NUMBER)
+	{
+		HEROCOMP_LOG(Warning, TEXT("[Server] 투척 설정값이 유효하지 않아 충전을 거절했습니다."));
+		return;
+	}
+
+	bServerThrowChargeActive = true;
+	ServerThrowChargeStartTimeSeconds = World->GetTimeSeconds();
+	ServerThrowChargeBox = CarriedBox;
+
+	if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+	{
+		if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+		{
+			StateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+		}
+	}
+}
+
+void UParcelHeroComponent::ReleaseThrowServerOnly()
+{
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	UWorld* World = GetWorld();
+	if (!Character || !Character->HasAuthority() || !World || !bServerThrowChargeActive)
+	{
+		return;
+	}
+
+	ADeliveryBox* ChargedBox = ServerThrowChargeBox.Get();
+	const double ChargeStartTime = ServerThrowChargeStartTimeSeconds;
+	CancelServerThrowCharge();
+
+	UCharacterCarryComponent* CarryComp = Character->FindComponentByClass<UCharacterCarryComponent>();
+	if (!CarryComp
+		|| !CarryComp->IsCarrying()
+		|| !IsValid(ChargedBox)
+		|| CarryComp->GetCarriedBox() != ChargedBox
+		|| ChargedBox->GetOwner() != Character)
+	{
+		return;
+	}
+
+	if (const UHealthComponent* HealthComp = Character->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComp->IsDead())
+		{
+			return;
+		}
+	}
+
+	if (const URagdollComponent* RagdollComp = Character->FindComponentByClass<URagdollComponent>())
+	{
+		if (RagdollComp->IsRagdoll())
+		{
+			return;
+		}
+	}
+
+	if (!FMath::IsFinite(MinThrowForce)
+		|| !FMath::IsFinite(MaxThrowForce)
+		|| !FMath::IsFinite(MaxThrowChargeTime)
+		|| MinThrowForce < 0.f
+		|| MaxThrowForce < MinThrowForce
+		|| MaxThrowChargeTime <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	const double ServerChargeDuration = FMath::Max(0.0, World->GetTimeSeconds() - ChargeStartTime);
+	const float ChargeRatio = FMath::Clamp(
+		static_cast<float>(ServerChargeDuration / MaxThrowChargeTime),
+		0.f,
+		1.f);
+	const float ForceMagnitude = FMath::Lerp(MinThrowForce, MaxThrowForce, ChargeRatio);
+
+	FVector ThrowDirection = Character->GetControlRotation().Vector();
+	ThrowDirection.Z += 0.2f;
+	if (!FMath::IsFinite(ThrowDirection.X)
+		|| !FMath::IsFinite(ThrowDirection.Y)
+		|| !FMath::IsFinite(ThrowDirection.Z)
+		|| !ThrowDirection.Normalize())
+	{
+		return;
+	}
+
+	CarryComp->Throw(ThrowDirection * ForceMagnitude);
+	HEROCOMP_LOG(Log, TEXT("[Server] 투척 실행: ChargeRatio=%.2f Force=%.2f"), ChargeRatio, ForceMagnitude);
+}
+
+void UParcelHeroComponent::CancelServerThrowCharge()
+{
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	if (!Character || !Character->HasAuthority())
+	{
+		return;
+	}
+
+	bServerThrowChargeActive = false;
+	ServerThrowChargeStartTimeSeconds = 0.0;
+	ServerThrowChargeBox.Reset();
+
+	if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(Character))
+	{
+		if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+		{
+			StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.Action.Throwing")));
+		}
+	}
 }
 
 void UParcelHeroComponent::ServerSetJumping_Implementation(bool bNewIsJumping)

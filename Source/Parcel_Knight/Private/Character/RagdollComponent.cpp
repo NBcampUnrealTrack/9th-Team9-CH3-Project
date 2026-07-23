@@ -8,10 +8,12 @@
 #include "Character/ParcelHeroComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Character/CharacterCarryComponent.h"
+#include "Character/ParcelMovementStatComponent.h"
 #include "Components/DFStatusEffectComponent.h"
 #include "Core/HealthComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Engine/World.h"
+#include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogRagdoll);
 
@@ -19,6 +21,12 @@ URagdollComponent::URagdollComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
     SetIsReplicatedByDefault(true);
+}
+
+void URagdollComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(URagdollComponent, bReplicatedRagdollState);
 }
 
 void URagdollComponent::BeginPlay()
@@ -38,6 +46,9 @@ void URagdollComponent::BeginPlay()
        DefaultMeshRelativeLocation = Mesh->GetRelativeLocation();
        DefaultMeshRelativeRotation = Mesh->GetRelativeRotation();
     }
+
+	// Initial replication can arrive before BeginPlay caches the owning character.
+	ApplyReplicatedRagdollState(bReplicatedRagdollState);
 }
 
 void URagdollComponent::StartRagdoll()
@@ -48,13 +59,21 @@ void URagdollComponent::StartRagdoll()
        return;
     }
 
-    if (bRagdollOnCooldown)
-    {
-        RAGDOLL_LOG(Log, TEXT("StartRagdoll 무시: 쿨타임 중"));
-        return;
-    }
+	// 권한 경로는 사망·서버 물리 충돌 같은 신뢰 가능한 강제 원인이다.
+	const bool bUpgradingClientRagdollToForced = bReplicatedRagdollState && bClientInitiatedRagdoll;
+	bClientInitiatedRagdoll = false;
+	if (bUpgradingClientRagdollToForced && GetWorld())
+	{
+		AirRecoveryWaitElapsed = 0.0f;
+		GetWorld()->GetTimerManager().SetTimer(
+			AutoRecoveryTimerHandle,
+			this,
+			&URagdollComponent::AttemptAutoRecovery,
+			AutoRecoveryDelay,
+			false);
+	}
 
-    Multicast_SetRagdoll(true);
+	SetRagdollState_ServerOnly(true);
 }
 
 void URagdollComponent::StopRagdoll()
@@ -64,12 +83,13 @@ void URagdollComponent::StopRagdoll()
        ServerSetRagdoll(false);
        return;
     }
-    Multicast_SetRagdoll(false);
+	bClientInitiatedRagdoll = false;
+	SetRagdollState_ServerOnly(false);
 }
 
 void URagdollComponent::ToggleRagdoll()
 {
-    bool bCurrentlyRagdoll = IsRagdoll();
+    const bool bCurrentlyRagdoll = IsRagdoll();
 
     if (!GetOwner() || !GetOwner()->HasAuthority())
     {
@@ -77,7 +97,7 @@ void URagdollComponent::ToggleRagdoll()
        return;
     }
 
-    Multicast_SetRagdoll(!bCurrentlyRagdoll);
+	HandleClientRagdollRequest_ServerOnly(!bCurrentlyRagdoll);
 }
 
 bool URagdollComponent::TryConsumeToggleCooldown()
@@ -87,7 +107,8 @@ bool URagdollComponent::TryConsumeToggleCooldown()
     bRagdollOnCooldown = true;
     GetWorld()->GetTimerManager().SetTimer(
         RagdollCooldownTimerHandle,
-        [this]() { bRagdollOnCooldown = false; },
+        this,
+        &URagdollComponent::ResetRagdollCooldown_ServerOnly,
         RagdollCooldown,
         false
     );
@@ -96,15 +117,7 @@ bool URagdollComponent::TryConsumeToggleCooldown()
 
 bool URagdollComponent::IsRagdoll() const
 {
-    // 완전히 게임플레이 태그 판단 방식으로 일원화 (bIsRagdoll 변수 제거)
-    if (const AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(GetOwner()))
-    {
-       if (const UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-       {
-          return StateComp->HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
-       }
-    }
-    return false;
+	return bRagdollAppliedLocally;
 }
 
 bool URagdollComponent::IsRagdollCloseToGround() const
@@ -152,13 +165,123 @@ UAnimMontage* URagdollComponent::GetSelectedGetUpMontage(bool bFront) const
 
 void URagdollComponent::ServerSetRagdoll_Implementation(bool bNewIsRagdoll)
 {
-    Multicast_SetRagdoll(bNewIsRagdoll);
+	HandleClientRagdollRequest_ServerOnly(bNewIsRagdoll);
 }
 
 void URagdollComponent::Multicast_SetRagdoll_Implementation(bool bNewIsRagdoll)
 {
-    if (bNewIsRagdoll) ApplyStartRagdoll();
-    else               ApplyStopRagdoll();
+	ApplyReplicatedRagdollState(bNewIsRagdoll);
+}
+
+void URagdollComponent::OnRep_RagdollState()
+{
+	ApplyReplicatedRagdollState(bReplicatedRagdollState);
+}
+
+void URagdollComponent::HandleClientRagdollRequest_ServerOnly(bool bRequestedRagdoll)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter)
+	{
+		return;
+	}
+
+	if (bRequestedRagdoll == bReplicatedRagdollState)
+	{
+		return;
+	}
+
+	if (UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return;
+		}
+	}
+
+	if (bRequestedRagdoll)
+	{
+		if (bRagdollOnCooldown)
+		{
+			return;
+		}
+
+		bClientInitiatedRagdoll = true;
+		SetRagdollState_ServerOnly(true);
+		return;
+	}
+
+	if (!bClientInitiatedRagdoll || !IsRagdollCloseToGround())
+	{
+		return;
+	}
+
+	if (UDFStatusEffectComponent* StatusComponent = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
+	{
+		if (StatusComponent->HasActiveStatusEffect())
+		{
+			return;
+		}
+	}
+
+	bClientInitiatedRagdoll = false;
+	SetRagdollState_ServerOnly(false);
+}
+
+void URagdollComponent::SetRagdollState_ServerOnly(bool bNewIsRagdoll)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bReplicatedRagdollState == bNewIsRagdoll)
+	{
+		return;
+	}
+
+	bReplicatedRagdollState = bNewIsRagdoll;
+	GetOwner()->ForceNetUpdate();
+	Multicast_SetRagdoll(bNewIsRagdoll);
+}
+
+void URagdollComponent::ApplyReplicatedRagdollState(bool bNewIsRagdoll)
+{
+	if (bRagdollAppliedLocally == bNewIsRagdoll)
+	{
+		return;
+	}
+
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* Mesh = OwnerCharacter->GetMesh();
+	if (!Mesh || (bNewIsRagdoll && !Mesh->GetPhysicsAsset()))
+	{
+		return;
+	}
+
+	if (!bNewIsRagdoll)
+	{
+		if (!OwnerCharacter->GetCapsuleComponent())
+		{
+			return;
+		}
+
+		if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+		{
+			if (HealthComponent->IsDead())
+			{
+				return;
+			}
+		}
+	}
+
+	bRagdollAppliedLocally = bNewIsRagdoll;
+	if (bNewIsRagdoll)
+	{
+		ApplyStartRagdoll();
+	}
+	else
+	{
+		ApplyStopRagdoll();
+	}
 }
 
 void URagdollComponent::AttemptAutoRecovery()
@@ -225,6 +348,11 @@ void URagdollComponent::ApplyStartRagdoll()
        return;
     }
 
+	if (GetOwner()->HasAuthority() && GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(RecoveryLockTimerHandle);
+	}
+
     // 1. 컴포넌트 기능 제어 및 콜리전 설정
     if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
     {
@@ -255,6 +383,11 @@ void URagdollComponent::ApplyStartRagdoll()
                 StateComp->AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Ragdoll")));
                 StateComp->RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Character.State.Sprinting")));
             }
+
+			if (UParcelMovementStatComponent* MovementStat = ParcelChar->GetParcelMovementStatComponent())
+			{
+				MovementStat->RefreshMoveSpeed();
+			}
         }
 
         // 래그돌 진입 시 들고 있던 상자 강제 드롭
@@ -284,6 +417,12 @@ void URagdollComponent::ApplyStartRagdoll()
     // 5. 카메라 제어권 변경 — 로컬 플레이어만 적용
     if (OwnerCharacter->IsLocallyControlled())
     {
+        // 이전 래그돌의 지연된 카메라 복귀가 예약돼 있다면 취소 (다시 래그돌 중인데 1인칭으로 튀는 것 방지)
+        if (GetWorld())
+        {
+            GetWorld()->GetTimerManager().ClearTimer(CameraRecoveryTimerHandle);
+        }
+
         if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
             HeroComp->EnterRagdollCameraMode();
     }
@@ -337,14 +476,22 @@ void URagdollComponent::ApplyStopRagdoll()
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
     // 4. 캐릭터 기본 기상 위치 텔레포트 및 메시 원복
+    // 캡슐 콜리전을 먼저 복구해야 FindTeleportSpot이 바닥/벽과의 겹침을 실제로 감지해서 보정할 수 있다.
+    // (콜리전이 NoCollision인 채로 텔레포트하면 겹쳐도 감지가 안 되고, 그대로 파묻힌 채 콜리전만 나중에 켜짐)
+    Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
     FVector NewActorLocation = FVector(PelvisLocation.X, PelvisLocation.Y, GroundZ + CapsuleHalfHeight);
+    if (GetWorld())
+    {
+        // 지면/벽에 파묻힌 위치로 계산됐어도 겹치지 않는 가장 가까운 위치로 보정 시도
+        GetWorld()->FindTeleportSpot(OwnerCharacter, NewActorLocation, OwnerCharacter->GetActorRotation());
+    }
     OwnerCharacter->SetActorLocation(NewActorLocation, false, nullptr, ETeleportType::TeleportPhysics);
 
     Mesh->SetRelativeLocation(DefaultMeshRelativeLocation, false, nullptr, ETeleportType::TeleportPhysics);
     Mesh->SetRelativeRotation(DefaultMeshRelativeRotation, false, nullptr, ETeleportType::TeleportPhysics);
 
-    // 5. 콜리전 재설정 및 이동 컴포넌트 복구 (RecoveryLockDuration 초 후 이동 가능)
-    Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    // 5. 이동 컴포넌트 복구 (RecoveryLockDuration 초 후 이동 가능)
     if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
     {
         Movement->DisableMovement();
@@ -354,12 +501,8 @@ void URagdollComponent::ApplyStopRagdoll()
     {
         GetWorld()->GetTimerManager().SetTimer(
             RecoveryLockTimerHandle,
-            [this]()
-            {
-                if (OwnerCharacter)
-                    if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
-                        Movement->SetMovementMode(MOVE_Walking);
-            },
+            this,
+            &URagdollComponent::FinishRecoveryLock_ServerOnly,
             RecoveryLockDuration,
             false
         );
@@ -367,7 +510,8 @@ void URagdollComponent::ApplyStopRagdoll()
         bRagdollOnCooldown = true;
         GetWorld()->GetTimerManager().SetTimer(
             RagdollCooldownTimerHandle,
-            [this]() { bRagdollOnCooldown = false; },
+            this,
+            &URagdollComponent::ResetRagdollCooldown_ServerOnly,
             RagdollCooldown,
             false
         );
@@ -394,15 +538,66 @@ void URagdollComponent::ApplyStopRagdoll()
         ParcelChar->SetRagdollState(false, true);
     }
 
-    // 8. 카메라 원위치 복구 — 로컬 플레이어만 적용
+    // 8. 카메라 복구 — 로컬 플레이어만 적용.
+    // 캐릭터에 다시 붙여서 3인칭으로 따라가게 하는 건 즉시 처리(카메라가 허공에 멈춰있지 않도록),
+    // 1인칭으로의 최종 전환은 이동 잠금이 풀리는 시점(RecoveryLockDuration)에 맞춰 지연시킨다.
     if (OwnerCharacter->IsLocallyControlled())
     {
         if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
-            HeroComp->ExitRagdollCameraMode();
+        {
+            HeroComp->ReattachCameraAfterRagdoll();
+        }
+
+        GetWorld()->GetTimerManager().SetTimer(
+            CameraRecoveryTimerHandle,
+            this,
+            &URagdollComponent::FinishCameraRecovery_LocalOnly,
+            RecoveryLockDuration,
+            false
+        );
     }
 
     // 9. 기상 애니메이션 실행 (앞면 디폴트)
     PlayGetUpAnimation(true);
     
     RAGDOLL_LOG(Log, TEXT("Ragdoll stopped successfully."));
+}
+
+void URagdollComponent::FinishRecoveryLock_ServerOnly()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !OwnerCharacter || bReplicatedRagdollState)
+	{
+		return;
+	}
+
+	if (const UHealthComponent* HealthComponent = OwnerCharacter->FindComponentByClass<UHealthComponent>())
+	{
+		if (HealthComponent->IsDead())
+		{
+			return;
+		}
+	}
+
+	if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
+	{
+		Movement->SetMovementMode(MOVE_Walking);
+	}
+}
+
+void URagdollComponent::ResetRagdollCooldown_ServerOnly()
+{
+	bRagdollOnCooldown = false;
+}
+
+void URagdollComponent::FinishCameraRecovery_LocalOnly()
+{
+	if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled())
+	{
+		return;
+	}
+
+	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->ExitRagdollCameraMode();
+	}
 }

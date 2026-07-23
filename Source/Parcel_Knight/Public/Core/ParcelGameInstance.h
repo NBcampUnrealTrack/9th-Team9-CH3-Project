@@ -28,7 +28,7 @@ public:
 	// ========================= 저장 / 불러오기 =========================
 
 	// [All] 현재 데이터를 SaveGames 폴더에 저장
-	void SaveData();
+	bool SaveData();
 	// [All] SaveGames 폴더에서 데이터를 불러와 캐시에 반영
 	void LoadData();
 

@@ -2,11 +2,14 @@
 
 #include "AdvancedFriendsLibrary.h"
 #include "Core/ParcelGameInstance.h"
+#include "Core/ParcelGameMode.h"
 #include "Engine/Engine.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
+#include "GameMapsSettings.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 #include "Interfaces/OnlineIdentityInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
@@ -19,8 +22,14 @@ DEFINE_LOG_CATEGORY_STATIC(LogParcelSession, Log, All);
 namespace ParcelSessionMaps
 {
 	const FString Lobby = TEXT("/Game/Maps/LV_DF_Lobby_Stage00");
-	const FString Frontend = TEXT("/Game/Maps/MainMenuLevel");
 	const FName SteamSubsystem = FName(TEXT("STEAM"));
+
+	FString GetFrontendPackageName()
+	{
+		const FString ConfiguredMap = UGameMapsSettings::GetGameDefaultMap();
+		const FString PackageName = FPackageName::ObjectPathToPackageName(ConfiguredMap);
+		return PackageName.IsEmpty() ? ConfiguredMap : PackageName;
+	}
 
 	const TCHAR* JoinResultToString(EOnJoinSessionCompleteResult::Type Result)
 	{
@@ -933,15 +942,23 @@ void USessionSubsystem::TravelToFrontend(bool bFinishLeaveFlow)
 		return;
 	}
 
-	UE_LOG(LogParcelSession, Log, TEXT("Returning to front-end map %s."), *ParcelSessionMaps::Frontend);
-	UGameplayStatics::OpenLevel(World, FName(*ParcelSessionMaps::Frontend));
+	const FString FrontendPackageName = ParcelSessionMaps::GetFrontendPackageName();
+	if (FrontendPackageName.IsEmpty())
+	{
+		UE_LOG(LogParcelSession, Error, TEXT("Cannot return to the front-end because GameDefaultMap is empty."));
+		bLeaveInProgress = false;
+		return;
+	}
+
+	UE_LOG(LogParcelSession, Log, TEXT("Returning to configured front-end map %s."), *FrontendPackageName);
+	UGameplayStatics::OpenLevel(World, FName(*FrontendPackageName));
 }
 
 bool USessionSubsystem::IsFrontendWorld(const UWorld* World) const
 {
 	return World &&
 		UGameplayStatics::GetCurrentLevelName(World, true) ==
-		FPackageName::GetShortName(ParcelSessionMaps::Frontend);
+		FPackageName::GetShortName(ParcelSessionMaps::GetFrontendPackageName());
 }
 
 bool USessionSubsystem::IsSessionTransitionLocked() const
@@ -951,23 +968,35 @@ bool USessionSubsystem::IsSessionTransitionLocked() const
 
 void USessionSubsystem::StartGame(const FString& MapPath)
 {
+	TryStartGame(MapPath);
+}
+
+bool USessionSubsystem::TryStartGame(const FString& MapPath)
+{
 	if (IsSessionTransitionLocked())
 	{
 		UE_LOG(LogParcelSession, Warning, TEXT("StartGame ignored during map or leave transition."));
-		return;
+		return false;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World || World->GetNetMode() == NM_Client || MapPath.IsEmpty())
 	{
 		UE_LOG(LogParcelSession, Error, TEXT("StartGame is host-only and requires a valid map path."));
-		return;
+		return false;
+	}
+
+	const AParcelGameMode* ParcelGameMode = World->GetAuthGameMode<AParcelGameMode>();
+	if (!ParcelGameMode || !ParcelGameMode->IsSelectedLobbyMapPath(MapPath))
+	{
+		UE_LOG(LogParcelSession, Warning, TEXT("StartGame rejected a path that is not the server-selected lobby catalog map."));
+		return false;
 	}
 
 	if (CurrentOperation != ESessionOperation::None)
 	{
 		UE_LOG(LogParcelSession, Warning, TEXT("StartGame ignored while a session operation is active."));
-		return;
+		return false;
 	}
 
 	const FString TravelURL = MapPath + TEXT("?listen");
@@ -976,7 +1005,10 @@ void USessionSubsystem::StartGame(const FString& MapPath)
 	{
 		bHostTravelInProgress = false;
 		UE_LOG(LogParcelSession, Error, TEXT("ServerTravel failed to start for %s."), *TravelURL);
+		return false;
 	}
+
+	return true;
 }
 
 int32 USessionSubsystem::GetSearchResultCount() const
@@ -1045,6 +1077,33 @@ bool USessionSubsystem::CanInviteToCurrentSession() const
 	}
 
 	return World->GetNetMode() == NM_ListenServer;
+}
+
+bool USessionSubsystem::IsSessionOwnerController(const APlayerController* PlayerController) const
+{
+	const UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_Client || !PlayerController || PlayerController->GetWorld() != World)
+	{
+		return false;
+	}
+
+	const APlayerState* PlayerState = PlayerController->GetPlayerState<APlayerState>();
+	const TSharedPtr<const FUniqueNetId> RequestingUserId =
+		PlayerState ? PlayerState->GetUniqueId().GetUniqueNetId() : nullptr;
+	if (!RequestingUserId.IsValid())
+	{
+		return false;
+	}
+
+	const IOnlineSessionPtr Sessions = GetSessionInterface();
+	if (!Sessions.IsValid())
+	{
+		return false;
+	}
+
+	const FNamedOnlineSession* NamedSession = Sessions->GetNamedSession(NAME_GameSession);
+	return NamedSession && NamedSession->OwningUserId.IsValid() &&
+		*RequestingUserId == *NamedSession->OwningUserId;
 }
 
 bool USessionSubsystem::SendSessionInviteToFriend(

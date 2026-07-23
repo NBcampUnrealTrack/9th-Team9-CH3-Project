@@ -47,13 +47,17 @@ float UTeamScoreComponent::GetComboMultiplier()
 
 // ========================= 점수 =========================
 
-void UTeamScoreComponent::AddTeamScore(int32 Amount)
+void UTeamScoreComponent::AddTeamScore(int32 Amount, bool bApplyCombo)
 {
 	if (GetOwner()->HasAuthority())
 	{
-		TeamScore += Amount * GetComboMultiplier();
+		// 콤보는 성공 보상(양수)에만 적용한다. 명시적 캐스팅으로 기존 절삭 정책을 유지한다.
+		const int32 AppliedAmount = bApplyCombo && Amount > 0
+			? static_cast<int32>(static_cast<float>(Amount) * GetComboMultiplier())
+			: Amount;
+		TeamScore += AppliedAmount;
 		TeamScore = FMath::Max(0, TeamScore);
-		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, ComboCount → %d"), TeamScore, ComboCount);
+		GAMERULE_LOG(Log, TEXT("[서버] TeamScore 변경 → %d, 요청 점수 → %d, 적용 점수 → %d, ComboCount → %d, ComboApplied → %d"), TeamScore, Amount, AppliedAmount, ComboCount, bApplyCombo);
 		// [UI] 리슨 서버는 OnRep가 자동 호출되지 않으므로 수동 호출
 		OnRep_TeamScore();
 	}

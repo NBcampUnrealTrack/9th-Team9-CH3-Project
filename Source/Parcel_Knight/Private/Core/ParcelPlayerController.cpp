@@ -10,16 +10,24 @@
 #include "GameFramework/GameState.h"
 #include "GameFramework/PlayerState.h"
 #include "UI/ParcelLobbyHUDWidget.h"
+#include "Core/ParcelGameMode.h"
 #include "Core/ParcelGameState.h"
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "GameMapsSettings.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 
 namespace ParcelFrontendMaps
 {
 	const FString Lobby = TEXT("LV_DF_Lobby_Stage00");
-	const FString MainMenuBootstrap = TEXT("Testing_DF_Stage01");
+
+	FString GetMainMenuLevelName()
+	{
+		return FPackageName::GetShortName(
+			FPackageName::ObjectPathToPackageName(UGameMapsSettings::GetGameDefaultMap()));
+	}
 }
 
 DEFINE_LOG_CATEGORY(LogParcelPlayerController);
@@ -58,7 +66,7 @@ void AParcelPlayerController::BeginPlay()
 			return;
 		}
 
-		if (CurrentLevelName == ParcelFrontendMaps::MainMenuBootstrap)
+		if (CurrentLevelName == ParcelFrontendMaps::GetMainMenuLevelName())
 		{
 			return;
 		}
@@ -100,8 +108,9 @@ void AParcelPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 	SubmitLocalLoadoutToServer();
-	
-	Client_NotifyRespawn();
+
+	// ClientRestart가 owning client의 AcknowledgePossession을 호출하며,
+	// 새 Pawn 승인 뒤 해당 경로에서만 UI를 한 번 복구한다.
 }
 
 void AParcelPlayerController::AcknowledgePossession(APawn* InPawn)
@@ -109,10 +118,15 @@ void AParcelPlayerController::AcknowledgePossession(APawn* InPawn)
 	Super::AcknowledgePossession(InPawn);
 	SubmitLocalLoadoutToServer();
 
-	if (IsLocalController())
+	if (IsLocalController() && InPawn && LastRespawnNotifiedPawn.Get() != InPawn)
 	{
-		CONTROLLER_LOG(Log, TEXT("[클라이언트 빙의 확정] AcknowledgePossession 감지 - UI 최종 정렬을 실행합니다."));
-		Client_NotifyRespawn();
+		const UHealthComponent* HealthComp = InPawn->FindComponentByClass<UHealthComponent>();
+		if (!HealthComp || !HealthComp->IsDead())
+		{
+			LastRespawnNotifiedPawn = InPawn;
+			CONTROLLER_LOG(Log, TEXT("[클라이언트 빙의 확정] AcknowledgePossession 감지 - UI 최종 정렬을 실행합니다."));
+			Client_NotifyRespawn();
+		}
 	}
 }
 
@@ -439,14 +453,25 @@ void AParcelPlayerController::Client_ReceiveLobbyChatMessage_Implementation(cons
 
 bool AParcelPlayerController::Server_RequestChangeLobbyMap_Validate(int32 NewMapIndex)
 {
-	return IsLocalController();
+	// Authorization failures are ordinary request rejections, not malformed RPCs.
+	// Returning false here would route the connection through RPC_ValidateFailed.
+	return true;
 }
 
 void AParcelPlayerController::Server_RequestChangeLobbyMap_Implementation(int32 NewMapIndex)
 {
-	if (AParcelGameState* ParcelGS = GetWorld() ? GetWorld()->GetGameState<AParcelGameState>() : nullptr)
+	AParcelGameMode* ParcelGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AParcelGameMode>() : nullptr;
+	if (!ParcelGameMode || !ParcelGameMode->RequestLobbyMapSelection(this, NewMapIndex))
 	{
-		ParcelGS->SetSelectedMapIndex(NewMapIndex);
-		UE_LOG(LogTemp, Warning, TEXT("[Server PC] 방장 권한 확인 완료. 월드 맵 인덱스를 %d번으로 강제 변조합니다."), NewMapIndex);
+		CONTROLLER_LOG(Warning, TEXT("Lobby map request rejected for index %d."), NewMapIndex);
+	}
+}
+
+void AParcelPlayerController::Server_RequestStartLobbyGame_Implementation()
+{
+	AParcelGameMode* ParcelGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AParcelGameMode>() : nullptr;
+	if (!ParcelGameMode || !ParcelGameMode->RequestStartLobbyGame(this))
+	{
+		CONTROLLER_LOG(Warning, TEXT("Lobby start request rejected."));
 	}
 }

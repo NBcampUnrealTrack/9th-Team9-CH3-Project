@@ -3,6 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Delivery/PhysicsJudgeManager.h"
+#include "Delivery/DeliverySubsystem.h"
 #include "Character/CharacterCarryComponent.h"
 #include "Core/ParcelPlayerState.h"
 #include "Net/UnrealNetwork.h"
@@ -117,6 +118,22 @@ void ADeliveryBox::BeginPlay()
 		// 초기 체력 텍스트 갱신
 		UpdateHPText(HealthComponent->GetHP(), HealthComponent->GetMaxHP());
 	}
+}
+
+void ADeliveryBox::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (HasAuthority())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UDeliverySubsystem* DeliverySubsystem = World->GetSubsystem<UDeliverySubsystem>())
+			{
+				DeliverySubsystem->UnregisterBox(this);
+			}
+		}
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void ADeliveryBox::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

@@ -26,6 +26,7 @@
 #include "Character/CharacterCarryComponent.h"
 #include "Delivery/DeliveryBox.h"
 #include "Core/InventoryComponent.h"
+#include "Core/ParcelPlayerState.h"
 #include "Data/ItemData.h"
 #include "Engine/DataTable.h"
 #include "Kismet/GameplayStatics.h"
@@ -97,6 +98,7 @@ void UParcelLobbyHUDWidget::NativeConstruct()
     {
         if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
         {
+            SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
             SessionSubsystem->OnSessionDestroyComplete.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
         }
     }
@@ -108,6 +110,14 @@ void UParcelLobbyHUDWidget::NativeDestruct()
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
+    }
+
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
+        {
+            SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
+        }
     }
     
     Super::NativeDestruct();
@@ -302,14 +312,18 @@ void UParcelLobbyHUDWidget::HandleLeaveLobbyClicked()
     {
         if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
         {
-            SessionSubsystem->DestroySession();
+            SessionSubsystem->LeaveSession();
             if (Btn_Leave) Btn_Leave->SetIsEnabled(false);
             
             UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] OSS 서브시스템에 세션 파괴 요청 송신 완료 -> 비동기 응답 대기 중..."));
             return;
         }
+
+        GI->ReturnToMainMenu();
+        return;
     }
-    UGameplayStatics::OpenLevel(GetWorld(), TEXT("MainMenuLevel"), true);
+
+    UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] GameInstance is unavailable; cannot return to the configured front-end."));
 }
 
 void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
@@ -317,11 +331,7 @@ void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
     UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] OSS 세션 철거 완료 보고 수신 (성공 여부: %s) -> 메인 화면으로 전원 송환 처리!"), 
         bWasSuccessful ? TEXT("TRUE") : TEXT("FALSE"));
     
-    UWorld* World = GetWorld();
-    if (World)
-    {
-        UGameplayStatics::OpenLevel(World, TEXT("MainMenuLevel"), true);
-    }
+    // LeaveSession owns the single configured front-end travel path.
 }
 
 void UParcelLobbyHUDWidget::HandleSelectMapClicked()
@@ -341,52 +351,11 @@ void UParcelLobbyHUDWidget::HandleSelectMapClicked()
 void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
 {
     PlayButtonClickSound();
-    
-    APlayerController* PC = GetOwningPlayer();
-    
-    if (PC && PC->HasAuthority())
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(GetOwningPlayer()))
     {
-        // 기본 폴백(Fallback) 맵 경로 설정
-        FString SelectedMapPath = TEXT("/Game/Maps/LV_DF_Stage01");
-
-        // MapDataTable에서 현재 선택된 인덱스의 MapPath 동적 추출
-        if (MapDataTable)
-        {
-            TArray<FParcelMapStageData*> AllMapRows;
-            MapDataTable->GetAllRows<FParcelMapStageData>(TEXT("StartGameMapContext"), AllMapRows);
-
-            if (AllMapRows.IsValidIndex(LocalCurrentMapIndex) && AllMapRows[LocalCurrentMapIndex])
-            {
-                if (!AllMapRows[LocalCurrentMapIndex]->MapPath.IsEmpty())
-                {
-                    SelectedMapPath = AllMapRows[LocalCurrentMapIndex]->MapPath;
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 선택된 Row(%d)의 MapPath가 비어있어 기본 맵으로 진행합니다."), LocalCurrentMapIndex);
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] 선택된 맵 인덱스(%d)가 데이터 테이블 범위를 벗어났습니다"), LocalCurrentMapIndex);
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] MapDataTable이 할당되어 있지 않아 기본 맵 경로를 사용합니다."));
-        }
-
-        // Listen 서버 옵션(?listen) 결합
-        FString TravelURL = FString::Printf(TEXT("%s?listen"), *SelectedMapPath);
-        
-        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 확정 ➔ 선택된 맵(%s)으로 강제 트래블(ServerTravel) 개시 URL: %s"), 
-            *SelectedMapPath, *TravelURL);
-
-        // 동적 경로로 ServerTravel 실행
-        if (UWorld* World = GetWorld())
-        {
-            World->ServerTravel(TravelURL);
-        }
+        // The client sends only start intent; the server resolves the replicated index.
+        ParcelPC->Server_RequestStartLobbyGame();
     }
 }
 
@@ -420,71 +389,68 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
         UParcelLobbyPlayerSlotWidget* NewSlot = CreateWidget<UParcelLobbyPlayerSlotWidget>(GetOwningPlayer(), PlayerSlotClass);
         if (NewSlot)
         {
-            bool bIsHost = (i == 0) || (PS->GetOwningController() && PS->GetOwningController()->HasAuthority());
+            // [해결 3] 언리얼 엔진 표준: 리슨 서버 방장의 PlayerId는 항상 1번입니다.
+            // 또는 AParcelPlayerState::IsHostPlayer() 복제 변수로 정밀 확인
+            bool bIsHost = false;
+            if (AParcelPlayerState* ParcelPS = Cast<AParcelPlayerState>(PS))
+            {
+                bIsHost = ParcelPS->IsHostPlayer();
+            }
+            else
+            {
+                bIsHost = (PS->GetPlayerId() == 1);
+            }
+            
             NewSlot->InitializeSlot(PS, bIsHost);
             ScrollBox_LobbyPlayers->AddChild(NewSlot);
         }
     }
-    UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 서버 복제 배열 동기화 완료. 총 %d개의 플레이어 슬롯 재생성 완공."), CurrentCount);
     
-    if (!bStatDelegatesBound)
+    // [해결 2] 부활 후 Pawn이 교체되었는지 추적하여 자동 재바인딩
+    APawn* LocalPawn = GetOwningPlayerPawn();
+    if (LocalPawn && CachedBoundPawn.Get() != LocalPawn)
     {
-        APawn* LocalPawn = GetOwningPlayerPawn();
-        if (LocalPawn)
+        // 1. 스태미나 컴포넌트 바인딩
+        if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
         {
-            // 1. 스태미나 컴포넌트 바인딩
-            if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
-            {
-                StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
-                HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
-            }
-            
-            // 2. 체력 컴포넌트 바인딩
-            if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
-            {
-                HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
-                HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
-            }
-            
-            // 3. 상호작용 컴포넌트 바인딩 (E키 UI 프롬프트)
-            if (UParcelInteractionComponent* InteractComp = LocalPawn->FindComponentByClass<UParcelInteractionComponent>())
-            {
-                InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
-                InteractComp->OnFocusChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
-                
-                HandleNativeInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
-            }
-
-            // 4. 히어로 컴포넌트 바인딩 (던지기 차징 게이지)
-            if (UParcelHeroComponent* HeroComp = LocalPawn->FindComponentByClass<UParcelHeroComponent>())
-            {
-                HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
-            }
-            
-            // 5. 운반 컴포넌트 바인딩
-            if (UCharacterCarryComponent* CarryComp = LocalPawn->FindComponentByClass<UCharacterCarryComponent>())
-            {
-                CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
-                CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
-                
-                HandleNativeCarriedBoxChanged(CarryComp->GetCarriedBox());
-            }
-            
-            // 6. 인벤토리 바인딩
-            if (APlayerState* PS = LocalPawn->GetPlayerState())
-            {
-                if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
-                {
-                    InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
-                    InvComp->OnInventoryChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
-                    
-                    HandleNativeInventoryChanged();
-                }
-            }
-
-            bStatDelegatesBound = true;
-            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 대기실 로컬 캐릭터의 스태미나/체력/상호작용/차징 게이지 인터셉트망 최종 완공!"));
+            StaminaComp->OnStaminaChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
+            StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
+            HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
         }
+        
+        // 2. 체력 컴포넌트 바인딩 (부활 시 완치된 체력 100/100 반영)
+        if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
+        {
+            HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
+            HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
+            HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+        }
+        
+        // 3. 상호작용 컴포넌트 바인딩
+        if (UParcelInteractionComponent* InteractComp = LocalPawn->FindComponentByClass<UParcelInteractionComponent>())
+        {
+            InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
+            InteractComp->OnFocusChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
+            HandleNativeInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
+        }
+
+        // 4. 히어로 컴포넌트 바인딩
+        if (UParcelHeroComponent* HeroComp = LocalPawn->FindComponentByClass<UParcelHeroComponent>())
+        {
+            HeroComp->OnThrowChargeChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
+            HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
+        }
+        
+        // 5. 운반 컴포넌트 바인딩
+        if (UCharacterCarryComponent* CarryComp = LocalPawn->FindComponentByClass<UCharacterCarryComponent>())
+        {
+            CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
+            CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
+            HandleNativeCarriedBoxChanged(CarryComp->GetCarriedBox());
+        }
+
+        CachedBoundPawn = LocalPawn;
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 새 Pawn(%s) 스탯/체력 델리게이트 재바인딩 완공!"), *LocalPawn->GetName());
     }
 }
 
@@ -638,12 +604,6 @@ void UParcelLobbyHUDWidget::SelectMapByIndex(int32 NewMapIndex)
     if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
     {
         ParcelPC->Server_RequestChangeLobbyMap(NewMapIndex);
-        
-        if (PC->HasAuthority())
-        {
-            HandleOnLobbyMapChanged(NewMapIndex);
-            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 방장 로컬 화면 즉시 동기화 가동 ➔ %d번 맵 반영."), NewMapIndex);
-        }
     }
 }
 

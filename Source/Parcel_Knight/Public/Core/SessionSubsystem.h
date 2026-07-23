@@ -9,6 +9,7 @@
 #include "SessionSubsystem.generated.h"
 
 class APlayerController;
+class AParcelGameMode;
 class UNetDriver;
 class UWorld;
 
@@ -94,11 +95,18 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	bool CanInviteToCurrentSession() const;
 
+	/** Server-only comparison between the requesting controller and NAME_GameSession owner. */
+	bool IsSessionOwnerController(const APlayerController* PlayerController) const;
+
 	bool SendSessionInviteToFriend(
 		APlayerController* PlayerController,
 		const FBPUniqueNetId& FriendUniqueNetId) const;
 
 private:
+	friend class AParcelGameMode;
+
+	bool TryStartGame(const FString& MapPath);
+
 	enum class ESessionOperation : uint8
 	{
 		None,

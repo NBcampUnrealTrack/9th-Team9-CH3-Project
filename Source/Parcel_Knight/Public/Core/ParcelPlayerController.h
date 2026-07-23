@@ -84,6 +84,7 @@ protected:
 
 private:
 	void CreateTrapStatusOverlayIfNeeded();
+	TWeakObjectPtr<APawn> LastRespawnNotifiedPawn;
 	
 public:
 	/** [Client -> Server] 클라이언트가 입력한 채팅을 서버 방장에게 전달하는 Reliable RPC */
@@ -101,4 +102,8 @@ public:
 public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_RequestChangeLobbyMap(int32 NewMapIndex);
+
+	/** Requests lobby start without accepting a client-provided map path. */
+	UFUNCTION(Server, Reliable)
+	void Server_RequestStartLobbyGame();
 };

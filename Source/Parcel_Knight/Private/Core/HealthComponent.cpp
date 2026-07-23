@@ -74,7 +74,7 @@ void UHealthComponent::OnRep_HP()
 
 void UHealthComponent::OnDeath()
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead) return;
 	bIsDead = true;
 	OnDeathDelegate.Broadcast();
 	Multicast_OnDeath();
@@ -95,6 +95,19 @@ void UHealthComponent::IncreaseMaxHP(float Amount)
 	if (!GetOwner()->HasAuthority()) return;
 	MaxHP += Amount;
 	HP = FMath::Clamp(HP + Amount, 0.f, MaxHP);
+	OnHPChanged.Broadcast(HP, MaxHP);
+}
+
+void UHealthComponent::SetMaxHPPreservingRatio(float InMaxHP)
+{
+	if (!GetOwner()->HasAuthority()) return;
+
+	const float HealthRatio = MaxHP > KINDA_SMALL_NUMBER
+		? FMath::Clamp(HP / MaxHP, 0.f, 1.f)
+		: (bIsDead ? 0.f : 1.f);
+
+	MaxHP = FMath::Max(1.f, InMaxHP);
+	HP = bIsDead ? 0.f : MaxHP * HealthRatio;
 	OnHPChanged.Broadcast(HP, MaxHP);
 }
 

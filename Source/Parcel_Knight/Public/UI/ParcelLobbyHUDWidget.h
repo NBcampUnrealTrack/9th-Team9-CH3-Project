@@ -97,6 +97,9 @@ private:
     bool bIsMenuOpen = false;
     bool bIsReady = false;
     
+    UPROPERTY()
+    TWeakObjectPtr<APawn> CachedBoundPawn;
+    
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Lobby|UI")
     TSubclassOf<UParcelLobbyPlayerSlotWidget> PlayerSlotClass;
