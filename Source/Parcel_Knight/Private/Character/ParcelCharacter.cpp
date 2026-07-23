@@ -19,6 +19,7 @@
 #include "Core/CustomizationComponent.h"
 #include "UI/ParcelNameplateWidget.h"
 #include "Data/ItemData.h"
+#include "Data/SkinData.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Kismet/KismetRenderingLibrary.h"
@@ -214,7 +215,10 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 			InvComp->ApplyPassiveEffects(this);
 
 		if (UCustomizationComponent* CustComp = PS->GetCustomizationComponent())
+		{
 			ApplyTitle(CustComp->GetEquippedTitle());
+			ApplySkin(CustComp->GetEquippedSkin());
+		}
 	}
 
 	UpdateOverheadNameplate();
@@ -224,6 +228,15 @@ void AParcelCharacter::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
     UpdateOverheadNameplate();
+
+    if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
+    {
+        if (UCustomizationComponent* CustComp = PS->GetCustomizationComponent())
+        {
+            ApplyTitle(CustComp->GetEquippedTitle());
+            ApplySkin(CustComp->GetEquippedSkin());
+        }
+    }
 }
 
 void AParcelCharacter::UpdateOverheadNameplate()
@@ -433,6 +446,44 @@ void AParcelCharacter::ApplyTitle(FGameplayTag TitleTag)
 	}
 
 	NameWidget->SetTitle(nullptr);
+}
+
+void AParcelCharacter::ApplySkin(FGameplayTag SkinTag)
+{
+	if (!GetMesh()) return;
+
+	UDataTable* TargetTable = SkinDataTable ? SkinDataTable.Get() : CosmeticDataTable.Get();
+	if (!SkinTag.IsValid() || !TargetTable)
+	{
+		PLAYER_LOG(Warning, TEXT("[ApplySkin] 실패: SkinTag 유효성=%d, TargetTable 할당=%d"), SkinTag.IsValid(), (TargetTable != nullptr));
+		return;
+	}
+
+	TArray<FSkinData*> AllRows;
+	TargetTable->GetAllRows<FSkinData>(TEXT("ApplySkin"), AllRows);
+	for (FSkinData* Row : AllRows)
+	{
+		if (Row && Row->SkinTag == SkinTag)
+		{
+			if (UMaterialInterface* LoadedMaterial = Row->SkinMaterial.LoadSynchronous())
+			{
+				const int32 NumMaterials = GetMesh()->GetNumMaterials();
+				for (int32 i = 0; i < NumMaterials; ++i)
+				{
+					GetMesh()->SetMaterial(i, LoadedMaterial);
+				}
+				PLAYER_LOG(Log, TEXT("%s 캐릭터 스킨 적용 완료 (슬롯 %d개 전체 반영): %s"), *GetName(), NumMaterials, *SkinTag.ToString());
+				return;
+			}
+			else
+			{
+				PLAYER_LOG(Warning, TEXT("[ApplySkin] 데이터 테이블 행은 찾았으나 SkinMaterial 에셋이 None 상태임: %s"), *SkinTag.ToString());
+				return;
+			}
+		}
+	}
+
+	PLAYER_LOG(Warning, TEXT("[ApplySkin] 데이터 테이블에서 해당 태그 행을 찾지 못함: %s"), *SkinTag.ToString());
 }
 
 void AParcelCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
