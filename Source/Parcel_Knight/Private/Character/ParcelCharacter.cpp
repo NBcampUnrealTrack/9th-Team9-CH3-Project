@@ -409,7 +409,7 @@ void AParcelCharacter::DoGunLineTrace()
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(this);
 
-	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLoc, End, ECC_Pawn, Params))
+	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLoc, End, ECC_Visibility, Params))
 	{
 		if (AActor* HitActor = Hit.GetActor())
 		{
