@@ -446,6 +446,16 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
             HandleNativeCarriedBoxChanged(CarryComp->GetCarriedBox());
         }
 
+        if (APlayerState* PS = LocalPawn->GetPlayerState())
+        {
+            if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+            {
+                InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
+                InvComp->OnInventoryChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
+                HandleNativeInventoryChanged();
+            }
+        }
+
         CachedBoundPawn = LocalPawn;
         UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 새 Pawn(%s) 스탯/체력 델리게이트 재바인딩 완공!"), *LocalPawn->GetName());
     }
