@@ -13,6 +13,8 @@ ADeliveryBoxSpawner::ADeliveryBoxSpawner()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	bReplicates = true;
+	bAlwaysRelevant = true;
 
 	RootComp = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	SetRootComponent(RootComp);

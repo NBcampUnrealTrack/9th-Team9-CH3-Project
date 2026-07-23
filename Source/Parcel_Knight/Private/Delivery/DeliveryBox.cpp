@@ -26,6 +26,7 @@ ADeliveryBox::ADeliveryBox()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bAllowTickOnDedicatedServer = false; // 서버에서는 Tick 빌보드 연산 스킵
 	bReplicates = true;
+	bAlwaysRelevant = true; // 멀티플레이 세션 맵 전환/거리 멀어져도 클라이언트에 상자 동기화 보장
 	SetReplicateMovement(true); // 리슨 서버 물리 동기화 활성화
 
 	// 박스 콜리전 생성 >> 물리 바디 콜리전 세팅 >> Mesh 부착 후 자체 물리 Off
@@ -118,6 +119,10 @@ void ADeliveryBox::BeginPlay()
 		// 초기 체력 텍스트 갱신
 		UpdateHPText(HealthComponent->GetHP(), HealthComponent->GetMaxHP());
 	}
+
+	// 스테이지 2, 3 맵 이동이나 네트워크 초기 로딩 시에도 클라이언트 화면에 상자 메쉬와 머티리얼이 즉시 렌더링되도록 수동 동기화
+	OnRep_BoxData();
+	OnRep_BoxStateTags();
 }
 
 void ADeliveryBox::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -173,6 +178,7 @@ void ADeliveryBox::InitializeBox(int32 InBoxID, const FBoxData& InBoxData)
 
 	// Spawned 태그 부여
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
+	ForceNetUpdate();
 	
 	DELIVERYBOX_LOG(Log, TEXT("[Server] 상자 고유ID %d번 초기화 완료. 타입 태그: %s, 설정 무게: %f kg"), 
 		BoxID, *BoxData.BoxTypeTag.ToString(), BoxData.Weight);
@@ -257,7 +263,15 @@ void ADeliveryBox::OnRep_BoxStateTags()
 
 bool ADeliveryBox::CanCarry_Implementation(AActor* Carrier)
 {
-	if (!BoxStateTags.HasTagExact(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")))) return false;
+	FGameplayTag HeldTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held"));
+	FGameplayTag DamagedTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged"));
+	FGameplayTag DeliveredTag = FGameplayTag::RequestGameplayTag(TEXT("Box.State.Delivered"));
+
+	if (BoxStateTags.HasTag(HeldTag) || BoxStateTags.HasTag(DamagedTag) || BoxStateTags.HasTag(DeliveredTag))
+	{
+		return false;
+	}
+
 	if (Carrier)
 	{
 		// 방어 코드
@@ -295,6 +309,7 @@ void ADeliveryBox::OnPickedUp_Implementation(AActor* Carrier)
 
 	// 플레이어가 최초로 주워 들었으므로 이제 무적 처리를 해제할 수 있습니다.
 	bHasBeenPickedUp = true;
+	ForceNetUpdate();
 }
 
 void ADeliveryBox::OnDropped_Implementation()
@@ -308,6 +323,7 @@ void ADeliveryBox::OnDropped_Implementation()
 
 	RemoveStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")));
 	AddStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Spawned")));
+	ForceNetUpdate();
 }
 
 void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FVector NormalImpulse, const FHitResult& Hit)
@@ -315,7 +331,6 @@ void ADeliveryBox::OnPhysicsHit(UPrimitiveComponent* HitComponent, AActor* Other
 	if (!HasAuthority()) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Damaged")))) return;
 	if (HasStateTag(FGameplayTag::RequestGameplayTag(TEXT("Box.State.Held")))) return;
-	if (IsInvulnerable()) return;
 
 	// 상자끼리 충돌하거나 포개져 깔아뭉갤 때 서로 대미지를 주거나 연쇄 파손되는 현상 예외 처리
 	if (OtherActor && OtherActor->IsA(ADeliveryBox::StaticClass())) return;
