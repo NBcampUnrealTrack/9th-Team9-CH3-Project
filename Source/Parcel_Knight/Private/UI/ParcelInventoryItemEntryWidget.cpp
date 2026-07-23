@@ -51,6 +51,11 @@ void UParcelInventoryItemEntryWidget::InitializeInventoryItem(
 
 	SetSelected(bSelected);
 
+	if (ItemButton)
+	{
+		ItemButton->SetIsEnabled(true);
+	}
+
 	UE_LOG(
 		LogTemp,
 		Log,
@@ -73,6 +78,28 @@ void UParcelInventoryItemEntryWidget::SetSelected(bool bSelected)
 	// Ignore hits on the border itself while preserving hit tests for the
 	// child ItemButton used to select and deselect this owned item.
 	SelectionBorder->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+}
+
+void UParcelInventoryItemEntryWidget::SetEmpty()
+{
+	ItemId = FGameplayTag();
+
+	if (ItemIcon)
+	{
+		ItemIcon->SetBrushFromTexture(nullptr);
+	}
+
+	if (ItemNameText)
+	{
+		ItemNameText->SetText(FText::GetEmpty());
+	}
+
+	SetSelected(false);
+
+	if (ItemButton)
+	{
+		ItemButton->SetIsEnabled(false);
+	}
 }
 
 void UParcelInventoryItemEntryWidget::HandleItemClicked()

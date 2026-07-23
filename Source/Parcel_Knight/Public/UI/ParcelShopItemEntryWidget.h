@@ -26,6 +26,8 @@ public:
 		bool bCanAfford,
 		UParcelShopInventoryWidget* InOwnerWidget);
 
+	void SetEmpty();
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;

@@ -29,6 +29,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Parcel|Inventory")
 	void SetSelected(bool bSelected);
 
+	UFUNCTION(BlueprintCallable, Category = "Parcel|Inventory")
+	void SetEmpty();
+
 	FGameplayTag GetItemId() const { return ItemId; }
 
 protected:
