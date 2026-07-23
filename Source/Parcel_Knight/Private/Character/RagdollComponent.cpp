@@ -293,18 +293,38 @@ void URagdollComponent::AttemptAutoRecovery()
         if (HC->IsDead()) return;
     }
 
-    // 상태이상이 활성화 중이면 2초 후 재시도
+    // 상태이상이 활성화 중이면 2초마다 재시도. MaxAirRecoveryWait의 2배를 넘기면 상태이상이 남아있어도 강제 기상.
     if (UDFStatusEffectComponent* StatusComp = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
     {
         if (StatusComp->HasActiveStatusEffect())
         {
-            GetWorld()->GetTimerManager().SetTimer(
-                AutoRecoveryTimerHandle,
-                this,
-                &URagdollComponent::AttemptAutoRecovery,
-                2.0f,
-                false
-            );
+            StatusEffectWaitElapsed += 2.0f;
+            if (StatusEffectWaitElapsed < MaxAirRecoveryWait * 2.0f)
+            {
+                GetWorld()->GetTimerManager().SetTimer(
+                    AutoRecoveryTimerHandle,
+                    this,
+                    &URagdollComponent::AttemptAutoRecovery,
+                    2.0f,
+                    false
+                );
+                return;
+            }
+
+            RAGDOLL_LOG(Log, TEXT("상태이상 대기 시간(%.1f초) 초과로 강제 기상합니다."), MaxAirRecoveryWait * 2.0f);
+            StatusEffectWaitElapsed = 0.f;
+            AirRecoveryWaitElapsed = 0.f;
+            StopRagdoll();
+            return;
+        }
+
+        // 재시도하다가 상태이상이 사라진 걸 확인하면, 지면 체크 없이 즉시 강제 기상
+        if (StatusEffectWaitElapsed > 0.f)
+        {
+            RAGDOLL_LOG(Log, TEXT("상태이상 해제 확인, 즉시 강제 기상합니다."));
+            StatusEffectWaitElapsed = 0.f;
+            AirRecoveryWaitElapsed = 0.f;
+            StopRagdoll();
             return;
         }
     }
@@ -329,6 +349,7 @@ void URagdollComponent::AttemptAutoRecovery()
     }
 
     AirRecoveryWaitElapsed = 0.f;
+    StatusEffectWaitElapsed = 0.f;
     StopRagdoll();
 }
 
@@ -393,6 +414,7 @@ void URagdollComponent::ApplyStartRagdoll()
 
         // 상태이상이 없으면 AutoRecoveryDelay 초 후 강제 기상 시도
         AirRecoveryWaitElapsed = 0.f;
+        StatusEffectWaitElapsed = 0.f;
         GetWorld()->GetTimerManager().SetTimer(
             AutoRecoveryTimerHandle,
             this,
