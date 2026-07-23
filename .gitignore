@@ -56,6 +56,9 @@ SourceArt/**/*.tga
 
 # Binary Files
 Binaries/*
+!Binaries/Win64/
+Binaries/Win64/*
+!Binaries/Win64/steam_appid.txt
 Plugins/**/Binaries/*
 
 # Builds
