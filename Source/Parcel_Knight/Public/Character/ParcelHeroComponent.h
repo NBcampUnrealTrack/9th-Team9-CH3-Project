@@ -35,6 +35,10 @@ public:
 	void EnterRagdollCameraMode();
 	void ExitRagdollCameraMode();
 
+	// 래그돌이 끝나자마자(기상 애니메이션 재생 중) 카메라를 캐릭터에 다시 붙여서 3인칭으로 따라가게 함.
+	// 1인칭 전환(ExitRagdollCameraMode)은 이동 잠금이 풀릴 때까지 별도로 지연됨.
+	void ReattachCameraAfterRagdoll();
+
 	// [Server] 투척 충전 상태를 취소하고 Throwing 상태 태그를 정리
 	void CancelServerThrowCharge();
 	

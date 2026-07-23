@@ -417,6 +417,12 @@ void URagdollComponent::ApplyStartRagdoll()
     // 5. 카메라 제어권 변경 — 로컬 플레이어만 적용
     if (OwnerCharacter->IsLocallyControlled())
     {
+        // 이전 래그돌의 지연된 카메라 복귀가 예약돼 있다면 취소 (다시 래그돌 중인데 1인칭으로 튀는 것 방지)
+        if (GetWorld())
+        {
+            GetWorld()->GetTimerManager().ClearTimer(CameraRecoveryTimerHandle);
+        }
+
         if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
             HeroComp->EnterRagdollCameraMode();
     }
@@ -470,14 +476,22 @@ void URagdollComponent::ApplyStopRagdoll()
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
     // 4. 캐릭터 기본 기상 위치 텔레포트 및 메시 원복
+    // 캡슐 콜리전을 먼저 복구해야 FindTeleportSpot이 바닥/벽과의 겹침을 실제로 감지해서 보정할 수 있다.
+    // (콜리전이 NoCollision인 채로 텔레포트하면 겹쳐도 감지가 안 되고, 그대로 파묻힌 채 콜리전만 나중에 켜짐)
+    Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
     FVector NewActorLocation = FVector(PelvisLocation.X, PelvisLocation.Y, GroundZ + CapsuleHalfHeight);
+    if (GetWorld())
+    {
+        // 지면/벽에 파묻힌 위치로 계산됐어도 겹치지 않는 가장 가까운 위치로 보정 시도
+        GetWorld()->FindTeleportSpot(OwnerCharacter, NewActorLocation, OwnerCharacter->GetActorRotation());
+    }
     OwnerCharacter->SetActorLocation(NewActorLocation, false, nullptr, ETeleportType::TeleportPhysics);
 
     Mesh->SetRelativeLocation(DefaultMeshRelativeLocation, false, nullptr, ETeleportType::TeleportPhysics);
     Mesh->SetRelativeRotation(DefaultMeshRelativeRotation, false, nullptr, ETeleportType::TeleportPhysics);
 
-    // 5. 콜리전 재설정 및 이동 컴포넌트 복구 (RecoveryLockDuration 초 후 이동 가능)
-    Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    // 5. 이동 컴포넌트 복구 (RecoveryLockDuration 초 후 이동 가능)
     if (UCharacterMovementComponent* Movement = OwnerCharacter->GetCharacterMovement())
     {
         Movement->DisableMovement();
@@ -524,11 +538,23 @@ void URagdollComponent::ApplyStopRagdoll()
         ParcelChar->SetRagdollState(false, true);
     }
 
-    // 8. 카메라 원위치 복구 — 로컬 플레이어만 적용
+    // 8. 카메라 복구 — 로컬 플레이어만 적용.
+    // 캐릭터에 다시 붙여서 3인칭으로 따라가게 하는 건 즉시 처리(카메라가 허공에 멈춰있지 않도록),
+    // 1인칭으로의 최종 전환은 이동 잠금이 풀리는 시점(RecoveryLockDuration)에 맞춰 지연시킨다.
     if (OwnerCharacter->IsLocallyControlled())
     {
         if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
-            HeroComp->ExitRagdollCameraMode();
+        {
+            HeroComp->ReattachCameraAfterRagdoll();
+        }
+
+        GetWorld()->GetTimerManager().SetTimer(
+            CameraRecoveryTimerHandle,
+            this,
+            &URagdollComponent::FinishCameraRecovery_LocalOnly,
+            RecoveryLockDuration,
+            false
+        );
     }
 
     // 9. 기상 애니메이션 실행 (앞면 디폴트)
@@ -561,4 +587,17 @@ void URagdollComponent::FinishRecoveryLock_ServerOnly()
 void URagdollComponent::ResetRagdollCooldown_ServerOnly()
 {
 	bRagdollOnCooldown = false;
+}
+
+void URagdollComponent::FinishCameraRecovery_LocalOnly()
+{
+	if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled())
+	{
+		return;
+	}
+
+	if (UParcelHeroComponent* HeroComp = OwnerCharacter->FindComponentByClass<UParcelHeroComponent>())
+	{
+		HeroComp->ExitRagdollCameraMode();
+	}
 }
