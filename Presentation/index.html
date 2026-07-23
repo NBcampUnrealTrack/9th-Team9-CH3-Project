@@ -28,7 +28,7 @@
       <div class="deck-scaler" id="deckScaler">
         <article class="deck" id="deck" aria-live="polite">
 
-          <!-- 슬라이드 1: 실제 대표 화면을 확보하면 아래 media-placeholder를 img 요소로 교체하세요. -->
+          <!-- 슬라이드 1: 팀 기본 정보와 대표 화면. 이미지는 assets/images/game-cover.png를 사용합니다. -->
           <section class="slide slide-cover is-active" id="slide-1" data-section="INTRO" aria-labelledby="slide-1-title">
             <div class="cover-grid">
               <div class="cover-copy">
@@ -36,29 +36,31 @@
                 <h1 id="slide-1-title">Parcel Knight</h1>
                 <p class="cover-summary">Steam 리슨 서버에서 택배 상자를 운반하고 목표 구역에 배송해 팀 점수를 쌓는 멀티플레이 게임</p>
                 <div class="meta-row">
-                  <span>[팀 입력 필요: 팀명]</span>
-                  <span>[팀 입력 필요: 발표자]</span>
-                  <span>[팀 입력 필요: 발표 날짜]</span>
+                  <span>팀명: Parcel Knight</span>
+                  <span>발표자: 한수현</span>
+                  <span>발표 날짜: 2026.07.24</span>
                 </div>
                 <div class="team-strip" aria-label="팀원과 담당 역할">
-                  <span>[팀원 1 이름] — [담당 역할]</span>
-                  <span>[팀원 2 이름] — [담당 역할]</span>
-                  <span>[팀원 3 이름] — [담당 역할]</span>
-                  <span>[팀원 4 이름] — [담당 역할]</span>
-                  <span>[팀원 5 이름] — [담당 역할]</span>
+                  <span>한수현 — 게임 룰, 상점, 아이템</span>
+                  <span>김로운 — 캐릭터</span>
+                  <span>조영웅 — 택배 시스템, 캐릭터, 전체 UI</span>
+                  <span>김경수 — 전체 택배 시스템</span>
+                  <span>양석현 — 맵, 함정, UI</span>
                 </div>
               </div>
-              <!-- 이미지 교체 위치: assets/images/cover.webp를 추가한 뒤 이 div를 <img src="assets/images/cover.webp" alt="게임 대표 화면">으로 바꾸세요. -->
-              <div class="media-placeholder cover-media" role="img" aria-label="게임 대표 화면 자리">
-                <span class="placeholder-index">01</span>
-                <strong>게임 대표 화면</strong>
-                <small>권장 16:10 · 실제 플레이 캡처 필요</small>
+              <!-- 표지 이미지 교체 위치: Presentation/assets/images/game-cover.png 파일을 같은 이름으로 교체하세요. -->
+              <div class="cover-media-frame" data-cover-media>
+                <img src="./assets/images/game-cover.png" alt="Parcel Knight 게임 대표 화면">
+                <div class="media-placeholder cover-media cover-fallback" role="img" aria-label="게임 대표 화면 자리">
+                  <span class="placeholder-index">01</span>
+                  <strong>게임 대표 화면</strong>
+                  <small>assets/images/game-cover.png · 권장 세로형 캡처</small>
+                </div>
               </div>
             </div>
-            <footer class="slide-evidence"><span>근거</span><code>Parcel_Knight.uproject</code><code>Config/DefaultEngine.ini</code><code>Config/Tags/</code></footer>
           </section>
 
-          <!-- 슬라이드 2: 장르와 팀 목표는 공식 합의 후 대괄호 부분만 교체하세요. -->
+          <!-- 슬라이드 2: 확정된 장르와 코드로 확인한 플레이 루프를 소개합니다. -->
           <section class="slide" id="slide-2" data-section="INTRO" aria-labelledby="slide-2-title">
             <header class="slide-heading">
               <p class="eyebrow">PROJECT OVERVIEW</p>
@@ -78,11 +80,9 @@
                 <article class="fact-card"><span>엔진 연결</span><strong>Unreal Engine 5.5</strong><small><code>EngineAssociation: 5.5</code></small></article>
                 <article class="fact-card"><span>네트워크</span><strong>Steam OnlineSubsystem</strong><small>리슨 서버 생성·참가 흐름</small></article>
                 <article class="fact-card"><span>도메인 데이터</span><strong>Tags + DataAssets + Tables</strong><small>상자·구역·아이템·트랩</small></article>
-                <article class="fact-card pending"><span>팀 입력</span><strong>[팀 확인 필요: 공식 장르]</strong><small>[팀 입력 필요: 개발 목표]</small></article>
+                <article class="fact-card"><span>장르</span><strong>캐주얼, 택배 시뮬레이션</strong><small>[팀 입력 필요: 개발 목표]</small></article>
               </div>
             </div>
-            <aside class="speaker-note">발표 포인트: 이 슬라이드에서는 코드에서 확인된 루프만 설명하고, 기획 문구는 팀 합의 후 채웁니다.</aside>
-            <footer class="slide-evidence"><span>근거</span><code>Source/Parcel_Knight/</code><code>Config/DefaultEngine.ini</code><code>Config/Tags/</code><code>Content/Delivery/</code></footer>
           </section>
 
           <!-- 슬라이드 3: 서버·복제·소유 클라이언트 경계를 현재 클래스 책임으로 표현합니다. -->
@@ -115,60 +115,56 @@
               </div>
             </div>
             <div class="architecture-legend"><span class="legend-server">서버 판정</span><span class="legend-shared">복제 상태</span><span class="legend-client">로컬 표현</span><span class="pending-label">Blueprint 기본값은 [에디터 확인 필요]</span></div>
-            <footer class="slide-evidence"><span>근거</span><code>Public/Core/ParcelGameMode.h</code><code>Public/Core/ParcelGameState.h</code><code>Public/Core/ParcelPlayerState.h</code><code>Private/Character/ParcelCharacter.cpp</code></footer>
           </section>
 
-          <!-- 슬라이드 4: 이어지는 세 장의 핵심 기능을 요약합니다. -->
+          <!-- 슬라이드 4: 다음 세 장에서 다룰 핵심 기능을 현재 코드 책임에 맞춰 요약합니다. -->
           <section class="slide" id="slide-4" data-section="FEATURES" aria-labelledby="slide-4-title">
             <header class="slide-heading">
               <p class="eyebrow">CORE FEATURES · 3</p>
-              <h2 id="slide-4-title">플레이 경험을 지탱하는 세 가지 흐름</h2>
+              <h2 id="slide-4-title">기존 배송 플레이를 확장한 세 가지 핵심 기능</h2>
             </header>
             <div class="feature-summary-grid">
-              <article class="number-card cyan"><span>01</span><h3>세션 생명주기</h3><p>Steam 세션 생성부터 로비 이동, 초대 수락, 참가 주소 이동까지 이어지는 흐름</p><small>다음: SessionSubsystem</small></article>
-              <article class="number-card amber"><span>02</span><h3>배송과 점수</h3><p>상자 상태와 ZoneTag를 서버가 판정하고 팀 점수·콤보·UI 상태로 전달</p><small>다음: Delivery pipeline</small></article>
-              <article class="number-card violet"><span>03</span><h3>로드아웃 전달</h3><p>로컬 선택을 서버에 제출한 뒤 카탈로그와 슬롯 규칙으로 검증해 복제</p><small>다음: InventoryComponent</small></article>
+              <article class="number-card cyan"><span>01</span><h3>인벤토리 및 상점</h3><p>로컬 상점 구매·저장과 스테이지 서버 인벤토리 복제를 서로 다른 책임으로 운영</p><small>다음: GameInstance + InventoryComponent</small></article>
+              <article class="number-card amber"><span>02</span><h3>배송 파이프라인 유지</h3><p>상자 생성·운반·배송 판정의 기존 서버 흐름을 건드리지 않고 플레이어 기능을 연동</p><small>다음: Subsystem + Interface + Zone</small></article>
+              <article class="number-card violet"><span>03</span><h3>상자 물리 충돌</h3><p>바닥에서는 Pawn과 충돌하고, 운반 중에는 끄며, 드롭 뒤 물리 상태를 복원</p><small>다음: DeliveryBox + CarryComponent</small></article>
             </div>
-            <aside class="speaker-note">세 기능은 각각 “접속 → 핵심 플레이 → 플레이어 구성”을 담당하며, 이후 슬라이드에서 실제 함수 단위로 추적합니다.</aside>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Core/SessionSubsystem.cpp</code><code>Private/Delivery/DeliveryZone.cpp</code><code>Private/Core/InventoryComponent.cpp</code></footer>
           </section>
 
-          <!-- 슬라이드 5: 세션 참가 코드 발췌는 실제 함수에서 가져왔습니다. -->
+          <!-- 슬라이드 5: 상점 구매는 로컬 SaveGame, 스테이지 장착은 서버 검증·복제라는 실제 경계를 표현합니다. -->
           <section class="slide" id="slide-5" data-section="FEATURES" aria-labelledby="slide-5-title">
-            <header class="slide-heading compact"><p class="eyebrow">FEATURE 01</p><h2 id="slide-5-title">Steam 세션 — 생성과 참가를 하나의 생명주기로</h2></header>
+            <header class="slide-heading compact"><p class="eyebrow">FEATURE 01</p><h2 id="slide-5-title">인벤토리 및 상점 — 저장과 네트워크 상태를 분리</h2></header>
             <div class="detail-grid code-right">
               <div class="detail-copy">
-                <div class="flow-row small"><span>CreateSession</span><b>→</b><span>StartSession</span><b>→</b><span>Lobby?listen</span><b>→</b><span>Invite / Find</span><b>→</b><span>Join</span></div>
-                <dl class="detail-list">
-                  <div><dt>플레이어 경험</dt><dd>방을 만들거나 초대를 수락해 같은 로비로 진입</dd></div>
-                  <div><dt>실제 호출 흐름</dt><dd><code>UParcelGameInstance</code>가 초대 결과를 받고 <code>USessionSubsystem::JoinSessionResult</code>로 전달</dd></div>
-                  <div><dt>권한 경계</dt><dd>호스트는 <code>ServerTravel(...?listen)</code>, 참가자는 해석된 주소로 로컬 <code>ClientTravel</code></dd></div>
-                  <div><dt>실패 처리</dt><dd>세션·World·LocalPlayer·Controller를 확인하고 실패 delegate와 정리를 수행</dd></div>
-                </dl>
-                <div class="status-callout warning"><strong>검증 상태</strong><span>정적 흐름 확인 완료 · 실제 Steam 두 PC 연결은 [에디터 확인 필요]</span></div>
+                <div class="vertical-flow">
+                  <span><b>01</b> <code>RequestPurchase(ItemId)</code> — 상점 항목 선택</span>
+                  <span><b>02</b> <code>TryPurchaseConsumable</code> — 태그·중복·가격·잔액 확인</span>
+                  <span><b>03</b> Money 차감 + OwnedConsumables 등록 + <code>SaveData</code></span>
+                  <span><b>04</b> <code>RefreshShopUI</code> — 상점·보유 목록·요약 재구축</span>
+                  <span><b>05</b> 스테이지 진입 시 <code>Server_SubmitLoadout</code> → 복제</span>
+                </div>
+                <div class="two-column-notes">
+                  <article><h4>플레이어 경험</h4><p>구매 직후 보유 목록과 재화가 갱신되고, 선택한 로드아웃이 스테이지에서 사용됨</p></article>
+                  <article><h4>역할 경계</h4><p>구매는 로컬 SaveGame. 서버는 제출된 장착 목록의 개수·태그·중복·카탈로그를 검증</p></article>
+                </div>
+                <p class="pending-inline">서버 권한 소유 프로필은 없음. 로컬 SaveGame은 조작 방지 수단이 아님.</p>
               </div>
               <div class="code-panel">
-                <div class="code-header"><span>OnJoinSessionComplete</span><code>SessionSubsystem.cpp</code></div>
-                <pre><code>FString ConnectString;
-const bool bResolved = Sessions-&gt;GetResolvedConnectString(
-    NAME_GameSession, ConnectString);
-if (!bResolved || ConnectString.IsEmpty())
-{
-    OnSessionJoinComplete.Broadcast(false);
-    CleanupNamedSession();
-    return;
-}
-PlayerController-&gt;ClientTravel(
-    ConnectString, ETravelType::TRAVEL_Absolute);</code></pre>
-                <p class="code-caption">가독성을 위해 동일 함수의 실패 로그만 생략한 실제 흐름</p>
+                <div class="code-header"><span>TryPurchaseConsumable</span><code>ParcelGameInstance.cpp</code></div>
+                <pre><code>if (ItemData-&gt;Price &lt; 0) return false;
+if (HasOwnedConsumable(ItemTag)) return false;
+if (Money &lt; ItemData-&gt;Price) return false;
+
+Money -= ItemData-&gt;Price;
+OwnedConsumables.Add(ItemTag);
+SaveData();</code></pre>
+                <p class="code-caption"><code>FItemData</code>는 ItemTag·Price·Effects를 정의. 스테이지의 <code>UInventoryComponent::Items</code>는 RepNotify로 UI에 전달.</p>
               </div>
             </div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Core/SessionSubsystem.cpp</code><code>Private/Core/ParcelGameInstance.cpp</code><code>Public/Core/SessionSubsystem.h</code><code>Config/DefaultEngine.ini</code></footer>
           </section>
 
-          <!-- 슬라이드 6: 배송 판정은 서버의 DeliveryZone에서 시작합니다. -->
+          <!-- 슬라이드 6: 기존 배송 파이프라인의 생성·상태·운반·판정 책임을 그대로 추적합니다. -->
           <section class="slide" id="slide-6" data-section="FEATURES" aria-labelledby="slide-6-title">
-            <header class="slide-heading compact"><p class="eyebrow">FEATURE 02</p><h2 id="slide-6-title">배송 파이프라인 — 겹침 판정에서 복제 UI까지</h2></header>
+            <header class="slide-heading compact"><p class="eyebrow">FEATURE 02</p><h2 id="slide-6-title">기존 배송 파이프라인을 유지하면서 기능을 연동</h2></header>
             <div class="detail-grid code-left">
               <div class="code-panel">
                 <div class="code-header"><span>ADeliveryZone::ProcessDelivery</span><code>DeliveryZone.cpp</code></div>
@@ -180,212 +176,172 @@ if (Box-&gt;HasStateTag(FGameplayTag::RequestGameplayTag(
 {
     return;
 }
+
 FBoxData Data = Box-&gt;GetBoxData();
 bool bIsCorrectZone =
     Data.TargetZoneTag.MatchesTagExact(ZoneTag);</code></pre>
-                <p class="code-caption">서버 권한·중복 상태·정확한 목적 태그를 차례로 검사</p>
+                <p class="code-caption">성공·실패 상태와 목적지 판정은 계속 <code>ADeliveryZone</code>의 서버 경계 안에 있음</p>
               </div>
               <div class="detail-copy">
                 <div class="vertical-flow">
-                  <span><b>01</b> <code>OnZoneOverlap</code> — 서버에서 상자 식별</span>
-                  <span><b>02</b> <code>ProcessDelivery</code> — Delivered/Failed 중복 차단</span>
-                  <span><b>03</b> <code>GameMode</code> → <code>DeliveryRuleComponent</code></span>
-                  <span><b>04</b> <code>TeamScoreComponent</code> — 점수·콤보·시간</span>
-                  <span><b>05</b> <code>OnRep</code> / multicast delegate — HUD 표시</span>
+                  <span><b>01</b> <code>ADeliveryBoxSpawner</code> timer → <code>UDeliverySubsystem::SpawnRandomBox</code></span>
+                  <span><b>02</b> <code>InitializeBox</code> → <code>Box.State.Spawned</code></span>
+                  <span><b>03</b> <code>IInteractableInterface</code> → <code>ICarryableInterface</code></span>
+                  <span><b>04</b> <code>UCharacterCarryComponent</code> Attach / Detach</span>
+                  <span><b>05</b> Zone overlap → GameMode → DeliveryRule → Score → Despawn</span>
                 </div>
                 <div class="two-column-notes">
-                  <article><h4>서버가 결정</h4><p>대상 ZoneTag, 성공/실패 상태, 점수 반영</p></article>
-                  <article><h4>데이터 순서</h4><p>BoxData → 판정 → GameState 복제 → UI delegate</p></article>
+                  <article><h4>유지한 경계</h4><p>상점·인벤토리는 BoxStateTags와 배송 성공/실패를 직접 변경하지 않음</p></article>
+                  <article><h4>네트워크 역할</h4><p>서버가 스폰·상태·판정. BoxData·상태·HoldingCarrier는 복제되어 표현에 사용</p></article>
                 </div>
-                <p class="pending-inline">Box·Zone Blueprint의 태그와 DataTable 연결은 [에디터 확인 필요]</p>
+                <p class="pending-inline">StageData·Box DataTable·ZoneTag의 실제 Blueprint 할당은 [에디터 확인 필요]</p>
               </div>
             </div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Delivery/DeliveryZone.cpp</code><code>Private/Core/DeliveryRuleComponent.cpp</code><code>Private/Core/TeamScoreComponent.cpp</code><code>Private/UI/ParcelHUDWidget.cpp</code></footer>
           </section>
 
-          <!-- 슬라이드 7: 로컬 저장값과 서버 검증 범위를 구분해 설명합니다. -->
+          <!-- 슬라이드 7: 상자와 캐릭터 충돌의 이전 기본값과 현재 명시 설정, 운반 상태 전이를 비교합니다. -->
           <section class="slide" id="slide-7" data-section="FEATURES" aria-labelledby="slide-7-title">
-            <header class="slide-heading compact"><p class="eyebrow">FEATURE 03</p><h2 id="slide-7-title">로드아웃 — 로컬 선택을 서버 상태로 옮기는 경계</h2></header>
-            <div class="detail-grid code-right">
-              <div class="detail-copy">
-                <div class="trust-diagram">
-                  <div><small>LOCAL</small><strong>GameInstance SaveGame</strong><span>장착 태그 선택</span></div>
-                  <b>Server_SubmitLoadout</b>
-                  <div><small>SERVER</small><strong>InventoryComponent</strong><span>개수·태그·중복·DataTable 검증</span></div>
-                  <b>ReplicatedUsing</b>
-                  <div><small>CLIENTS</small><strong>OnRep_Items</strong><span>UI 갱신</span></div>
-                </div>
-                <div class="status-callout danger"><strong>확인된 한계</strong><span>서버 권한 소유 프로필이 없어 “실제로 보유한 아이템인지”는 보안 검증할 수 없음</span></div>
-                <dl class="mini-list"><div><dt>유지되는 것</dt><dd>3칸 제한, 소비 아이템 루트 태그, 중복 차단, 카탈로그 존재 여부</dd></div><div><dt>후속 필요</dt><dd>보안이 필요하면 서버 프로필·거래 기록·영수증 검증 설계</dd></div></dl>
-              </div>
-              <div class="code-panel">
-                <div class="code-header"><span>SetValidatedLoadout</span><code>InventoryComponent.cpp</code></div>
-                <pre><code>if (!GetOwner() || !GetOwner()-&gt;HasAuthority()
-    || !ConsumableDataTable)
-{
-    return false;
-}
-const int32 SafeMaxItems =
-    FMath::Clamp(MaxItems, 0, 3);
-if (RequestedItems.Num() &gt; SafeMaxItems)
-{
-    return false;
-}
-TArray&lt;FGameplayTag&gt; ValidatedItems;</code></pre>
-                <p class="code-caption">이후 루프에서 태그·중복·DataTable 행을 검증</p>
-              </div>
+            <header class="slide-heading compact"><p class="eyebrow">FEATURE 03</p><h2 id="slide-7-title">DeliveryBox와 캐릭터의 물리 충돌 처리</h2></header>
+            <div class="before-after-layout collision-layout">
+              <article class="compare-panel before"><h3>이전 · 프리셋 의존</h3><ul><li>상자 Root는 <code>UBoxComponent</code></li><li><code>PhysicsBody</code> 프로필과 Simulate Physics만 설정</li><li>Pawn 응답과 Collision Enabled를 코드에서 명시하지 않음</li><li>Character Blueprint의 캡슐 설정과 조합에 따라 결과가 달라질 여지</li></ul><div class="cause"><b>목적</b> 바닥의 상자가 캐릭터를 통과하지 않도록 양쪽 채널을 대칭 설정</div></article>
+              <div class="solution-spine"><span>바닥: QueryAndPhysics</span><b>→</b><span>운반: NoCollision</span><b>→</b><span>드롭: 물리·충돌 복원</span></div>
+              <article class="compare-panel after"><h3>현재 · 코드로 명시</h3><pre><code>// DeliveryBox
+CollisionComponent-&gt;SetCollisionEnabled(
+    ECollisionEnabled::QueryAndPhysics);
+CollisionComponent-&gt;SetCollisionResponseToChannel(
+    ECC_Pawn, ECR_Block);
+
+// ParcelCharacter Capsule
+GetCapsuleComponent()-&gt;SetCollisionResponseToChannel(
+    ECC_PhysicsBody, ECR_Block);</code></pre><div class="cause good"><b>상태 전이</b> Attach 때 Actor collision/physics를 끄고, Detach 뒤 QueryAndPhysics·simulation·hit notify를 복원</div></article>
             </div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Core/ParcelGameInstance.cpp</code><code>Private/Core/ParcelPlayerController.cpp</code><code>Private/Core/InventoryComponent.cpp</code><code>Public/Data/ItemData.h</code></footer>
+            <div class="verification-strip"><strong>네트워크</strong><span>상자 이동 복제 활성화</span><span><code>OnRep_CarriedBox</code>가 각 머신의 Attach/Detach 충돌 상태 적용</span><em>Blueprint preset [에디터 확인 필요]</em></div>
           </section>
 
-          <!-- 슬라이드 8: 현재 코드와 Git 이력으로 입증 가능한 세 문제만 요약합니다. -->
+          <!-- 슬라이드 8: 요청된 세 트러블슈팅의 확인 상태를 요약합니다. -->
           <section class="slide" id="slide-8" data-section="TROUBLESHOOTING" aria-labelledby="slide-8-title">
-            <header class="slide-heading"><p class="eyebrow">TROUBLESHOOTING · 3</p><h2 id="slide-8-title">중복·순서·상태 충돌을 제거한 세 가지 수정</h2></header>
+            <header class="slide-heading"><p class="eyebrow">TROUBLESHOOTING · 3</p><h2 id="slide-8-title">원인 파악 → 검증 → 해결 기준</h2></header>
             <div class="issue-table" role="table" aria-label="트러블슈팅 요약">
-              <div class="issue-row issue-head" role="row"><span>문제</span><span>근본 원인</span><span>현재 방어선</span><span>검증 상태</span></div>
-              <div class="issue-row" role="row"><strong>01 사망 중복 경로</strong><span>Death delegate가 Character와 PlayerState 경로로 결합</span><span>단일 bind + <code>bDeathHandled</code></span><em>정적 확인</em></div>
-              <div class="issue-row" role="row"><strong>02 이동 속도 충돌</strong><span>Slow가 오래된 속도를 직접 복원</span><span>활성 상태 기반 한 곳 재계산</span><em>정적 확인</em></div>
-              <div class="issue-row" role="row"><strong>03 콤보 계산 순서</strong><span>증가 후 보상·모든 부호에 배율</span><span>양수 성공만 배율·그 뒤 증가</span><em>정적 확인</em></div>
+              <div class="issue-row issue-head" role="row"><span>문제</span><span>확인된 원인</span><span>해결 방향</span><span>상태</span></div>
+              <div class="issue-row" role="row"><strong>01 호스트 네임플레이트</strong><span><code>IsLocallyControlled()</code> 로컬 숨김 분기가 표시를 차단</span><span>호스트·클라이언트 화면에서 네임플레이트 정상 표시</span><em class="is-complete">해결 완료</em></div>
+              <div class="issue-row" role="row"><strong>02 C++ / Blueprint 노드</strong><span>현재 Editor DLL보다 UFUNCTION 소스가 새로워 기존 BP 노드가 해석되지 않음</span><span>Editor Target 재빌드 후 노드 갱신·컴파일</span><em>작업 필요</em></div>
+              <div class="issue-row" role="row"><strong>03 Box / Character 충돌</strong><span>프로필 의존으로 Pawn·PhysicsBody 응답이 명시되지 않았음</span><span>양쪽 Block + 운반 상태별 비활성/복원</span><em>정적 확인</em></div>
             </div>
-            <div class="validation-banner"><strong>공통 검증 한계</strong><span>수정 이후의 PIE 2인 실행 기록은 저장소에서 확인되지 않음 — 다음 세 슬라이드의 절차로 재검증 필요</span></div>
-            <footer class="slide-evidence"><span>근거</span><code>Git b9c6bfa</code><code>Git 7f27047</code><code>Private/Character/ParcelCharacter.cpp</code><code>Private/Core/TeamScoreComponent.cpp</code></footer>
+            <div class="validation-banner success"><strong>해결 결과</strong><span>호스트 화면에서 호스트 네임플레이트가 보이지 않던 문제가 해결되었으며, 호스트와 클라이언트 양쪽 화면에서 정상 표시됩니다.</span></div>
           </section>
 
-          <!-- 슬라이드 9: 사망 delegate 중복 경로의 이전 상태와 현재 상태를 비교합니다. -->
+          <!-- 슬라이드 9: 클라이언트에서 호스트 이름이 보인다는 사실과 로컬 숨김 분기를 분리해 설명합니다. -->
           <section class="slide" id="slide-9" data-section="TROUBLESHOOTING" aria-labelledby="slide-9-title">
-            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 01</p><h2 id="slide-9-title">사망 처리를 서버의 단일 진입점으로</h2></header>
+            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 01</p><h2 id="slide-9-title">호스트 네임플레이트 — 복제가 아니라 로컬 가시성 문제</h2></header>
             <div class="before-after-layout">
-              <article class="compare-panel before"><h3>BEFORE · b9c6bfa 이전</h3><ul><li>Health death delegate에 Character handler가 결합</li><li>Possess 시 PlayerState::HandleDeath와 별도 Character 경로도 결합 가능</li><li>래그돌·DeathCount·Respawn timer 중복 위험</li></ul><div class="cause"><b>원인</b> 권한 처리 주체가 delegate 연결에 분산</div></article>
-              <div class="solution-spine"><span>BindAuthoritativeDeathHandler</span><b>→</b><span>bDeathHandled</span><b>→</b><span>PlayerState::HandleDeath</span></div>
-              <article class="compare-panel after"><h3>AFTER · 현재</h3><pre><code>if (!HasAuthority() || bDeathHandled)
+              <article class="compare-panel before"><h3>오류 현상 · 원인 파악</h3><ul><li>클라이언트 화면에서는 호스트 이름이 보임</li><li>호스트 자신의 화면에서만 호스트 이름이 숨겨짐</li><li>따라서 PlayerState 이름 복제 자체는 동작</li><li>현재 함수가 모든 로컬 제어 Pawn을 명시적으로 숨김</li></ul><div class="cause"><b>호스트만 보이는 이유</b> Listen Server 호스트는 Authority이면서 <code>IsLocallyControlled()==true</code></div></article>
+              <div class="solution-spine"><span>원인 파악</span><b>→</b><span>로컬 가시성 처리 정리</span><b>→</b><span>양쪽 화면 정상 표시</span></div>
+              <article class="compare-panel after"><h3>기존 원인 코드 · 해결 결과</h3><pre><code>if (IsLocallyControlled())
 {
+    NameplateWidgetComp-&gt;SetVisibility(false);
+    NameplateWidgetComp-&gt;SetHiddenInGame(true);
     return;
-}
-bDeathHandled = true;
-RagdollComp-&gt;StartRagdoll();
-PlayerStateComp-&gt;AddStateTag(DeadTag);
-PS-&gt;HandleDeath();</code></pre><div class="cause good"><b>효과</b> 새 Pawn마다 한 번만 사망 전이</div></article>
+}</code></pre><div class="cause good"><b>해결 결과</b> 로컬 캐릭터도 표시 대상에 포함되어 호스트와 클라이언트 화면에서 네임플레이트가 정상 표시됨</div></article>
             </div>
-            <div class="verification-strip"><strong>재현·검증</strong><span>서버에서 같은 death event 2회 호출 → DeathCount 1, timer 1, UI 1 확인</span><span>리스폰 후 새 Pawn에서 다시 1회 처리 확인</span><em>[에디터 확인 필요]</em></div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Character/ParcelCharacter.cpp</code><code>Public/Character/ParcelCharacter.h</code><code>Private/Core/HealthComponent.cpp</code><code>Private/Core/ParcelPlayerState.cpp</code></footer>
+            <div class="verification-strip"><strong>해결 확인</strong><span>Host→Host 정상</span><span>Host↔Client 정상</span><span>이름 복제 경로 유지</span><em>해결 완료</em></div>
           </section>
 
-          <!-- 슬라이드 10: 이동 속도는 이전 값 복원이 아니라 활성 상태 조합으로 계산됩니다. -->
+          <!-- 슬라이드 10: 현재 소스와 Editor DLL의 시간 차이로 재현된 Blueprint 노드 불일치를 실제 사례로 사용합니다. -->
           <section class="slide" id="slide-10" data-section="TROUBLESHOOTING" aria-labelledby="slide-10-title">
-            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 02</p><h2 id="slide-10-title">Carry · Sprint · Slow 순서가 달라도 같은 최종 속도</h2></header>
-            <div class="speed-layout">
-              <div class="speed-formula"><span>BaseMaxWalkSpeed</span><b>×</b><span>SprintMod</span><b>×</b><span>CarryMod</span><b>×</b><span>StatusEffectMod</span><strong>= MaxWalkSpeed</strong></div>
-              <div class="speed-columns">
-                <article class="compare-panel before"><h3>BEFORE</h3><p>Slow 시작 시 기존 속도를 저장하고 종료 시 그 값을 직접 복원.</p><p class="risk">그 사이 Carry/Sprint가 변하면 최신 상태를 덮어쓸 수 있음.</p></article>
-                <article class="code-panel compact-code"><div class="code-header"><span>RefreshMoveSpeed</span><code>MovementStatComponent.cpp</code></div><pre><code>MaxWalkSpeed = BaseMaxWalkSpeed
-    * SprintMod
-    * CarryMod
-    * StatusEffectMod;
-ApplyStatsToMovement();
+            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 02</p><h2 id="slide-10-title">C++ UFUNCTION과 Blueprint 노드 버전이 어긋난 문제</h2></header>
+            <div class="before-after-layout">
+              <article class="compare-panel before"><h3>오류 현상 · 원인</h3><ul><li><code>WBP_SkinCustomization</code> 로드 시 기존 Apply Skin / Equip Skin 노드 핀을 찾지 못함</li><li>현재 C++에는 두 함수가 <code>BlueprintCallable</code>로 존재</li><li>Editor DLL은 7월 22일, 관련 헤더는 7월 23일 수정본</li><li>즉 Blueprint가 읽는 Reflection 정보가 현재 소스보다 오래됨</li></ul><div class="cause"><b>원인</b> 소스·생성 코드·로드된 Editor 모듈의 버전 불일치</div></article>
+              <div class="solution-spine"><span>Editor 종료</span><b>→</b><span>Parcel_KnightEditor 빌드</span><b>→</b><span>Refresh All Nodes</span><b>→</b><span>Compile / Save</span></div>
+              <article class="compare-panel after"><h3>검증 · 해결 기준</h3><pre><code>// 현재 소스
+UFUNCTION(BlueprintCallable)
+void EquipSkin(FGameplayTag SkinTag);
 
-void OnRep_MaxWalkSpeed()
-{
-    ApplyStatsToMovement();
-}</code></pre></article>
-                <article class="compare-panel after"><h3>AFTER</h3><p>각 컴포넌트는 현재 배율만 제공하고 한 컴포넌트가 최종값을 재계산.</p><p class="benefit">서버 계산값을 RepNotify로 클라이언트 이동 컴포넌트에 적용.</p></article>
-              </div>
+UFUNCTION(BlueprintCallable)
+void ApplySkin(FGameplayTag SkinTag);</code></pre><div class="cause good"><b>완료 조건</b> 에디터 재시작 뒤 두 노드의 Target·Skin Tag 핀이 복구되고 Blueprint 컴파일 오류가 없어야 함</div></article>
             </div>
-            <div class="verification-strip"><strong>순서 검증</strong><span>Carry → Slow → 해제</span><span>Sprint → Slow → Sprint 종료</span><span>Slow 반복 적용·반복 해제</span><em>[에디터 확인 필요]</em></div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Character/ParcelMovementStatComponent.cpp</code><code>Public/Character/ParcelMovementStatComponent.h</code><code>Private/Components/DFStatusEffectComponent.cpp</code><code>Private/Character/CharacterCarryComponent.cpp</code></footer>
+            <div class="verification-strip"><strong>확인 결과</strong><span>UE 5.5 읽기 전용 로드에서 불일치 재현</span><span>원본 에셋은 수정하지 않음</span><em>[Blueprint 노드 캡처 및 실행 흐름 확인 필요]</em></div>
           </section>
 
-          <!-- 슬라이드 11: 성공 보상과 패널티의 콤보 정책을 현재 코드 순서로 설명합니다. -->
+          <!-- 슬라이드 11: Git 이력과 현재 충돌 코드를 사용해 Box/Character 물리 문제를 설명합니다. -->
           <section class="slide" id="slide-11" data-section="TROUBLESHOOTING" aria-labelledby="slide-11-title">
-            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 03</p><h2 id="slide-11-title">점수 부호와 콤보 순서를 명시적으로</h2></header>
-            <div class="score-layout">
-              <div class="score-sequence">
-                <div><span>성공</span><strong>AddTeamScore(Score, true)</strong><small>현재 콤보로 양수 보상 계산</small></div><b>→</b><div><span>다음 성공 준비</span><strong>OnDeliverySuccess()</strong><small>계산 뒤 ComboCount 증가</small></div>
-              </div>
-              <div class="score-grid">
-                <article class="compare-panel before"><h3>BEFORE</h3><ul><li>성공 콤보 증가 후 점수 계산</li><li>첫 성공부터 증가된 배율 가능</li><li>음수 패널티에도 같은 배율 적용</li><li>float 결과를 int에 암묵 변환</li></ul></article>
-                <article class="code-panel"><div class="code-header"><span>AddTeamScore</span><code>TeamScoreComponent.cpp</code></div><pre><code>const int32 AppliedAmount =
-    bApplyCombo &amp;&amp; Amount &gt; 0
-    ? static_cast&lt;int32&gt;(
-        static_cast&lt;float&gt;(Amount)
-        * GetComboMultiplier())
-    : Amount;
-TeamScore += AppliedAmount;
-TeamScore = FMath::Max(0, TeamScore);</code></pre></article>
-                <article class="compare-panel after"><h3>AFTER</h3><ul><li>첫 성공은 1.0배</li><li>성공 양수 보상만 콤보 적용</li><li>실패·시간 감소는 배율 없음</li><li>int 변환 의도를 코드로 표현</li></ul></article>
-              </div>
+            <header class="slide-heading compact"><p class="eyebrow">TROUBLESHOOTING 03</p><h2 id="slide-11-title">DeliveryBox와 캐릭터의 물리 충돌이 일관되지 않던 문제</h2></header>
+            <div class="before-after-layout collision-layout">
+              <article class="compare-panel before"><h3>오류 현상 · 원인 파악</h3><ul><li>바닥 상자가 캐릭터를 통과하거나 반응이 일정하지 않음</li><li>Root는 <code>CollisionComponent</code>, Mesh는 <code>NoCollision</code></li><li>이전 생성자는 <code>PhysicsBody</code> 프리셋에만 의존</li><li>Character Capsule의 PhysicsBody 응답도 코드에 없었음</li></ul><div class="cause"><b>검증</b> Git 594f37c 직전/현재 생성자와 Carry의 Attach/Detach 상태 비교</div></article>
+              <div class="solution-spine"><span>잘못된 설정 확인</span><b>→</b><span>Pawn ↔ PhysicsBody</span><b>→</b><span>Attach / Detach</span><b>→</b><span>Block 적용</span></div>
+              <article class="compare-panel after"><h3>해결 코드 · 개선 범위</h3><ul><li>상자: QueryAndPhysics + Pawn Block</li><li>캡슐: Pawn profile + PhysicsBody Block</li><li>운반 중: Actor collision·simulation 비활성</li><li>드롭 후: collision·simulation·hit notify 복원</li><li>던진 당사자는 0.5초 동안만 임시 무시</li></ul><div class="cause good"><b>개선 결과</b> 코드상 바닥/운반/드롭 상태가 분리됨. 실제 양쪽 화면 결과는 PIE 검증 필요</div></article>
             </div>
-            <div class="verification-strip"><strong>수치 검증</strong><span>첫 성공 1.0배</span><span>높은 콤보에서 시간 패널티 동일</span><span>실패 시 콤보 0</span><em>[에디터 확인 필요]</em></div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Core/TeamScoreComponent.cpp</code><code>Public/Core/TeamScoreComponent.h</code><code>Private/Core/DeliveryRuleComponent.cpp</code><code>Git 7f27047</code></footer>
+            <div class="verification-strip"><strong>재검증</strong><span>Listen Server + Client에서 밀기·들기·놓기·던지기</span><span>Zone overlap·배송 판정 회귀 확인</span><em>BP_DeliveryBox preset [에디터 확인 필요]</em></div>
           </section>
 
-          <!-- 슬라이드 12: 이어지는 세 장의 기술 선택을 요약합니다. -->
-          <section class="slide" id="slide-12" data-section="DECISIONS" aria-labelledby="slide-12-title">
-            <header class="slide-heading"><p class="eyebrow">TECHNICAL DECISIONS · 3</p><h2 id="slide-12-title">코드 전반에서 반복되는 설계 원칙</h2></header>
-            <div class="decision-summary">
-              <article><span>01</span><h3>얇은 Framework 클래스</h3><p>GameMode·GameState·PlayerState·Character가 컴포넌트에 실제 책임을 위임</p></article>
-              <article><span>02</span><h3>서버 권한 + 복제 콜백</h3><p>판정은 서버, 지속 상태는 ReplicatedUsing, 표현은 OnRep·RPC로 분리</p></article>
-              <article><span>03</span><h3>Tags + 데이터 에셋</h3><p>문자열 분기 대신 도메인 태그와 DataAsset/DataTable로 설정을 구성</p></article>
+          <!-- 슬라이드 12: 실제 RPC와 RepNotify 사용 위치를 문제 상황·기준·접근 순서로 설명합니다. -->
+          <section class="slide" id="slide-12" data-section="TECH" aria-labelledby="slide-12-title">
+            <header class="slide-heading compact"><p class="eyebrow">TECHNICAL ISSUE 01</p><h2 id="slide-12-title">서버와 클라이언트의 역할 분리</h2></header>
+            <div class="network-matrix">
+              <article class="matrix-card persistent"><span>문제 상황</span><h3>상태 위조 방지</h3><p>점수·체력·배송 상태·Carry 상태를 클라이언트가 직접 바꾸면 모든 화면의 결과가 달라짐</p><code>TeamScore · HP · BoxStateTags · CarriedBox</code></article>
+              <article class="matrix-card intent"><span>어려웠던 상황</span><h3>Listen Server</h3><p>호스트는 서버와 로컬 플레이어 역할을 동시에 수행해 OnRep만 기다리면 로컬 표현이 빠질 수 있음</p><code>HasAuthority + IsLocallyControlled</code></article>
+              <article class="matrix-card transient"><span>판단 기준</span><h3>판정과 표현 분리</h3><p>게임 규칙은 서버, 지속 상태는 Replication, 소유자 알림은 Client RPC, 순간 표현은 Multicast</p><code>intent → validate → mutate → replicate</code></article>
             </div>
-            <div class="decision-caveat"><strong>발표 시 구분</strong><span>“현재 코드가 채택한 구조”는 확인됨. 당시 검토한 대안과 선택 배경은 팀 기록이 없어 [팀 확인 필요].</span></div>
-            <footer class="slide-evidence"><span>근거</span><code>Public/Core/</code><code>Public/Character/</code><code>Public/Data/DFTrapDataAsset.h</code><code>Config/Tags/</code></footer>
+            <div class="decision-bottom-grid">
+              <div><h4>최종 접근 · 서버</h4><p><code>DeliveryZone</code>, <code>HealthComponent</code>, <code>TeamScoreComponent</code>가 Authority를 확인한 뒤 상태 변경.</p></div>
+              <div><h4>최종 접근 · 상태</h4><p><code>BoxStateTags</code>, HP, Score, Inventory, CarriedBox를 Replicated/RepNotify로 동기화.</p></div>
+              <div><h4>최종 접근 · 표현</h4><p><code>OnRep</code>·delegate·Client/Multicast RPC로 HUD, 사운드, FX를 갱신.</p></div>
+            </div>
           </section>
 
-          <!-- 슬라이드 13: Framework와 ActorComponent의 실제 소유 관계를 설명합니다. -->
-          <section class="slide" id="slide-13" data-section="DECISIONS" aria-labelledby="slide-13-title">
-            <header class="slide-heading compact"><p class="eyebrow">DECISION 01</p><h2 id="slide-13-title">Framework는 조정하고, 컴포넌트가 책임진다</h2></header>
+          <!-- 슬라이드 13: Config/Tags와 런타임 컨테이너에서 실제 사용되는 State/Action만 표시합니다. -->
+          <section class="slide" id="slide-13" data-section="TECH" aria-labelledby="slide-13-title">
+            <header class="slide-heading compact"><p class="eyebrow">TECHNICAL ISSUE 02</p><h2 id="slide-13-title">GameplayTags로 State와 Action을 분리</h2></header>
+            <div class="closing-layout tech-tag-layout">
+              <div class="data-vocabulary">
+                <div class="tag-cloud" aria-label="실제 GameplayTag 예시"><span>Character.State.Carrying</span><span>Character.State.Ragdoll</span><span>Character.State.Dead</span><span>Character.Action.Interact</span><span>Character.Action.Throwing</span><span>Box.State.Held</span><span>Box.State.Delivered</span><span>Trap.Effect.Slow</span></div>
+                <div class="data-cards"><article><strong>문제 상황</strong><small>여러 Boolean과 Enum이 늘면 상태 조합과 시스템 간 전달 지점이 분산</small></article><article><strong>어려웠던 상황</strong><small>Carry·Ragdoll·Dead 같은 상태가 입력, 이동, UI, 배송에 동시에 영향</small></article><article><strong>판단 기준</strong><small>지속 상태는 State, 입력/전이는 Action으로 이름 공간을 분리하고 Exact 비교 사용</small></article></div>
+              </div>
+              <div class="closing-summary tag-summary">
+                <article><span>01</span><strong>정의</strong><small><code>Config/Tags/*.ini</code>에서 도메인별 태그 등록</small></article>
+                <article><span>02</span><strong>저장·복제</strong><small><code>UParcelPlayerStateComponent::CharacterStateTags</code>를 RepNotify로 동기화</small></article>
+                <article><span>03</span><strong>데이터 연결</strong><small><code>FItemData</code>, <code>FBoxData</code>, Trap DataAsset가 태그를 키로 사용</small></article>
+                <div class="qa-block tech-final"><strong>최종 접근</strong><span>서버가 Add/Remove하고, OnRep delegate가 UI·애니메이션에 현재 컨테이너를 전달</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 슬라이드 14: Lyra 직접 의존성이 아닌, 실제 프로젝트의 컴포넌트·인터페이스 책임 분리를 설명합니다. -->
+          <section class="slide" id="slide-14" data-section="TECH" aria-labelledby="slide-14-title">
+            <header class="slide-heading compact"><p class="eyebrow">TECHNICAL ISSUE 03</p><h2 id="slide-14-title">Lyra 스타일의 Component와 Interface 구조</h2></header>
             <div class="ownership-layout">
               <div class="ownership-tree">
+                <div><strong>AParcelCharacter</strong><span>UParcelHeroComponent</span><span>UParcelInteractionComponent</span><span>UCharacterCarryComponent</span><span>UParcelMovementStatComponent</span></div>
+                <div><strong>AParcelPlayerState</strong><span>UInventoryComponent</span><span>UPlayerStatComponent</span><span>UCustomizationComponent</span></div>
+                <div><strong>ADeliveryBox</strong><span>IInteractableInterface</span><span>ICarryableInterface</span><span>UHealthComponent</span></div>
                 <div><strong>AParcelGameMode</strong><span>UDeliveryRuleComponent</span><span>URespawnComponent</span></div>
-                <div><strong>AParcelGameState</strong><span>UTeamScoreComponent</span><span>UShopComponent</span></div>
-                <div><strong>AParcelPlayerState</strong><span>UPlayerStatComponent</span><span>UInventoryComponent</span><span>UCustomizationComponent</span></div>
-                <div><strong>AParcelCharacter</strong><span>Carry · Movement · Health · Status · Ragdoll…</span></div>
               </div>
               <div class="decision-detail">
                 <dl class="detail-list">
-                  <div><dt>문제</dt><dd>게임 규칙·수명주기·캐릭터 행동을 한 클래스에 모으면 변경 영향이 커짐</dd></div>
-                  <div><dt>현재 방식</dt><dd>Framework 클래스가 진입점을 제공하고 실제 로직은 소유 컴포넌트로 위임</dd></div>
-                  <div><dt>비교 대안</dt><dd>GameMode/Character 중심의 단일 클래스 구성 — 실제 논의 여부 [팀 확인 필요]</dd></div>
-                  <div><dt>장점</dt><dd>복제 주체와 수명주기별 책임이 코드 위치에 드러남</dd></div>
-                  <div><dt>제한</dt><dd>컴포넌트 간 호출 순서와 Blueprint 기본값 연결은 별도 관리 필요</dd></div>
+                  <div><dt>문제 상황</dt><dd>Character·GameMode에 입력, 운반, 상태, 규칙이 집중되면 수정 범위가 커짐</dd></div>
+                  <div><dt>어려운 점</dt><dd>Component 소유 Actor·초기화 순서·서버 RPC 위치와 Blueprint 연결을 함께 관리해야 함</dd></div>
+                  <div><dt>판단 기준</dt><dd>수명주기는 소유 Actor, 기능 상태는 Component, 대상 능력은 Interface로 질의</dd></div>
+                  <div><dt>최종 접근</dt><dd><code>Execute_CanInteract</code> → <code>Execute_Interact</code> → Carry Component로 위임</dd></div>
+                  <div><dt>정확한 표현</dt><dd>Lyra 공식 플러그인·코드 복제 근거는 없음. 책임 분리 “스타일”을 적용한 프로젝트 구조</dd></div>
                 </dl>
               </div>
             </div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Core/ParcelGameMode.cpp</code><code>Private/Core/ParcelGameState.cpp</code><code>Private/Core/ParcelPlayerState.cpp</code><code>Private/Character/ParcelCharacter.cpp</code></footer>
           </section>
 
-          <!-- 슬라이드 14: 네트워크 전달 수단을 데이터 수명에 따라 나눈 현재 구조입니다. -->
-          <section class="slide" id="slide-14" data-section="DECISIONS" aria-labelledby="slide-14-title">
-            <header class="slide-heading compact"><p class="eyebrow">DECISION 02</p><h2 id="slide-14-title">상태의 수명에 맞춰 Replication과 RPC를 선택</h2></header>
-            <div class="network-matrix">
-              <article class="matrix-card persistent"><span>지속 상태</span><h3>ReplicatedUsing</h3><p>팀 점수·콤보·남은 시간·인벤토리·선택 맵·이동 수치</p><code>OnRep → delegate / movement apply</code></article>
-              <article class="matrix-card intent"><span>행동 의도</span><h3>Server RPC</h3><p>로드아웃 제출·아이템 사용·로비 선택·게임 시작 요청</p><code>Authority → validation → mutation</code></article>
-              <article class="matrix-card transient"><span>일시 표현</span><h3>Client / Multicast RPC</h3><p>소유자 사망 UI·배송 로그·스테이지 결과·트랩 표현</p><code>trusted state → targeted feedback</code></article>
-            </div>
-            <div class="decision-bottom-grid">
-              <div><h4>판단 기준</h4><p>게임 규칙을 바꾸는 값은 서버가 생성·검증하고, 클라이언트는 복제 결과를 표현.</p></div>
-              <div><h4>비교 대안</h4><p>클라이언트 직접 상태 변경 — 실제 논의 여부 [팀 확인 필요]. 현재 코드는 권한 경계를 우선.</p></div>
-              <div><h4>현재 제한</h4><p>Reliable multicast 사용량과 전용 서버 동작은 별도 프로파일링·실행 검증 필요.</p></div>
-            </div>
-            <footer class="slide-evidence"><span>근거</span><code>Private/Core/TeamScoreComponent.cpp</code><code>Private/Core/InventoryComponent.cpp</code><code>Private/Delivery/DeliveryBox.cpp</code><code>Private/Delivery/Traps/DFTrapBase.cpp</code></footer>
-          </section>
-
-          <!-- 슬라이드 15: GameplayTag와 데이터 에셋 선택, 기술 원칙, Q&A를 한 장에 정리합니다. -->
-          <section class="slide slide-closing" id="slide-15" data-section="DECISIONS" aria-labelledby="slide-15-title">
-            <header class="slide-heading compact"><p class="eyebrow">DECISION 03 · TECH SUMMARY</p><h2 id="slide-15-title">태그와 데이터로 확장 지점을 만든다</h2></header>
-            <div class="closing-layout">
-              <div class="data-vocabulary">
-                <div class="tag-cloud" aria-label="GameplayTag 예시"><span>Character.State</span><span>Trap.Effect</span><span>Box.State</span><span>Zone.Type</span><span>Item.Consumables</span></div>
-                <div class="data-cards"><article><strong>UStageData</strong><small>시간·목표 점수·상자 목록·DataTable</small></article><article><strong>UDFTrapDataAsset</strong><small>타이밍·효과·피해·밀기·표현 설정</small></article><article><strong>FItemData / FBoxData</strong><small>태그를 키로 사용하는 도메인 데이터</small></article></div>
-                <p class="pending-inline">실제 DataAsset 값과 Blueprint 참조 연결은 [에디터 확인 필요]</p>
+          <!-- 슬라이드 15: 팀 회고 문구는 제공된 의미를 유지하고 발표용으로 압축했습니다. -->
+          <section class="slide slide-closing" id="slide-15" data-section="WRAP-UP" aria-labelledby="slide-15-title">
+            <header class="slide-heading compact"><p class="eyebrow">TEAM RETROSPECTIVE</p><h2 id="slide-15-title">팀 프로젝트 회고와 Q&amp;A</h2></header>
+            <div class="retrospective-layout">
+              <div class="retro-grid">
+                <article class="retro-card good"><h3>잘된 점</h3><ul><li>서버 연동과 멀티플레이 통신 방식의 이해 확장</li><li>C++와 Blueprint를 함께 사용한 UI 제작 경험</li><li>Actor 구조와 캐릭터 Enhanced Input 이해</li></ul></article>
+                <article class="retro-card caution"><h3>아쉬운 점</h3><ul><li>기능 증가에 따른 코드 오염을 더 체계적으로 관리할 필요</li><li>병행 작업의 충돌·우선순위 관리 어려움</li><li><code>.uasset</code> 병합과 버전 관리의 한계</li><li>소통·일정·마일스톤 관리의 중요성 체감</li></ul></article>
+                <article class="retro-card learned"><h3>배운 점</h3><ul><li>규모가 커질수록 브랜치 전략과 변경 범위 관리가 중요</li><li>파트 간 의존이나 충돌 가능성은 적절한 채널로 미리 공유</li></ul></article>
+                <article class="retro-card next"><h3>다음 개선</h3><ul><li>이번에는 멀티플레이 아키텍처와 기술적 완성도에 집중</li><li>다음에는 기본기를 다진 뒤 플레이어가 느끼는 ‘게임의 재미’까지 확장</li></ul></article>
               </div>
-              <div class="closing-summary">
-                <article><span>01</span><strong>서버가 판정한다</strong><small>클라이언트는 의도를 보내고 결과를 복제받음</small></article>
-                <article><span>02</span><strong>상태에서 다시 계산한다</strong><small>중복 호출과 순서 변화에도 같은 최종 상태</small></article>
-                <article><span>03</span><strong>데이터와 표현을 분리한다</strong><small>C++ 규칙과 에디터 설정의 경계를 명확히</small></article>
-                <div class="qa-block"><strong>Q&amp;A</strong><span>[팀 입력 필요: 발표 핵심 결론]</span></div>
+              <div class="retro-closing">
+                <div class="conclusion-block"><span>발표 핵심 결론</span><strong>서버 권한과 책임 분리를 기반으로 기존 배송 플레이를 유지하며 인벤토리·물리 상호작용을 확장했습니다.</strong></div>
+                <div class="qa-block"><strong>Q&amp;A</strong><span>질문 감사합니다.</span></div>
               </div>
             </div>
-            <footer class="slide-evidence"><span>근거</span><code>Config/Tags/</code><code>Public/Delivery/StageData.h</code><code>Public/Data/DFTrapDataAsset.h</code><code>Public/Data/ItemData.h</code></footer>
           </section>
         </article>
       </div>

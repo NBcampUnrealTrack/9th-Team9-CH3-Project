@@ -332,39 +332,6 @@ small {
   line-height: 1.45;
 }
 
-.slide-evidence {
-  position: absolute;
-  left: 86px;
-  right: 86px;
-  bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  color: var(--muted-2);
-  font-size: 16px;
-}
-
-.slide-evidence span {
-  color: var(--cyan);
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-}
-
-.slide-evidence code {
-  min-width: 0;
-  overflow: hidden;
-  padding: 5px 8px;
-  border: 1px solid rgba(168, 198, 226, 0.13);
-  border-radius: 6px;
-  color: #8fa4b9;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 16px;
-}
-
-.speaker-note,
 .validation-banner,
 .decision-caveat {
   display: flex;
@@ -377,14 +344,6 @@ small {
   color: var(--muted);
   font-size: 18px;
   line-height: 1.4;
-}
-
-.speaker-note::before {
-  content: "NOTE";
-  color: var(--amber);
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
 }
 
 /* Cover */
@@ -496,6 +455,43 @@ small {
 .cover-media {
   aspect-ratio: 4 / 5;
   min-height: 620px;
+}
+
+.cover-media-frame {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+.cover-media-frame > img {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.cover-media-frame .cover-fallback {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  transition: opacity 160ms ease;
+}
+
+.cover-media-frame.has-image > img {
+  visibility: visible;
+  opacity: 1;
+}
+
+.cover-media-frame.has-image .cover-fallback {
+  visibility: hidden;
+  opacity: 0;
 }
 
 /* Overview */
@@ -1641,6 +1637,142 @@ small {
 .qa-block span {
   color: var(--muted);
   font-size: 16px;
+}
+
+/* Collision feature / troubleshooting */
+.collision-layout {
+  grid-template-columns: 1fr 0.56fr 1.04fr;
+  min-height: 525px;
+}
+
+.collision-layout .compare-panel {
+  padding: 22px;
+}
+
+.collision-layout .compare-panel h3 {
+  margin-bottom: 18px;
+}
+
+.collision-layout .compare-panel li,
+.collision-layout .compare-panel p {
+  font-size: 18px;
+  line-height: 1.42;
+}
+
+.collision-layout .cause {
+  margin-top: 18px;
+  font-size: 18px;
+}
+
+/* GameplayTag detail */
+.tech-tag-layout {
+  min-height: 610px;
+}
+
+.tech-tag-layout .data-vocabulary {
+  padding: 22px;
+}
+
+.tech-tag-layout .tag-cloud {
+  margin-bottom: 18px;
+}
+
+.tech-tag-layout .data-cards article {
+  grid-template-columns: 165px 1fr;
+  min-height: 90px;
+  padding: 15px 17px;
+}
+
+.tech-tag-layout .tag-summary {
+  grid-template-rows: repeat(3, 1fr) 1.2fr;
+}
+
+.tech-tag-layout .tech-final strong {
+  font-size: 24px;
+}
+
+.tech-tag-layout .tech-final span {
+  max-width: 360px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Team retrospective */
+.retrospective-layout {
+  display: grid;
+  grid-template-columns: 1.38fr 0.62fr;
+  gap: 22px;
+  min-height: 620px;
+}
+
+.retro-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.retro-card {
+  padding: 21px 23px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--cyan);
+  border-radius: 15px;
+  background: rgba(13, 25, 42, 0.68);
+}
+
+.retro-card h3 {
+  margin: 0 0 16px;
+  color: var(--cyan);
+  font-size: 23px;
+}
+
+.retro-card ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding-left: 21px;
+}
+
+.retro-card li {
+  color: #c0cedc;
+  font-size: 18px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.retro-card.good { border-top-color: var(--green); }
+.retro-card.good h3 { color: var(--green); }
+.retro-card.caution { border-top-color: var(--amber); }
+.retro-card.caution h3 { color: var(--amber); }
+.retro-card.learned { border-top-color: var(--violet); }
+.retro-card.learned h3 { color: var(--violet); }
+
+.retro-closing {
+  display: grid;
+  grid-template-rows: 1.18fr 0.82fr;
+  gap: 15px;
+}
+
+.conclusion-block {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  padding: 28px;
+  border: 1px solid rgba(64, 215, 255, 0.3);
+  border-radius: 17px;
+  background: var(--cyan-soft);
+}
+
+.conclusion-block span {
+  color: var(--cyan);
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.conclusion-block strong {
+  font-size: 24px;
+  line-height: 1.52;
+  word-break: keep-all;
 }
 
 /* Navigation */
