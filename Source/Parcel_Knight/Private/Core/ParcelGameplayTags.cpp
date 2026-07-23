@@ -20,6 +20,17 @@ namespace ParcelGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Title,      "Item.Cosmetic.Title",       "칭호 카테고리")
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Title_Ace,  "Item.Cosmetic.Title.Ace",   "에이스 칭호")
 
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin,        "Item.Cosmetic.Skin",        "스킨 카테고리")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Red,    "Item.Cosmetic.Skin.Red",    "빨간색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Orange, "Item.Cosmetic.Skin.Orange", "주황색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Yellow, "Item.Cosmetic.Skin.Yellow", "노란색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Green,  "Item.Cosmetic.Skin.Green",  "초록색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Blue,   "Item.Cosmetic.Skin.Blue",   "파란색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Indigo, "Item.Cosmetic.Skin.Indigo", "남색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Purple, "Item.Cosmetic.Skin.Purple", "보라색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_White,  "Item.Cosmetic.Skin.White",  "흰색 스킨")
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Cosmetic_Skin_Gold,   "Item.Cosmetic.Skin.Gold",   "황금색 스킨")
+
 	// ========================= Character =========================
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Character_State_GettingUp, "Character.State.GettingUp", "래그돌 해제 후 기상 모션 중인 상태")
 }

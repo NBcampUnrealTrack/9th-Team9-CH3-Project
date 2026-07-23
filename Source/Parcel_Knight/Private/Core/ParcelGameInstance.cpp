@@ -539,10 +539,13 @@ FString UParcelGameInstance::GetPendingMapPath() const
 
 void UParcelGameInstance::EquipSkin(FGameplayTag SkinTag)
 {
-	// 보유하지 않은 코스메틱은 장착 불가
-	if (!HasOwnedCosmetic(SkinTag)) return;
-	EquippedSkin = SkinTag;
-	SaveData();
+	if (!SkinTag.IsValid()) return;
+	// 스킨 카테고리(Item.Cosmetic.Skin.*)이거나 소유 중인 코스메틱이면 즉시 장착 후 저장
+	if (SkinTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Item.Cosmetic.Skin"))) || HasOwnedCosmetic(SkinTag))
+	{
+		EquippedSkin = SkinTag;
+		SaveData();
+	}
 }
 
 void UParcelGameInstance::EquipTitle(FGameplayTag TitleTag)

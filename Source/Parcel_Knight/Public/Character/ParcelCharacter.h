@@ -126,11 +126,20 @@ public:
 	void Server_UseSlot(int32 SlotIndex);
 
 	// 칭호 태그로 DataTable 조회 후 네임플레이트에 반영 — CustomizationComponent OnRep 및 PossessedBy에서 호출
+	UFUNCTION(BlueprintCallable, Category = "Title")
 	void ApplyTitle(FGameplayTag TitleTag);
+
+	// 스킨 태그로 DataTable 조회 후 메시에 머티리얼 적용 — CustomizationComponent OnRep 및 PossessedBy에서 호출
+	UFUNCTION(BlueprintCallable, Category = "Cosmetic")
+	void ApplySkin(FGameplayTag SkinTag);
 
 	// 에디터에서 할당 — DT_CosmeticItems 할당
 	UPROPERTY(EditDefaultsOnly, Category = "Title")
 	TObjectPtr<UDataTable> CosmeticDataTable;
+
+	// 에디터에서 할당 — DT_CharacterSkins 할당 (FSkinData)
+	UPROPERTY(EditDefaultsOnly, Category = "Cosmetic")
+	TObjectPtr<UDataTable> SkinDataTable;
 
 	// 컴포넌트 게터 — 외부 컴포넌트·AI·UI에서 접근용
 	UFUNCTION(BlueprintPure, Category = "Character|Components")
