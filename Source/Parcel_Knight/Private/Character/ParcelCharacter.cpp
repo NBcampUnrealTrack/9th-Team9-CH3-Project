@@ -12,6 +12,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerState.h"
@@ -43,6 +44,13 @@ AParcelCharacter::AParcelCharacter()
 
     // 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
     GetCharacterMovement()->AirControl = 0.35f;
+
+	if (GetCapsuleComponent())
+	{
+		GetCapsuleComponent()->SetCollisionProfileName(TEXT("Pawn"));
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
+		GetCapsuleComponent()->SetNotifyRigidBodyCollision(true);
+	}
 
     PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
     RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
