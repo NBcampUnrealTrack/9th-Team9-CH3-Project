@@ -51,17 +51,22 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_SubmitLoadout(const TArray<FGameplayTag>& RequestedItems);
 
+	/** Submit the local player's equipped customization so the server-owned CustomizationComponent (and its replication) reflects this client's own choice instead of the host's. */
+	UFUNCTION(Server, Reliable)
+	void Server_SubmitCustomization(FGameplayTag SkinTag, FGameplayTag TitleTag, FGameplayTag EffectTag);
+
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void AcknowledgePossession(APawn* InPawn) override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
-	
+
 	// 🆕 [핵심] 심리스 트래블 완료 후 클라이언트 레벨 진입/Pawn 재설정 시 엔진에서 자동 호출
 	virtual void ClientRestart_Implementation(APawn* NewPawn) override;
 
 	void SubmitLocalLoadoutToServer();
+	void SubmitLocalCustomizationToServer();
 	// [Editor] HUD 위젯 클래스 지정
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;

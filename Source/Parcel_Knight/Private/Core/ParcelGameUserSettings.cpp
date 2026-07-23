@@ -14,6 +14,7 @@ namespace ParcelSettingsDefaults
 	constexpr float MouseSensitivity = 1.0f;
 	constexpr float MinMouseSensitivity = 0.1f;
 	constexpr float MaxMouseSensitivity = 3.0f;
+	constexpr float FrameRateLimit = 60.0f;
 
 	const FSoftObjectPath MasterSoundClassPath(
 		TEXT("/Game/Audio/Settings/SC_Parcel_Master.SC_Parcel_Master"));
@@ -33,6 +34,7 @@ void UParcelGameUserSettings::SetToDefaults()
 
 	MasterVolume = ParcelSettingsDefaults::MasterVolume;
 	MouseSensitivity = ParcelSettingsDefaults::MouseSensitivity;
+	SetFrameRateLimit(ParcelSettingsDefaults::FrameRateLimit);
 }
 
 void UParcelGameUserSettings::LoadSettings(bool bForceReload)
@@ -132,8 +134,12 @@ void UParcelGameUserSettings::SetMouseSensitivity(float NewMouseSensitivity)
 
 void UParcelGameUserSettings::ApplyNonResolutionSettings()
 {
+	// 저장된 GameUserSettings.ini에 예전 FrameRateLimit(0=무제한) 값이 남아있어도
+	// 항상 60으로 고정되도록 Super 호출 전에 강제 설정한다.
+	SetFrameRateLimit(ParcelSettingsDefaults::FrameRateLimit);
+
 	Super::ApplyNonResolutionSettings();
-	
+
 	if (GEngine && GEngine->GetWorldContexts().Num() > 0)
 	{
 		for (const FWorldContext& Context : GEngine->GetWorldContexts())
