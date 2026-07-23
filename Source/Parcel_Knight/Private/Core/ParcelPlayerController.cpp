@@ -16,6 +16,7 @@
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelPlayerState.h"
 #include "Core/InventoryComponent.h"
+#include "Core/CustomizationComponent.h"
 #include "GameMapsSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
@@ -177,12 +178,14 @@ void AParcelPlayerController::OnPossess(APawn* InPawn)
 {
     Super::OnPossess(InPawn);
     SubmitLocalLoadoutToServer();
+    SubmitLocalCustomizationToServer();
 }
 
 void AParcelPlayerController::AcknowledgePossession(APawn* InPawn)
 {
     Super::AcknowledgePossession(InPawn);
     SubmitLocalLoadoutToServer();
+    SubmitLocalCustomizationToServer();
 
     if (IsLocalController() && InPawn && LastRespawnNotifiedPawn.Get() != InPawn)
     {
@@ -233,6 +236,44 @@ void AParcelPlayerController::Server_SubmitLoadout_Implementation(
     }
 
     CONTROLLER_LOG(Log, TEXT("[Loadout] Server accepted %d submitted item(s)."), RequestedItems.Num());
+}
+
+void AParcelPlayerController::SubmitLocalCustomizationToServer()
+{
+    if (!IsLocalController())
+    {
+       return;
+    }
+
+    if (const UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+    {
+       Server_SubmitCustomization(GI->GetEquippedSkin(), GI->GetEquippedTitle(), GI->GetEquippedEffect());
+    }
+}
+
+void AParcelPlayerController::Server_SubmitCustomization_Implementation(
+    FGameplayTag SkinTag, FGameplayTag TitleTag, FGameplayTag EffectTag)
+{
+    AParcelPlayerState* ParcelPlayerState = GetPlayerState<AParcelPlayerState>();
+    UCustomizationComponent* Customization = ParcelPlayerState
+       ? ParcelPlayerState->GetCustomizationComponent()
+       : nullptr;
+
+    if (!Customization)
+    {
+       CONTROLLER_LOG(Warning, TEXT("[Customization] Server rejected submission: CustomizationComponent unavailable."));
+       return;
+    }
+
+    Customization->EquipSkin(SkinTag);
+    Customization->EquipTitle(TitleTag);
+    Customization->EquipEffect(EffectTag);
+
+    CONTROLLER_LOG(
+       Log,
+       TEXT("[Customization] Server accepted submission: Skin=%s, Title=%s"),
+       *SkinTag.ToString(),
+       *TitleTag.ToString());
 }
 
 // 🆕 복구된 사망 처리 Client RPC 구현체
