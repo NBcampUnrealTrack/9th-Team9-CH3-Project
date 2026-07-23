@@ -4,7 +4,10 @@
 void UParcelNameplateWidget::SetPlayerName(const FString& InName)
 {
 	if (Txt_PlayerName)
+	{
 		Txt_PlayerName->SetText(FText::FromString(InName));
+		Txt_PlayerName->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
 }
 
 void UParcelNameplateWidget::SetTitle(const FItemData* TitleData)
