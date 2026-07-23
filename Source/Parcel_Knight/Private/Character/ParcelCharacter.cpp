@@ -211,6 +211,12 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 
 	if (AParcelPlayerState* PS = GetPlayerState<AParcelPlayerState>())
 	{
+		if (UParcelPlayerStateComponent* StateComp = PS->GetParcelPlayerStateComponent())
+		{
+			// 플레이어가 처음 스폰되거나 부활했을 때 남아있는 이전 상태 태그(Dead 등)를 깔끔히 리셋
+			StateComp->ResetStateTags();
+		}
+
 		if (UInventoryComponent* InvComp = PS->GetInventoryComponent())
 			InvComp->ApplyPassiveEffects(this);
 
