@@ -107,9 +107,10 @@ void UParcelLobbyHUDWidget::NativeConstruct()
 
 void UParcelLobbyHUDWidget::NativeDestruct()
 {
-    if (GetWorld())
+    // [방어 코드] 로비 탈출 및 레벨 이탈 시 리프레시 타이머 깨끗이 제거
+    if (UWorld* World = GetWorld())
     {
-        GetWorld()->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
+        World->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
     }
 
     if (UGameInstance* GI = GetGameInstance())
@@ -119,6 +120,9 @@ void UParcelLobbyHUDWidget::NativeDestruct()
             SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
         }
     }
+
+    CachedBoundPawn = nullptr;
+    CachedCarriedBox = nullptr;
     
     Super::NativeDestruct();
 }
