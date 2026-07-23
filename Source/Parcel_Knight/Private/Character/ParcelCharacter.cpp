@@ -261,69 +261,85 @@ void AParcelCharacter::UpdateOverheadNameplate()
 		if (GetWorld())
 		{
 			GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
-			NameplateRetryTimerHandle.Invalidate(); // [수정] 핸들 초기화
+			NameplateRetryTimerHandle.Invalidate();
 		}
 		return;
 	}
 
-    NameplateWidgetComp->SetVisibility(true);
-    NameplateWidgetComp->SetHiddenInGame(false);
-
+	NameplateWidgetComp->SetVisibility(true);
+	NameplateWidgetComp->SetHiddenInGame(false);
+	
+	if (GetNetMode() == NM_ListenServer || HasAuthority())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (APlayerController* FirstPC = World->GetFirstPlayerController())
+			{
+				if (ULocalPlayer* LocalPlayer = FirstPC->GetLocalPlayer())
+				{
+					NameplateWidgetComp->SetOwnerPlayer(LocalPlayer);
+				}
+			}
+		}
+	}
+	
 	APlayerState* PS = GetPlayerState();
-	if (!PS || PS->GetPlayerName().IsEmpty())
-	{
-		UE_LOG(LogCharacter, Verbose, TEXT("[Nameplate Retry] %s: PlayerState가 없거나 닉네임이 비어있어 0.1초 후 재시도합니다."), *GetName());
-		if (GetWorld())
-		{
-			// [수정 3 - 핵심] 기존 타이머 핸들을 Clear 및 Invalidate 처리해야 2차, 3차 재시도 타이머가 차단되지 않음!
-			GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
-			NameplateRetryTimerHandle.Invalidate();
+    if (!PS || PS->GetPlayerName().IsEmpty())
+    {
+       UE_LOG(LogCharacter, Verbose, TEXT("[Nameplate Retry] %s: PlayerState가 없거나 닉네임이 비어있어 0.1초 후 재시도합니다."), *GetName());
+       if (GetWorld())
+       {
+          GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+          NameplateRetryTimerHandle.Invalidate();
 
-			GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
-		}
-		return;
-	}
-	
-	if (!NameplateWidgetComp->GetUserWidgetObject())
-	{
-		NameplateWidgetComp->InitWidget();
-	}
+          GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
+       }
+       return;
+    }
+    
+    // 4. 위젯 인스턴스가 없는 경우 초기화
+    if (!NameplateWidgetComp->GetUserWidgetObject())
+    {
+       NameplateWidgetComp->InitWidget();
+    }
 
-	UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject());
-	if (!NameWidget)
-	{
-		UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: GetUserWidgetObject() 캐스팅 실패! BP_ParcelCharacter의 Widget Class 설정을 확인하세요."), *GetName());
-		if (GetWorld())
-		{
-			GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
-			NameplateRetryTimerHandle.Invalidate();
+    UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject());
+    if (!NameWidget)
+    {
+       UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: GetUserWidgetObject() 캐스팅 실패! BP_ParcelCharacter의 Widget Class 설정을 확인하세요."), *GetName());
+       if (GetWorld())
+       {
+          GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+          NameplateRetryTimerHandle.Invalidate();
 
-			GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
-		}
-		return;
-	}
-	
-	FString Nickname = PS->GetPlayerName();
-	NameWidget->SetPlayerName(Nickname);
-	
-	if (PlayerStateComp)
-	{
-		NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
-	}
+          GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
+       }
+       return;
+    }
+    
+    // 5. 닉네임, 상태 태그, 칭호 적용
+    FString Nickname = PS->GetPlayerName();
+    NameWidget->SetPlayerName(Nickname);
+    
+    if (PlayerStateComp)
+    {
+       NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
+    }
 
-	if (AParcelPlayerState* ParcelPS = Cast<AParcelPlayerState>(PS))
-	{
-		if (UCustomizationComponent* CustComp = ParcelPS->GetCustomizationComponent())
-		{
-			ApplyTitle(CustComp->GetEquippedTitle());
-		}
-	}
-	
-	if (GetWorld())
-	{
-		GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
-		NameplateRetryTimerHandle.Invalidate();
-	}
+    if (AParcelPlayerState* ParcelPS = Cast<AParcelPlayerState>(PS))
+    {
+       if (UCustomizationComponent* CustComp = ParcelPS->GetCustomizationComponent())
+       {
+          ApplyTitle(CustComp->GetEquippedTitle());
+       }
+    }
+    
+    // 6. 성공적으로 반영되었으므로 타이머 정리
+    if (GetWorld())
+    {
+       GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+       NameplateRetryTimerHandle.Invalidate();
+    }
 
     UE_LOG(LogCharacter, Log, TEXT("[Nameplate Success] %s 머리 위 이름표 갱신 완료: %s"), *GetName(), *Nickname);
 }
