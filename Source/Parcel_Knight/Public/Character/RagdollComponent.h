@@ -149,6 +149,9 @@ private:
     // AttemptAutoRecovery가 공중 체크로 재시도를 시작한 뒤 누적된 대기 시간 (서버 전용)
     float AirRecoveryWaitElapsed = 0.f;
 
+    // AttemptAutoRecovery가 상태이상 때문에 재시도를 시작한 뒤 누적된 대기 시간 (서버 전용)
+    float StatusEffectWaitElapsed = 0.f;
+
     // 이 컴포넌트를 소유한 캐릭터 캐싱 변수
     UPROPERTY()
     ACharacter* OwnerCharacter;
