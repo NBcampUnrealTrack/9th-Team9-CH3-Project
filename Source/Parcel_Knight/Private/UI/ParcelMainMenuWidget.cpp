@@ -7,6 +7,9 @@
 #include "ParcelLog.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "EngineUtils.h"
+#include "Character/ParcelCharacter.h"
+#include "Core/ParcelGameInstance.h"
 
 void UParcelMainMenuWidget::NativeConstruct()
 {
@@ -46,6 +49,16 @@ void UParcelMainMenuWidget::NativeConstruct()
 	{
 		Btn_ExitGame->OnClicked.RemoveDynamic(this, &UParcelMainMenuWidget::HandleExitGameClicked);
 		Btn_ExitGame->OnClicked.AddDynamic(this, &UParcelMainMenuWidget::HandleExitGameClicked);
+	}
+
+	// 메인메뉴 레벨에 배치된 프리뷰 캐릭터에 저장된 커스터마이징 재적용
+	if (UParcelGameInstance* GI = GetGameInstance<UParcelGameInstance>())
+	{
+		for (TActorIterator<AParcelCharacter> It(GetWorld()); It; ++It)
+		{
+			It->ApplySkin(GI->GetEquippedSkin());
+			It->ApplyTitle(GI->GetEquippedTitle());
+		}
 	}
 }
 

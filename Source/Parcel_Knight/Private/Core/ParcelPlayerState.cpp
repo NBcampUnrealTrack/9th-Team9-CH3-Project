@@ -36,10 +36,13 @@ void AParcelPlayerState::BeginPlay()
 			if (OwningController && OwningController->IsLocalController())
 			{
 				InventoryComp->InitFromGameInstance(GI);
-			}
 
-			// Preserve the existing customization initialization path; this task changes loadout only.
-			CustomizationComp->InitFromGameInstance(GI);
+				// Only the listen-server's own local player may seed customization directly
+				// from this process's GameInstance. Remote clients submit their own choice
+				// through ParcelPlayerController::Server_SubmitCustomization instead —
+				// otherwise every PlayerState would end up wearing the host's skin.
+				CustomizationComp->InitFromGameInstance(GI);
+			}
 		}
 	}
 }
