@@ -88,7 +88,7 @@ AParcelCharacter::AParcelCharacter()
 	{
 		MinimapCaptureComponent->SetupAttachment(MinimapSpringArm);
 		MinimapCaptureComponent->ProjectionType = ECameraProjectionMode::Orthographic;
-		MinimapCaptureComponent->OrthoWidth = 2500.f;
+		MinimapCaptureComponent->OrthoWidth = 4000.f;
 		MinimapCaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 		MinimapCaptureComponent->bCaptureEveryFrame = true;
 		MinimapCaptureComponent->bCaptureOnMovement = true;
@@ -241,32 +241,24 @@ void AParcelCharacter::OnRep_PlayerState()
 
 void AParcelCharacter::UpdateOverheadNameplate()
 {
-    if (GetWorld())
-    {
-       GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
-    }
+    // [수정] 함수 진입 시의 조기 ClearTimer 구문을 제거하여, 닉네임 수신 전 타이머가 취소되는 현상을 방지합니다.
 
     if (!NameplateWidgetComp)
     {
        UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: NameplateWidgetComp가 nullptr입니다."), *GetName());
        return;
     }
-	
-    // if (IsLocallyControlled())
-    // {
-    //    NameplateWidgetComp->SetVisibility(false);
-    //    return;
-    // }
 
     NameplateWidgetComp->SetVisibility(true);
     NameplateWidgetComp->SetHiddenInGame(false);
 
-    // 1. PlayerState 검증
+    // 1. PlayerState 및 실제 닉네임 유효성 검증
     APlayerState* PS = GetPlayerState();
-    if (!PS)
+    // [수정] PS가 nullptr이거나, 스팀/네트워크 동기화 지연으로 닉네임이 비어있는("") 경우 0.1초 후 지속 재시도
+    if (!PS || PS->GetPlayerName().IsEmpty())
     {
-       UE_LOG(LogCharacter, Verbose, TEXT("[Nameplate Retry] %s: PlayerState가 아직 복제되지 않아 0.1초 후 재시도합니다."), *GetName());
-       if (GetWorld())
+       UE_LOG(LogCharacter, Verbose, TEXT("[Nameplate Retry] %s: PlayerState가 없거나 닉네임이 비어있어 0.1초 후 재시도합니다."), *GetName());
+       if (GetWorld() && !NameplateRetryTimerHandle.IsValid())
        {
           GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
        }
@@ -283,7 +275,7 @@ void AParcelCharacter::UpdateOverheadNameplate()
     if (!NameWidget)
     {
        UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: GetUserWidgetObject() 캐스팅 실패! BP_ParcelCharacter의 Widget Class 설정을 확인하세요."), *GetName());
-       if (GetWorld())
+       if (GetWorld() && !NameplateRetryTimerHandle.IsValid())
        {
           GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
        }
@@ -292,11 +284,6 @@ void AParcelCharacter::UpdateOverheadNameplate()
 
     // 3. 닉네임 적용
     FString Nickname = PS->GetPlayerName();
-    if (Nickname.IsEmpty())
-    {
-       Nickname = FString::Printf(TEXT("Player %d"), PS->GetPlayerId());
-    }
-
     NameWidget->SetPlayerName(Nickname);
 
     // 4. 상태이상 및 칭호 적용
@@ -311,6 +298,12 @@ void AParcelCharacter::UpdateOverheadNameplate()
        {
           ApplyTitle(CustComp->GetEquippedTitle());
        }
+    }
+
+    // [수정] 실제 닉네임 및 상태 정보 적용이 완료된 시점에만 재시도 타이머를 명시적으로 정리합니다.
+    if (GetWorld())
+    {
+       GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
     }
 
     UE_LOG(LogCharacter, Log, TEXT("[Nameplate Success] %s 머리 위 이름표 갱신 완료: %s"), *GetName(), *Nickname);
