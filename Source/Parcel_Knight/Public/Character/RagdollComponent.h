@@ -90,7 +90,7 @@ protected:
 
     // 래그돌 해제 후 이동 불가 시간 (초)
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ragdoll|Settings")
-    float RecoveryLockDuration = 1.0f;
+    float RecoveryLockDuration = 1.1f;
 
 private:
     // 앞/뒤 상태에 맞는 일어나기 몽타주를 반환합니다.
@@ -122,10 +122,16 @@ private:
 	void FinishRecoveryLock_ServerOnly();
 	void ResetRagdollCooldown_ServerOnly();
 
+	// 이동 잠금 해제(RecoveryLockDuration)와 동시에 1인칭 카메라로 복귀시키는 로컬 전용 콜백
+	void FinishCameraRecovery_LocalOnly();
+
     FTimerHandle AutoRecoveryTimerHandle;
 
     // 래그돌 해제 후 이동 불가 타이머
     FTimerHandle RecoveryLockTimerHandle;
+
+    // 이동 잠금 해제와 동시에 1인칭 카메라로 복귀시키기 위한 타이머 (로컬 전용)
+    FTimerHandle CameraRecoveryTimerHandle;
 
     // 래그돌 재진입 쿨타임 타이머
     FTimerHandle RagdollCooldownTimerHandle;

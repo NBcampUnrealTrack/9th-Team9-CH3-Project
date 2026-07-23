@@ -78,8 +78,9 @@ void UDeliveryRuleComponent::OnDeliveryCompleted(APlayerController* Deliverer, c
 
 	if (TeamScoreComp)
 	{
+		TeamScoreComp->AddTeamScore(ScoreAmount, true);
+		// 현재 성공 보상 계산을 끝낸 뒤 다음 성공을 위한 콤보를 증가시킨다.
 		TeamScoreComp->OnDeliverySuccess();
-		TeamScoreComp->AddTeamScore(ScoreAmount);
 	}
 
 	if (Deliverer)

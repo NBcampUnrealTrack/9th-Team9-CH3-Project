@@ -32,6 +32,11 @@ void UDeliverySubsystem::Deinitialize()
 void UDeliverySubsystem::InitializeStage(UStageData* InStageData)
 {
     if (!InStageData) return;
+
+	ActiveBoxes.RemoveAllSwap([](AActor* Box)
+	{
+		return !IsValid(Box);
+	});
     
     CurrentStageData = InStageData;
     BoxDataTable = InStageData->BoxDataTable;
@@ -128,7 +133,11 @@ AActor* UDeliverySubsystem::SpawnBox(FGameplayTag BoxTypeTag, FVector SpawnLocat
         // 랜덤화된 정보로 상자 초기화
         NewBox->InitializeBox(AssignedID, RandomizedData);
         
-        ActiveBoxes.Add(NewBox);
+        ActiveBoxes.RemoveAllSwap([](AActor* Box)
+        {
+            return !IsValid(Box);
+        });
+        ActiveBoxes.AddUnique(NewBox);
         return NewBox;
     }
 
@@ -157,11 +166,19 @@ AActor* UDeliverySubsystem::SpawnRandomBox(FVector SpawnLocation, FRotator Spawn
 void UDeliverySubsystem::DespawnBox(AActor* Box)
 {
     if (!Box) return;
-    
-    if (!Box->HasAuthority()) return;
-    
-    ActiveBoxes.Remove(Box);
+
+    UnregisterBox(Box);
+    if (!IsValid(Box) || !Box->HasAuthority()) return;
+
     Box->Destroy();
+}
+
+void UDeliverySubsystem::UnregisterBox(AActor* Box)
+{
+	ActiveBoxes.RemoveAllSwap([Box](AActor* ActiveBox)
+	{
+		return !IsValid(ActiveBox) || ActiveBox == Box;
+	});
 }
 
 void UDeliverySubsystem::EnsureCacheLoaded()

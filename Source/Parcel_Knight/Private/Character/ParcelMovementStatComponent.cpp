@@ -2,6 +2,7 @@
 #include "Character/ParcelCharacter.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Character/CharacterCarryComponent.h"
+#include "Components/DFStatusEffectComponent.h"
 #include "ParcelLog.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -42,12 +43,20 @@ void UParcelMovementStatComponent::BeginPlay()
 
 void UParcelMovementStatComponent::RefreshMoveSpeed()
 {
-    // (로컬과 서버 컴포넌트에 주입) 속도 공식 계산식
+	AParcelCharacter* OwnerCharacter = Cast<AParcelCharacter>(GetOwner());
+	if (!OwnerCharacter) return;
+
+	// 최종 속도는 서버가 계산하고 MaxWalkSpeed 복제를 통해 클라이언트에 적용한다.
+	if (!OwnerCharacter->HasAuthority())
+	{
+		ApplyStatsToMovement();
+		return;
+	}
+
+    // 서버의 현재 Sprint / Carry / Slow 상태를 한 번에 합성한다.
     float SprintMod = 1.0f;
     float CarryMod = 1.0f;
-
-    AParcelCharacter* OwnerCharacter = Cast<AParcelCharacter>(GetOwner());
-    if (!OwnerCharacter) return;
+    float StatusEffectMod = 1.0f;
 
     // PlayerStateComponent에서 달리기 태그 유무 판정
     if (UParcelPlayerStateComponent* StateComp = OwnerCharacter->GetParcelPlayerStateComponent())
@@ -64,7 +73,12 @@ void UParcelMovementStatComponent::RefreshMoveSpeed()
         CarryMod = CarryComp->GetMoveSpeedMultiplier();
     }
 
-    MaxWalkSpeed = BaseMaxWalkSpeed * SprintMod * CarryMod;
+    if (const UDFStatusEffectComponent* StatusEffectComp = OwnerCharacter->FindComponentByClass<UDFStatusEffectComponent>())
+    {
+        StatusEffectMod = StatusEffectComp->GetMoveSpeedMultiplier();
+    }
+
+    MaxWalkSpeed = BaseMaxWalkSpeed * SprintMod * CarryMod * StatusEffectMod;
     
     ApplyStatsToMovement();
 }
