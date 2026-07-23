@@ -1,5 +1,4 @@
 #include "Core/SessionSubsystem.h"
-
 #include "AdvancedFriendsLibrary.h"
 #include "Core/ParcelGameInstance.h"
 #include "Core/ParcelGameMode.h"
@@ -15,6 +14,7 @@
 #include "Misc/PackageName.h"
 #include "Online/OnlineSessionNames.h"
 #include "OnlineSubsystem.h"
+#include "OnlineSubsystemUtils.h"
 #include "Core/ParcelPlayerState.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -121,7 +121,7 @@ void USessionSubsystem::Deinitialize()
 
 IOnlineSessionPtr USessionSubsystem::GetSessionInterface() const
 {
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	IOnlineSubsystem* OSS = Online::GetSubsystem(GetWorld());
 	return OSS ? OSS->GetSessionInterface() : nullptr;
 }
 
@@ -131,7 +131,7 @@ bool USessionSubsystem::GetSteamSessionInterface(
 {
 	OutSessions.Reset();
 
-	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	IOnlineSubsystem* OSS = Online::GetSubsystem(GetWorld());
 	if (!OSS)
 	{
 		UE_LOG(LogParcelSession, Error, TEXT("[%s] OnlineSubsystem is unavailable."), Context);
@@ -627,7 +627,7 @@ bool USessionSubsystem::StartJoinSession(const FOnlineSessionSearchResult& Sessi
 
 	ReportSessionStatus(TEXT("Joining session..."), false);
 
-	bool bJoinStarted = false;
+	bool bJoinStarted;
 	if (Sessions->GetNamedSession(NAME_GameSession))
 	{
 		PendingJoinResult = SessionResult;

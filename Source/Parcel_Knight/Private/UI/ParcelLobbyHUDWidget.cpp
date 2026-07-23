@@ -47,6 +47,11 @@ void UParcelLobbyHUDWidget::NativeConstruct()
     bIsMenuOpen = false;
     bStatDelegatesBound = false;
     
+    if (Txt_MapName)
+    {
+        Txt_MapName->SetText(FText::FromString(TEXT("레벨 선택 대기 중...")));
+    }
+
     APlayerController* PC = GetOwningPlayer();
     if (PC)
     {
@@ -156,7 +161,6 @@ void UParcelLobbyHUDWidget::SetupLobbyLayout()
     APlayerController* PC = GetOwningPlayer();
     AParcelPlayerState* PS = PC ? PC->GetPlayerState<AParcelPlayerState>() : nullptr;
 
-    // HasAuthority() 대신 PlayerState의 IsHostPlayer() 사용
     bool bIsHost = PS && PS->IsHostPlayer();
 
     if (bIsHost)
@@ -172,7 +176,6 @@ void UParcelLobbyHUDWidget::SetupLobbyLayout()
     }
     
     if (Txt_PlayerCount) Txt_PlayerCount->SetText(FText::FromString(TEXT("현재 인원: 1 / 4")));
-    if (Txt_MapName) Txt_MapName->SetText(FText::FromString(TEXT("레벨 선택 대기 중...")));
 }
 
 void UParcelLobbyHUDWidget::SetMenuVisibleState(bool bNewState)
