@@ -156,5 +156,5 @@ void UParcelRoomListWidget::HandleCreateRoomClicked()
 	
 	SetMapPath(TEXT("/Game/Maps/LV_DF_Lobby_Stage00"));
 	
-	CreateSession(4);
+	CreateSession(5);
 }

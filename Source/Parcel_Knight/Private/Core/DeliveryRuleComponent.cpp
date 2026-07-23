@@ -213,10 +213,11 @@ void UDeliveryRuleComponent::OnTimeUp()
 
 void UDeliveryRuleComponent::TransitionToNextStage()
 {
-	GAMERULE_LOG(Log, TEXT("10초 여유 시간 종료 — 다음 스테이지 진입 및 매치 처리"));
-
-	if (AGameMode* GM = GetOwner<AGameMode>())
+	GAMERULE_LOG(Log, TEXT("10초 여유 시간 종료 — 로비 레벨로 ServerTravel 개시"));
+	
+	// 호스트 및 접속된 모든 클라이언트를 유지한 채 로비 레벨로 함께 이동
+	if (UWorld* World = GetWorld())
 	{
-		GM->EndMatch();
+		World->ServerTravel(TEXT("/Game/Maps/LV_DF_Lobby_Stage00?listen"));
 	}
 }

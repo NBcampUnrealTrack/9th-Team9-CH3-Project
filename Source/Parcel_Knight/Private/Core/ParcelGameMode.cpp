@@ -16,6 +16,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "UI/ParcelLobbyHUDWidget.h"
+#include "OnlineSubsystem.h"
+#include "Interfaces/OnlineSessionInterface.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogParcelLobbyAuthority, Log, All);
 
@@ -41,8 +43,7 @@ AParcelGameMode::AParcelGameMode()
 void AParcelGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
-	
-	// [핵심] 서버에 플레이어가 진입할 때 방장(Listen Server Host) 여부를 판별하여 PlayerState에 세팅
+    
 	if (AParcelPlayerState* PS = NewPlayer->GetPlayerState<AParcelPlayerState>())
 	{
 		if (NewPlayer->IsLocalController())
@@ -56,11 +57,57 @@ void AParcelGameMode::PostLogin(APlayerController* NewPlayer)
 			UE_LOG(LogParcelLobbyAuthority, Log, TEXT("[GameMode PostLogin] 클라이언트(%s, ID:%d) PlayerState에 bIsHostPlayer = false 설정 완료."), *PS->GetPlayerName(), PS->GetPlayerId());
 		}
 	}
+	UpdateSessionInfo();
+}
+
+void AParcelGameMode::PostSeamlessTravel()
+{
+	Super::PostSeamlessTravel();
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+	
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (!PC) continue;
+
+		if (AParcelPlayerState* PS = PC->GetPlayerState<AParcelPlayerState>())
+		{
+			if (PC->IsLocalController())
+			{
+				PS->SetIsHostPlayer(true);
+				UE_LOG(LogParcelLobbyAuthority, Log, TEXT("[GameMode PostSeamlessTravel] 방장(%s, ID:%d) PlayerState bIsHostPlayer = true 재설정 완료."), *PS->GetPlayerName(), PS->GetPlayerId());
+			}
+			else
+			{
+				PS->SetIsHostPlayer(false);
+				UE_LOG(LogParcelLobbyAuthority, Log, TEXT("[GameMode PostSeamlessTravel] 클라이언트(%s, ID:%d) PlayerState bIsHostPlayer = false 재설정 완료."), *PS->GetPlayerName(), PS->GetPlayerId());
+			}
+		}
+	}
 }
 
 void AParcelGameMode::Logout(AController* Exiting)
 {
 	Super::Logout(Exiting);
+	UpdateSessionInfo();
+}
+
+void AParcelGameMode::UpdateSessionInfo()
+{
+	IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+	if (!OSS) return;
+
+	IOnlineSessionPtr Sessions = OSS->GetSessionInterface();
+	if (!Sessions.IsValid()) return;
+
+	FNamedOnlineSession* NamedSession = Sessions->GetNamedSession(NAME_GameSession);
+	if (!NamedSession) return;
+
+	// bShouldRefreshOnlineData = true 로 업데이트를 요청하여 스팀 백엔드망에 최신 슬롯 상태 푸시
+	Sessions->UpdateSession(NAME_GameSession, NamedSession->SessionSettings, true);
+	UE_LOG(LogParcelLobbyAuthority, Log, TEXT("[GameMode] 스팀 세션 인원 정보 갱신 완료. (현재 남은 슬롯: %d)"), NamedSession->NumOpenPublicConnections);
 }
 
 // ========================= Match 상태 =========================

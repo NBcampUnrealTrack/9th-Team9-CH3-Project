@@ -53,6 +53,8 @@ void UParcelLobbyHUDWidget::NativeConstruct()
         FInputModeGameOnly InputMode;
         PC->SetInputMode(InputMode);
         PC->bShowMouseCursor = false;
+        
+        FSlateApplication::Get().SetAllUserFocusToGameViewport();
     }
     
     SetupLobbyLayout();
@@ -372,6 +374,8 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
 {
     if (!ScrollBox_LobbyPlayers || !PlayerSlotClass) return;
     
+    SetupLobbyLayout();
+
     ScrollBox_LobbyPlayers->ClearChildren();
 
     AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;

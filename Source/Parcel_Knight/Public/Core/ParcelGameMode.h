@@ -32,6 +32,7 @@ public:
 	AParcelGameMode();
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void PostSeamlessTravel() override;
 	virtual void Logout(AController* Exiting) override;
 	virtual bool AllowCheats(APlayerController* P) override { return true; }
 
@@ -76,4 +77,6 @@ private:
 	/** Existing DT_LobbyMapData, promoted to the server-owned allowlist for lobby travel. */
 	UPROPERTY(EditDefaultsOnly, Category = "Lobby|Map", meta=(AllowPrivateAccess="true"))
 	TSoftObjectPtr<UDataTable> LobbyMapCatalog;
+	
+	void UpdateSessionInfo();
 };
