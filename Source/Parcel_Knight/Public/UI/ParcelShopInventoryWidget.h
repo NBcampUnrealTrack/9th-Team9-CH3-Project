@@ -77,18 +77,29 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parcel|Shop|Layout", meta = (ClampMin = "1"))
 	int32 InventoryGridColumns = 3;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parcel|Shop|Layout", meta = (ClampMin = "1"))
+	int32 ShopSlotCount = 9;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parcel|Shop|Layout", meta = (ClampMin = "1"))
+	int32 InventorySlotCount = 9;
+
 private:
 	void PlayButtonClickSound();
-	
+
 	UFUNCTION()
 	void HandleCloseClicked();
 
+	void BuildShopSlots();
+	void BuildInventorySlots();
 	void BuildShopEntries();
 	void BuildInventoryEntries();
 	void RefreshInventorySelectionState();
 	void RefreshSummary();
 	void SetStatusMessage(const FText& Message, bool bIsError);
 	const struct FItemData* FindItemData(FGameplayTag ItemId) const;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UParcelShopItemEntryWidget>> ShopEntries;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UParcelInventoryItemEntryWidget>> InventoryEntries;

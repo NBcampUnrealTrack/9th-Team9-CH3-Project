@@ -61,6 +61,31 @@ void UParcelShopItemEntryWidget::InitializeShopItem(
 	}
 }
 
+void UParcelShopItemEntryWidget::SetEmpty()
+{
+	ItemId = FGameplayTag();
+
+	if (ItemIcon)
+	{
+		ItemIcon->SetBrushFromTexture(nullptr);
+	}
+
+	if (ItemNameText)
+	{
+		ItemNameText->SetText(FText::GetEmpty());
+	}
+
+	if (PriceText)
+	{
+		PriceText->SetText(FText::GetEmpty());
+	}
+
+	if (PurchaseButton)
+	{
+		PurchaseButton->SetIsEnabled(false);
+	}
+}
+
 void UParcelShopItemEntryWidget::HandlePurchaseClicked()
 {
 	if (OwnerWidget && ItemId.IsValid())

@@ -40,6 +40,17 @@ void UParcelHUDWidget::NativeDestruct()
 		FriendButton->OnClicked.RemoveDynamic(this, &UParcelHUDWidget::ToggleFriendList);
 	}
 
+	// [방어 코드] 레벨 전환/위젯 파기 시 가동 중인 타이머 핸들 안전 해제
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(RetryBindTimerHandle);
+		World->GetTimerManager().ClearTimer(UILocalTimerHandle);
+		World->GetTimerManager().ClearTimer(ResultCountdownTimerHandle);
+	}
+
+	CachedGameState = nullptr;
+	CachedCarriedBox = nullptr;
+
 	Super::NativeDestruct();
 }
 
@@ -90,157 +101,155 @@ void UParcelHUDWidget::ToggleFriendList()
 
 void UParcelHUDWidget::TryBindUIEvents()
 {
-	bool bInteractionBound = false;
-	bool bHealthBound = false;
-	bool bCarryBound = false;
-	bool bComboBound = false;
-	bool bCharacterStateBound = false;
-	bool bHeroBound = false;
-	bool bStaminaBound = false;
-	bool bLogBound = false;
-	bool bInventoryBound = false;
-	
-	// GameState와 TeamScore 바인딩
-	
-	// GameState와 TeamScore 바인딩
-	if (!CachedGameState.IsValid())
-	{
-		CachedGameState = Cast<AParcelGameState>(GetWorld()->GetGameState());
-	}
+    bool bInteractionBound = false;
+    bool bHealthBound = false;
+    bool bCarryBound = false;
+    bool bComboBound = false;
+    bool bCharacterStateBound = false;
+    bool bHeroBound = false;
+    bool bStaminaBound = false;
+    bool bLogBound = false;
+    bool bInventoryBound = false;
     
-	if (CachedGameState.IsValid())
-	{
-		UTeamScoreComponent* TeamScoreComp = CachedGameState->FindComponentByClass<UTeamScoreComponent>();
-		if (TeamScoreComp)
-		{
-			TeamScoreComp->OnTeamScoreChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
-			TeamScoreComp->OnTeamScoreChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
-			HandleOnTeamScoreChanged(TeamScoreComp->GetTeamScore());
-          
-			TeamScoreComp->OnComboChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
-			TeamScoreComp->OnComboChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
-			HandleOnComboChanged(TeamScoreComp->GetComboCount());
+    if (!GetWorld()) return;
 
-			TeamScoreComp->OnRemainingTimeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
-			TeamScoreComp->OnRemainingTimeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
-			HandleOnExpirationTimeChanged(TeamScoreComp->GetRemainingTime());
+    // GameState 및 월드 변경 시 캐시 갱신
+    if (!CachedGameState.IsValid() || CachedGameState->GetWorld() != GetWorld())
+    {
+       CachedGameState = Cast<AParcelGameState>(GetWorld()->GetGameState());
+    }
+    
+    if (CachedGameState.IsValid())
+    {
+       UTeamScoreComponent* TeamScoreComp = CachedGameState->FindComponentByClass<UTeamScoreComponent>();
+       if (TeamScoreComp)
+       {
+          TeamScoreComp->OnTeamScoreChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
+          TeamScoreComp->OnTeamScoreChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnTeamScoreChanged);
+          HandleOnTeamScoreChanged(TeamScoreComp->GetTeamScore());
           
-			bComboBound = true;
-		}
+          TeamScoreComp->OnComboChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
+          TeamScoreComp->OnComboChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnComboChanged);
+          HandleOnComboChanged(TeamScoreComp->GetComboCount());
+
+          TeamScoreComp->OnRemainingTimeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
+          TeamScoreComp->OnRemainingTimeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnExpirationTimeChanged);
+          HandleOnExpirationTimeChanged(TeamScoreComp->GetRemainingTime());
+          
+          bComboBound = true;
+       }
        
-		CachedGameState->OnDeliveryLogReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
-		CachedGameState->OnDeliveryLogReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
-		
-		CachedGameState->OnStageResultReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnStageResultReceived);
-		CachedGameState->OnStageResultReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnStageResultReceived);
+       CachedGameState->OnDeliveryLogReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+       CachedGameState->OnDeliveryLogReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnDeliveryLogReceived);
+       
+       CachedGameState->OnStageResultReceived.RemoveDynamic(this, &UParcelHUDWidget::HandleOnStageResultReceived);
+       CachedGameState->OnStageResultReceived.AddDynamic(this, &UParcelHUDWidget::HandleOnStageResultReceived);
 
-		bLogBound = true;
-	}
+       bLogBound = true;
+    }
 
-	// 2. PlayerState 바인딩(삭제)
-	
-	// 3. 컴포넌트 바인딩
-	if (APawn* OwningPawn = GetOwningPlayerPawn())
-	{
-		if (UHealthComponent* CheckDeadComp = OwningPawn->FindComponentByClass<UHealthComponent>())
-		{
-			if (CheckDeadComp->IsDead())
-			{             
-				if (!RetryBindTimerHandle.IsValid() && GetWorld())
-				{
-					GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
-				}
-				return; 
-			}
-		}
+    // 컴포넌트 바인딩
+    if (APawn* OwningPawn = GetOwningPlayerPawn())
+    {
+       if (UHealthComponent* CheckDeadComp = OwningPawn->FindComponentByClass<UHealthComponent>())
+       {
+          if (CheckDeadComp->IsDead())
+          {             
+             if (!RetryBindTimerHandle.IsValid() && GetWorld())
+             {
+                GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
+             }
+             return; 
+          }
+       }
 
-		if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwningPawn))
-		{
-			if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
-			{
-				StateComp->OnCharacterStateTagsChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
-				StateComp->OnCharacterStateTagsChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
+       if (AParcelCharacter* ParcelChar = Cast<AParcelCharacter>(OwningPawn))
+       {
+          if (UParcelPlayerStateComponent* StateComp = ParcelChar->GetParcelPlayerStateComponent())
+          {
+             StateComp->OnCharacterStateTagsChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
+             StateComp->OnCharacterStateTagsChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCharacterStateChanged);
              
-				HandleOnCharacterStateChanged(StateComp->GetCharacterStateTags());
-				bCharacterStateBound = true;
-			}
-		}
-		
-		// 상호작용
-		if (UParcelInteractionComponent* InteractComp = OwningPawn->FindComponentByClass<UParcelInteractionComponent>())
-		{
-			InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnInteractionFocusChanged);
-			InteractComp->OnFocusChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnInteractionFocusChanged);
-			HandleOnInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
-			bInteractionBound = true;
-		}
+             HandleOnCharacterStateChanged(StateComp->GetCharacterStateTags());
+             bCharacterStateBound = true;
+          }
+       }
+       
+       // 상호작용
+       if (UParcelInteractionComponent* InteractComp = OwningPawn->FindComponentByClass<UParcelInteractionComponent>())
+       {
+          InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnInteractionFocusChanged);
+          InteractComp->OnFocusChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnInteractionFocusChanged);
+          HandleOnInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
+          bInteractionBound = true;
+       }
 
-		// 체력
-		if (UHealthComponent* HealthComp = OwningPawn->FindComponentByClass<UHealthComponent>())
-		{
-			HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::K2_OnHPChanged);
-			HealthComp->OnHPChanged.AddDynamic(this, &UParcelHUDWidget::K2_OnHPChanged);
-			K2_OnHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
-			bHealthBound = true;
-		}
+       // 체력
+       if (UHealthComponent* HealthComp = OwningPawn->FindComponentByClass<UHealthComponent>())
+       {
+          HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelHUDWidget::K2_OnHPChanged);
+          HealthComp->OnHPChanged.AddDynamic(this, &UParcelHUDWidget::K2_OnHPChanged);
+          K2_OnHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+          bHealthBound = true;
+       }
 
-		// 운반
-		if (UCharacterCarryComponent* CarryComp = OwningPawn->FindComponentByClass<UCharacterCarryComponent>())
-		{
-			CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCarriedBoxChanged);
-			CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCarriedBoxChanged);
+       // 운반
+       if (UCharacterCarryComponent* CarryComp = OwningPawn->FindComponentByClass<UCharacterCarryComponent>())
+       {
+          CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnCarriedBoxChanged);
+          CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnCarriedBoxChanged);
 
-			HandleOnCarriedBoxChanged(CarryComp->GetCarriedBox());
-			bCarryBound = true;
-		}
-		
-		// 던지기 차징 게이지
-		if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
-		{
-			HeroComp->OnThrowChargeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnThrowChargeChanged);
-			HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnThrowChargeChanged);
-			HandleOnThrowChargeChanged(HeroComp->IsChargingThrow(), HeroComp->GetThrowChargeRatio());
-			bHeroBound = true;
-		}
-		
-		// 스태미나 바인딩
-		if (UParcelStaminaComponent* StaminaComp = OwningPawn->FindComponentByClass<UParcelStaminaComponent>())
-		{
-			StaminaComp->OnStaminaChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnStaminaChanged);
-			StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnStaminaChanged);
-			HandleOnStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
-			bStaminaBound = true;
-		}
-		
-		// 인벤토리 바인딩
-		if (APlayerState* PS = OwningPawn->GetPlayerState())
-		{
-			if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
-			{
-				InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnInventoryChanged);
-				InvComp->OnInventoryChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnInventoryChanged);
+          HandleOnCarriedBoxChanged(CarryComp->GetCarriedBox());
+          bCarryBound = true;
+       }
+       
+       // 던지기 차징 게이지
+       if (UParcelHeroComponent* HeroComp = OwningPawn->FindComponentByClass<UParcelHeroComponent>())
+       {
+          HeroComp->OnThrowChargeChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnThrowChargeChanged);
+          HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnThrowChargeChanged);
+          HandleOnThrowChargeChanged(HeroComp->IsChargingThrow(), HeroComp->GetThrowChargeRatio());
+          bHeroBound = true;
+       }
+       
+       // 스태미나 바인딩
+       if (UParcelStaminaComponent* StaminaComp = OwningPawn->FindComponentByClass<UParcelStaminaComponent>())
+       {
+          StaminaComp->OnStaminaChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnStaminaChanged);
+          StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnStaminaChanged);
+          HandleOnStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
+          bStaminaBound = true;
+       }
+       
+       // 인벤토리 바인딩
+       if (APlayerState* PS = OwningPawn->GetPlayerState())
+       {
+          if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+          {
+             InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelHUDWidget::HandleOnInventoryChanged);
+             InvComp->OnInventoryChanged.AddDynamic(this, &UParcelHUDWidget::HandleOnInventoryChanged);
                 
-				HandleOnInventoryChanged();
-				bInventoryBound = true;
-			}
-		}
-	}
-	
-	// 4. 멀티플레이 안전장치
-	if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && 
-		bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound && bLogBound && bInventoryBound)
-	{
-		GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
-		INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
-	}
-	else
-	{
-		if (!RetryBindTimerHandle.IsValid() && GetWorld())
-		{
-			GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
-			INGAMEHUD_LOG(Warning, TEXT("[UI] 일부 액터 복제 대기 중. 0.1초 후 결합을 재시도합니다."));
-		}
-	}
+             HandleOnInventoryChanged();
+             bInventoryBound = true;
+          }
+       }
+    }
+    
+    // 멀티플레이 안전장치
+    if (CachedGameState.IsValid() && bInteractionBound && bHealthBound && bCarryBound && 
+       bComboBound && bCharacterStateBound && bHeroBound && bStaminaBound && bLogBound && bInventoryBound)
+    {
+       GetWorld()->GetTimerManager().ClearTimer(RetryBindTimerHandle);
+       INGAMEHUD_LOG(Log, TEXT("[UI] 모든 인게임 HUD 요소가 안전하게 완전 결합되었습니다."));
+    }
+    else
+    {
+       if (!RetryBindTimerHandle.IsValid() && GetWorld())
+       {
+          GetWorld()->GetTimerManager().SetTimer(RetryBindTimerHandle, this, &UParcelHUDWidget::TryBindUIEvents, 0.1f, true);
+          INGAMEHUD_LOG(Warning, TEXT("[UI] 일부 액터 복제 대기 중. 0.1초 후 결합을 재시도합니다."));
+       }
+    }
 }
 
 void UParcelHUDWidget::RequestRebindPlayerEvents()

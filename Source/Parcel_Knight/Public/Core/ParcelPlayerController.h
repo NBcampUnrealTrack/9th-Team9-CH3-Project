@@ -24,6 +24,12 @@ class PARCEL_KNIGHT_API AParcelPlayerController : public APlayerController
 public:
 	AParcelPlayerController();
 	
+	// [Client] 심리스 트래블 및 레벨 재진입 시 HUD 자동 판별 및 생성 함수
+	void InitHUDForCurrentLevel();
+
+	// [Client] 기존에 켜져있던 모든 HUD 및 오버레이 정리
+	void ResetAllHUDInstances();
+	
 	// [Client]
 	UFUNCTION(Client, Reliable)
 	void Client_NotifyDeath();
@@ -51,6 +57,9 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
+	
+	// 🆕 [핵심] 심리스 트래블 완료 후 클라이언트 레벨 진입/Pawn 재설정 시 엔진에서 자동 호출
+	virtual void ClientRestart_Implementation(APawn* NewPawn) override;
 
 	void SubmitLocalLoadoutToServer();
 	// [Editor] HUD 위젯 클래스 지정

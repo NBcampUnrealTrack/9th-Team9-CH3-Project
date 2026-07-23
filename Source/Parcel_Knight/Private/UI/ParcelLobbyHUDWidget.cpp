@@ -107,9 +107,10 @@ void UParcelLobbyHUDWidget::NativeConstruct()
 
 void UParcelLobbyHUDWidget::NativeDestruct()
 {
-    if (GetWorld())
+    // [방어 코드] 로비 탈출 및 레벨 이탈 시 리프레시 타이머 깨끗이 제거
+    if (UWorld* World = GetWorld())
     {
-        GetWorld()->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
+        World->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
     }
 
     if (UGameInstance* GI = GetGameInstance())
@@ -119,6 +120,9 @@ void UParcelLobbyHUDWidget::NativeDestruct()
             SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
         }
     }
+
+    CachedBoundPawn = nullptr;
+    CachedCarriedBox = nullptr;
     
     Super::NativeDestruct();
 }
@@ -148,7 +152,12 @@ FReply UParcelLobbyHUDWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const
 void UParcelLobbyHUDWidget::SetupLobbyLayout()
 {
     APlayerController* PC = GetOwningPlayer();
-    if (PC && PC->HasAuthority())
+    AParcelPlayerState* PS = PC ? PC->GetPlayerState<AParcelPlayerState>() : nullptr;
+
+    // HasAuthority() 대신 PlayerState의 IsHostPlayer() 사용
+    bool bIsHost = PS && PS->IsHostPlayer();
+
+    if (bIsHost)
     {
         if (Btn_SelectMap) Btn_SelectMap->SetVisibility(ESlateVisibility::Visible);
         if (Btn_Action) Btn_Action->SetVisibility(ESlateVisibility::Visible);
@@ -366,21 +375,15 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
     ScrollBox_LobbyPlayers->ClearChildren();
 
     AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
-    if (!GS)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] GameState가 아직 복제되지 않아 인원 리프레시를 보류합니다."));
-        return;
-    }
+    if (!GS) return;
 
     int32 CurrentCount = GS->PlayerArray.Num();
-    int32 MaxCount = 4;
-
     if (Txt_PlayerCount)
     {
-        FString CountStr = FString::Printf(TEXT("현재 인원: %d / %d"), CurrentCount, MaxCount);
-        Txt_PlayerCount->SetText(FText::FromString(CountStr));
+        Txt_PlayerCount->SetText(FText::FromString(FString::Printf(TEXT("현재 인원: %d / 4"), CurrentCount)));
     }
 
+    // 로비에 접속한 모든 플레이어 순회
     for (int32 i = 0; i < GS->PlayerArray.Num(); ++i)
     {
         APlayerState* PS = GS->PlayerArray[i].Get();
@@ -389,28 +392,22 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
         UParcelLobbyPlayerSlotWidget* NewSlot = CreateWidget<UParcelLobbyPlayerSlotWidget>(GetOwningPlayer(), PlayerSlotClass);
         if (NewSlot)
         {
-            // [해결 3] 언리얼 엔진 표준: 리슨 서버 방장의 PlayerId는 항상 1번입니다.
-            // 또는 AParcelPlayerState::IsHostPlayer() 복제 변수로 정밀 확인
-            bool bIsHost = false;
+            // [핵심] 위험한 i == 0 예비 판별식을 완전히 삭제하고, 오직 bIsHostPlayer 복제 변수만 확인!
+            bool bIsSlotOwnerHost = false;
             if (AParcelPlayerState* ParcelPS = Cast<AParcelPlayerState>(PS))
             {
-                bIsHost = ParcelPS->IsHostPlayer();
+                bIsSlotOwnerHost = ParcelPS->IsHostPlayer();
             }
-            else
-            {
-                bIsHost = (PS->GetPlayerId() == 1);
-            }
-            
-            NewSlot->InitializeSlot(PS, bIsHost);
+
+            NewSlot->InitializeSlot(PS, bIsSlotOwnerHost);
             ScrollBox_LobbyPlayers->AddChild(NewSlot);
         }
     }
     
-    // [해결 2] 부활 후 Pawn이 교체되었는지 추적하여 자동 재바인딩
+    // 로컬 캐릭터 스탯/체력 델리게이트 재바인딩
     APawn* LocalPawn = GetOwningPlayerPawn();
     if (LocalPawn && CachedBoundPawn.Get() != LocalPawn)
     {
-        // 1. 스태미나 컴포넌트 바인딩
         if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
         {
             StaminaComp->OnStaminaChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
@@ -418,7 +415,6 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
             HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
         }
         
-        // 2. 체력 컴포넌트 바인딩 (부활 시 완치된 체력 100/100 반영)
         if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
         {
             HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
@@ -426,7 +422,6 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
             HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
         }
         
-        // 3. 상호작용 컴포넌트 바인딩
         if (UParcelInteractionComponent* InteractComp = LocalPawn->FindComponentByClass<UParcelInteractionComponent>())
         {
             InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
@@ -434,14 +429,12 @@ void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
             HandleNativeInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
         }
 
-        // 4. 히어로 컴포넌트 바인딩
         if (UParcelHeroComponent* HeroComp = LocalPawn->FindComponentByClass<UParcelHeroComponent>())
         {
             HeroComp->OnThrowChargeChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
             HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
         }
         
-        // 5. 운반 컴포넌트 바인딩
         if (UCharacterCarryComponent* CarryComp = LocalPawn->FindComponentByClass<UCharacterCarryComponent>())
         {
             CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
@@ -599,7 +592,7 @@ void UParcelLobbyHUDWidget::ToggleLobbyMenuExternal()
 void UParcelLobbyHUDWidget::SelectMapByIndex(int32 NewMapIndex)
 {
     APlayerController* PC = GetOwningPlayer();
-    if (!PC || !PC->HasAuthority()) return;
+    if (!PC) return;
 
     if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
     {
