@@ -12,6 +12,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerState.h"
@@ -43,6 +44,13 @@ AParcelCharacter::AParcelCharacter()
 
     // 공중에서 이동 입력이 얼마나 반영되는지 정합니다.
     GetCharacterMovement()->AirControl = 0.35f;
+
+	if (GetCapsuleComponent())
+	{
+		GetCapsuleComponent()->SetCollisionProfileName(TEXT("Pawn"));
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
+		GetCapsuleComponent()->SetNotifyRigidBodyCollision(true);
+	}
 
     PlayerStateComp = CreateDefaultSubobject<UParcelPlayerStateComponent>(TEXT("PlayerStateComp"));
     RagdollComp = CreateDefaultSubobject<URagdollComponent>(TEXT("RagdollComp"));
@@ -201,11 +209,10 @@ void AParcelCharacter::PossessedBy(AController* NewController)
 
     UpdateMinimapCaptureState();
 
-    // 서버 Possessed 시점에 HeroComponent에 이벤트를 넘김
-    if (HeroComp)
-    {
-       HeroComp->AddInputMappingContext();
-    }
+	if (HeroComp)
+	{
+		HeroComp->AddInputMappingContext();
+	}
 
 	BindAuthoritativeDeathHandler();
 
@@ -253,45 +260,75 @@ void AParcelCharacter::UpdateOverheadNameplate()
        UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: NameplateWidgetComp가 nullptr입니다."), *GetName());
        return;
     }
+	
+	if (IsLocallyControlled())
+	{
+		NameplateWidgetComp->SetVisibility(false);
+		NameplateWidgetComp->SetHiddenInGame(true);
 
-    NameplateWidgetComp->SetVisibility(true);
-    NameplateWidgetComp->SetHiddenInGame(false);
+		if (GetWorld())
+		{
+			GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+			NameplateRetryTimerHandle.Invalidate();
+		}
+		return;
+	}
 
-    // 1. PlayerState 및 실제 닉네임 유효성 검증
-    APlayerState* PS = GetPlayerState();
-    // [수정] PS가 nullptr이거나, 스팀/네트워크 동기화 지연으로 닉네임이 비어있는("") 경우 0.1초 후 지속 재시도
+	NameplateWidgetComp->SetVisibility(true);
+	NameplateWidgetComp->SetHiddenInGame(false);
+	
+	if (GetNetMode() == NM_ListenServer || HasAuthority())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (APlayerController* FirstPC = World->GetFirstPlayerController())
+			{
+				if (ULocalPlayer* LocalPlayer = FirstPC->GetLocalPlayer())
+				{
+					NameplateWidgetComp->SetOwnerPlayer(LocalPlayer);
+				}
+			}
+		}
+	}
+	
+	APlayerState* PS = GetPlayerState();
     if (!PS || PS->GetPlayerName().IsEmpty())
     {
        UE_LOG(LogCharacter, Verbose, TEXT("[Nameplate Retry] %s: PlayerState가 없거나 닉네임이 비어있어 0.1초 후 재시도합니다."), *GetName());
-       if (GetWorld() && !NameplateRetryTimerHandle.IsValid())
+       if (GetWorld())
        {
+          GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+          NameplateRetryTimerHandle.Invalidate();
+
           GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
        }
        return;
     }
-
-    // 2. Slate 위젯 인스턴스 강제 생성 및 검증
+    
+    // 4. 위젯 인스턴스가 없는 경우 초기화
     if (!NameplateWidgetComp->GetUserWidgetObject())
     {
-       NameplateWidgetComp->InitWidget(); // 렌더링 전 위젯 인스턴스 강제 생성
+       NameplateWidgetComp->InitWidget();
     }
 
     UParcelNameplateWidget* NameWidget = Cast<UParcelNameplateWidget>(NameplateWidgetComp->GetUserWidgetObject());
     if (!NameWidget)
     {
        UE_LOG(LogCharacter, Warning, TEXT("[Nameplate Fail] %s: GetUserWidgetObject() 캐스팅 실패! BP_ParcelCharacter의 Widget Class 설정을 확인하세요."), *GetName());
-       if (GetWorld() && !NameplateRetryTimerHandle.IsValid())
+       if (GetWorld())
        {
+          GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+          NameplateRetryTimerHandle.Invalidate();
+
           GetWorldTimerManager().SetTimer(NameplateRetryTimerHandle, this, &AParcelCharacter::UpdateOverheadNameplate, 0.1f, false);
        }
        return;
     }
-
-    // 3. 닉네임 적용
+    
+    // 5. 닉네임, 상태 태그, 칭호 적용
     FString Nickname = PS->GetPlayerName();
     NameWidget->SetPlayerName(Nickname);
-
-    // 4. 상태이상 및 칭호 적용
+    
     if (PlayerStateComp)
     {
        NameWidget->UpdateStatusEffects(PlayerStateComp->GetCharacterStateTags());
@@ -304,11 +341,12 @@ void AParcelCharacter::UpdateOverheadNameplate()
           ApplyTitle(CustComp->GetEquippedTitle());
        }
     }
-
-    // [수정] 실제 닉네임 및 상태 정보 적용이 완료된 시점에만 재시도 타이머를 명시적으로 정리합니다.
+    
+    // 6. 성공적으로 반영되었으므로 타이머 정리
     if (GetWorld())
     {
        GetWorldTimerManager().ClearTimer(NameplateRetryTimerHandle);
+       NameplateRetryTimerHandle.Invalidate();
     }
 
     UE_LOG(LogCharacter, Log, TEXT("[Nameplate Success] %s 머리 위 이름표 갱신 완료: %s"), *GetName(), *Nickname);
@@ -333,7 +371,7 @@ void AParcelCharacter::OnRep_Controller()
 
 	if (HeroComp) HeroComp->AddInputMappingContext();
 
-	// 컨트롤러가 복제/빙의되는 시점에 네임플레이트 가시성 및 닉네임 최종 정렬
+	// 컨트롤러 복제 수신 완료 시 머리 위 네임플레이트 표시 상태 업데이트
 	UpdateOverheadNameplate();
 }
 

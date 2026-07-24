@@ -13,7 +13,7 @@ AParcelGameState::AParcelGameState()
 	// [UI] 클라이언트에 의해 복제 허용
 	TeamScoreComp->SetIsReplicated(true);
 	
-	SelectedMapIndex = 0;
+	SelectedMapIndex = -1;
 }
 
 void AParcelGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
