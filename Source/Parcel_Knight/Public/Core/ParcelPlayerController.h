@@ -1,0 +1,123 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/PlayerController.h"
+#include "GameplayTagContainer.h"
+#include "ParcelPlayerController.generated.h"
+
+class UParcelInGameDeadHUDWidget;
+class UParcelInGameESCMenuWidget;
+class UParcelLobbyHUDWidget;
+class UParcelTrapStatusOverlayWidget;
+class USoundBase;
+
+/**
+ * 담당자: 김로운
+ */
+UCLASS()
+class PARCEL_KNIGHT_API AParcelPlayerController : public APlayerController
+{
+	GENERATED_BODY()
+
+public:
+	AParcelPlayerController();
+	
+	// [Client] 심리스 트래블 및 레벨 재진입 시 HUD 자동 판별 및 생성 함수
+	void InitHUDForCurrentLevel();
+
+	// [Client] 기존에 켜져있던 모든 HUD 및 오버레이 정리
+	void ResetAllHUDInstances();
+	
+	// [Client]
+	UFUNCTION(Client, Reliable)
+	void Client_NotifyDeath();
+	
+	// [Client]
+	UFUNCTION(Client, Reliable)
+	void Client_NotifyRespawn();
+
+	UFUNCTION(Client, Reliable)
+	void Client_PlayTrapActivationSound(USoundBase* ActivationSound, float VolumeMultiplier, float PitchMultiplier);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowTrapStatus(FLinearColor Color, float Duration);
+	
+	UFUNCTION(BlueprintCallable, Category = "ParcelUI")
+	void ToggleInGameMenu();
+
+	/** Submit the local persistent loadout for server-side DataTable validation. */
+	UFUNCTION(Server, Reliable)
+	void Server_SubmitLoadout(const TArray<FGameplayTag>& RequestedItems);
+
+	/** Submit the local player's equipped customization so the server-owned CustomizationComponent (and its replication) reflects this client's own choice instead of the host's. */
+	UFUNCTION(Server, Reliable)
+	void Server_SubmitCustomization(FGameplayTag SkinTag, FGameplayTag TitleTag, FGameplayTag EffectTag);
+
+protected:
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void AcknowledgePossession(APawn* InPawn) override;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void SetupInputComponent() override;
+
+	// 🆕 [핵심] 심리스 트래블 완료 후 클라이언트 레벨 진입/Pawn 재설정 시 엔진에서 자동 호출
+	virtual void ClientRestart_Implementation(APawn* NewPawn) override;
+
+	void SubmitLocalLoadoutToServer();
+	void SubmitLocalCustomizationToServer();
+	// [Editor] HUD 위젯 클래스 지정
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
+	TSubclassOf<UUserWidget> HUDWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
+	TSubclassOf<UParcelLobbyHUDWidget> LobbyHUDWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
+	TSubclassOf<UParcelInGameDeadHUDWidget> DeadHUDWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI")
+	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ParcelUI|Trap")
+	TSubclassOf<UParcelTrapStatusOverlayWidget> TrapStatusOverlayWidgetClass;
+	
+	// HUD 위젯 인스턴스
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
+	TObjectPtr<UUserWidget> HUDWidgetInstance;
+	
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
+	TObjectPtr<UParcelInGameDeadHUDWidget> DeadHUDWidgetInstance;
+	
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
+	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI|Trap")
+	TObjectPtr<UParcelTrapStatusOverlayWidget> TrapStatusOverlayWidgetInstance;
+
+private:
+	void CreateTrapStatusOverlayIfNeeded();
+	TWeakObjectPtr<APawn> LastRespawnNotifiedPawn;
+	
+public:
+	/** [Client -> Server] 클라이언트가 입력한 채팅을 서버 방장에게 전달하는 Reliable RPC */
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_SendLobbyChatMessage(const FText& ChatText);
+
+	/** [Server -> Client] 서버가 모든 접속자의 로컬 HUD에 채팅방 글을 꽂아주는 브로드캐스트 RPC */
+	UFUNCTION(Client, Reliable)
+	void Client_ReceiveLobbyChatMessage(const FString& SenderName, const FText& ChatText);
+
+	/** 로비 HUD 위젯 인스턴스 주소를 플레이어 컨트롤러가 안전하게 쥐고 있을 주머니 변수 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "ParcelUI")
+	TObjectPtr<UParcelLobbyHUDWidget> LobbyHUDWidgetInstance;
+	
+public:
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_RequestChangeLobbyMap(int32 NewMapIndex);
+
+	/** Requests lobby start without accepting a client-provided map path. */
+	UFUNCTION(Server, Reliable)
+	void Server_RequestStartLobbyGame();
+};

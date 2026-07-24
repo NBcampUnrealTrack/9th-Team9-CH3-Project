@@ -1,0 +1,661 @@
+#include "UI/ParcelLobbyHUDWidget.h"
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
+#include "Components/ScrollBox.h"
+#include "Components/EditableText.h"
+#include "Components/Image.h"
+#include "Components/CanvasPanel.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "UI/ParcelLobbyPlayerSlotWidget.h"
+#include "GameFramework/PlayerState.h"
+#include "GameFramework/GameStateBase.h"
+#include "Core/ParcelPlayerController.h"
+#include "Core/ParcelGameState.h"
+#include "Engine/Texture2D.h"
+#include "UI/ParcelFriendListWidget.h"
+#include "Core/SessionSubsystem.h"
+#include "Framework/Application/SlateApplication.h"
+#include "UI/ParcelMapSelectWidget.h"
+#include "Character/ParcelStaminaComponent.h"
+#include "Core/HealthComponent.h"
+#include "Character/ParcelStaminaComponent.h"
+#include "Core/HealthComponent.h" 
+#include "Character/ParcelHeroComponent.h"
+#include "Character/ParcelInteractionComponent.h"
+#include "Character/CharacterCarryComponent.h"
+#include "Delivery/DeliveryBox.h"
+#include "Core/InventoryComponent.h"
+#include "Core/ParcelPlayerState.h"
+#include "Data/ItemData.h"
+#include "Engine/DataTable.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
+
+void UParcelLobbyHUDWidget::NativeConstruct()
+{
+    Super::NativeConstruct();
+    
+    if (Canvas_MenuContainer)
+    {
+        Canvas_MenuContainer->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    if (Txt_EscPrompt)
+    {
+        Txt_EscPrompt->SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+    bIsMenuOpen = false;
+    bStatDelegatesBound = false;
+    
+    if (Txt_MapName)
+    {
+        Txt_MapName->SetText(FText::FromString(TEXT("레벨 선택 대기 중...")));
+    }
+
+    APlayerController* PC = GetOwningPlayer();
+    if (PC)
+    {
+        FInputModeGameOnly InputMode;
+        PC->SetInputMode(InputMode);
+        PC->bShowMouseCursor = false;
+        
+        FSlateApplication::Get().SetAllUserFocusToGameViewport();
+    }
+    
+    SetupLobbyLayout();
+    
+    if (Btn_Options)  Btn_Options->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOptionsClicked);
+    if (Btn_Friends)  Btn_Friends->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleFriendsClicked);
+    if (Btn_Leave)     Btn_Leave->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleLeaveLobbyClicked);
+    if (Btn_SelectMap) Btn_SelectMap->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleSelectMapClicked);
+    if (Btn_Action)    Btn_Action->OnClicked.AddDynamic(this, &UParcelLobbyHUDWidget::HandleActionOrStartClicked);
+
+    if (EditableText_ChatInput)
+    {
+        EditableText_ChatInput->OnTextCommitted.AddDynamic(this, &UParcelLobbyHUDWidget::HandleChatTextCommitted);
+        EditableText_ChatInput->SetVisibility(ESlateVisibility::Collapsed);
+    }
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(GetOwningPlayer()))
+    {
+        ParcelPC->LobbyHUDWidgetInstance = this;
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 플레이어 컨트롤러 상에 HUD 인스턴스 주소 등록 완료."));
+    }
+    
+    if (GetWorld())
+    {
+        if (AParcelGameState* ParcelGS = GetWorld()->GetGameState<AParcelGameState>())
+        {
+            ParcelGS->OnLobbyMapChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOnLobbyMapChanged);
+            HandleOnLobbyMapChanged(ParcelGS->GetSelectedMapIndex());
+        }
+        
+        RefreshLobbyPlayers();
+        
+        GetWorld()->GetTimerManager().SetTimer(
+            LobbyRefreshTimerHandle, 
+            this, 
+            &UParcelLobbyHUDWidget::RefreshLobbyPlayers, 
+            1.0f, 
+            true
+        );
+    }
+    
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
+        {
+            SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
+            SessionSubsystem->OnSessionDestroyComplete.AddDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
+        }
+    }
+    SetIsFocusable(true);
+}
+
+void UParcelLobbyHUDWidget::NativeDestruct()
+{
+    // [방어 코드] 로비 탈출 및 레벨 이탈 시 리프레시 타이머 깨끗이 제거
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(LobbyRefreshTimerHandle);
+    }
+
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
+        {
+            SessionSubsystem->OnSessionDestroyComplete.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete);
+        }
+    }
+
+    CachedBoundPawn = nullptr;
+    CachedCarriedBox = nullptr;
+    
+    Super::NativeDestruct();
+}
+
+FReply UParcelLobbyHUDWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+    FKey PressedKey = InKeyEvent.GetKey();
+    if (bIsMenuOpen && (PressedKey == EKeys::P || PressedKey == EKeys::Tab))
+    {
+        ToggleLobbyMenuExternal();
+        return FReply::Handled();
+    }
+
+    if (PressedKey == EKeys::Enter)
+    {
+        if (!bIsMenuOpen && EditableText_ChatInput)
+        {
+            bool bIsChattingNow = (EditableText_ChatInput->GetVisibility() == ESlateVisibility::Visible);
+            SetChatInputInputMode(!bIsChattingNow);
+            return FReply::Handled();
+        }
+    }
+
+    return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
+}
+
+void UParcelLobbyHUDWidget::SetupLobbyLayout()
+{
+    APlayerController* PC = GetOwningPlayer();
+    AParcelPlayerState* PS = PC ? PC->GetPlayerState<AParcelPlayerState>() : nullptr;
+
+    bool bIsHost = PS && PS->IsHostPlayer();
+
+    if (bIsHost)
+    {
+        if (Btn_SelectMap) Btn_SelectMap->SetVisibility(ESlateVisibility::Visible);
+        if (Btn_Action) Btn_Action->SetVisibility(ESlateVisibility::Visible);
+        if (Txt_ActionPrompt) Txt_ActionPrompt->SetText(FText::FromString(TEXT("게임 시작")));
+    }
+    else
+    {
+        if (Btn_SelectMap) Btn_SelectMap->SetVisibility(ESlateVisibility::Collapsed);
+        if (Btn_Action) Btn_Action->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    
+    if (Txt_PlayerCount) Txt_PlayerCount->SetText(FText::FromString(TEXT("현재 인원: 1 / 4")));
+}
+
+void UParcelLobbyHUDWidget::SetMenuVisibleState(bool bNewState)
+{
+    bIsMenuOpen = bNewState;
+
+    APlayerController* PC = GetOwningPlayer(); 
+    
+    if (Canvas_MenuContainer)
+    {
+        Canvas_MenuContainer->SetVisibility(bIsMenuOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+    }
+    
+    K2_OnMenuStateChanged(bIsMenuOpen);
+
+    if (bIsMenuOpen)
+    {
+        if (PC)
+        {
+            FInputModeGameAndUI InputMode;
+            InputMode.SetWidgetToFocus(TakeWidget());
+            InputMode.SetHideCursorDuringCapture(false);
+            PC->SetInputMode(InputMode);
+            PC->bShowMouseCursor = true;
+        }
+        UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 메뉴판 즉시 오픈: 커서 및 버튼 인터랙션 활성화."));
+    }
+    else
+    {
+        if (PC)
+        {
+            FInputModeGameOnly InputMode;
+            PC->SetInputMode(InputMode);
+            PC->bShowMouseCursor = false;
+            FSlateApplication::Get().SetAllUserFocusToGameViewport();
+        }
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 메뉴판 즉시 폐쇄: 캐릭터 회전 및 전방 인풋 해제 완공."));
+    }
+}
+
+void UParcelLobbyHUDWidget::SetChatInputInputMode(bool bFocusChat)
+{
+    APlayerController* PC = GetOwningPlayer();
+    if (!PC || !EditableText_ChatInput) return;
+
+    if (bFocusChat)
+    {
+        EditableText_ChatInput->SetVisibility(ESlateVisibility::Visible);
+        
+        FInputModeUIOnly ChatInputMode;
+        ChatInputMode.SetWidgetToFocus(EditableText_ChatInput->TakeWidget());
+        PC->SetInputMode(ChatInputMode);
+    }
+    else
+    {
+        EditableText_ChatInput->SetVisibility(ESlateVisibility::Collapsed);
+        
+        FInputModeGameOnly GameInputMode;
+        PC->SetInputMode(GameInputMode);
+        FSlateApplication::Get().SetAllUserFocusToGameViewport();
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleChatTextCommitted(const FText& Text, ETextCommit::Type CommitMethod)
+{
+    if (!Text.IsEmpty() && CommitMethod == ETextCommit::OnEnter)
+    {
+        if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(GetOwningPlayer()))
+        {
+            ParcelPC->Server_SendLobbyChatMessage(Text);
+        }
+        
+        if (EditableText_ChatInput) EditableText_ChatInput->SetText(FText::GetEmpty());
+    }
+    
+    SetChatInputInputMode(false);
+}
+
+void UParcelLobbyHUDWidget::AddChatLog(const FString& SenderName, const FText& Message)
+{
+    if (!ScrollBox_ChatLogs) return;
+    
+    UTextBlock* NewLogBlock = NewObject<UTextBlock>(this);
+    if (NewLogBlock)
+    {
+        FString FormattedString = FString::Printf(TEXT("[%s] : %s"), *SenderName, *Message.ToString());
+        NewLogBlock->SetText(FText::FromString(FormattedString));
+        NewLogBlock->SetAutoWrapText(true);
+        
+        ScrollBox_ChatLogs->AddChild(NewLogBlock);
+        ScrollBox_ChatLogs->ScrollToEnd();
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleOptionsClicked()
+{
+    PlayButtonClickSound();
+    
+    if (OptionsWidgetInstance && OptionsWidgetInstance->IsInViewport())
+    {
+        OptionsWidgetInstance->RemoveFromParent();
+        OptionsWidgetInstance = nullptr;
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 옵션 위젯 토글 닫기 완료."));
+        return;
+    }
+    
+    if (OptionsWidgetClass)
+    {
+        OptionsWidgetInstance = CreateWidget<UUserWidget>(GetOwningPlayer(), OptionsWidgetClass);
+        if (OptionsWidgetInstance)
+        {
+            OptionsWidgetInstance->AddToViewport(500);
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] WBP_Options 옵션 인터페이스 파이프라인 개방 개시"));
+        }
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleFriendsClicked()
+{
+    PlayButtonClickSound();
+    
+    if (FriendListWidgetInstance && FriendListWidgetInstance->IsInViewport())
+    {
+        FriendListWidgetInstance->CloseFriendList();
+        FriendListWidgetInstance = nullptr;
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 친구 목록 위젯 토글 닫기 완료."));
+        return;
+    }
+    
+    if (FriendListWidgetClass)
+    {
+        FriendListWidgetInstance = CreateWidget<UParcelFriendListWidget>(GetOwningPlayer(), FriendListWidgetClass);
+        if (FriendListWidgetInstance)
+        {
+            FriendListWidgetInstance->AddToViewport(501);
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] UParcelFriendListWidget 스팀 친구 인터랙션 창구 오픈"));
+        }
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleLeaveLobbyClicked()
+{
+    PlayButtonClickSound();
+    
+    UE_LOG(LogTemp, Warning, TEXT("[Lobby HUD] 로비 탈출 명령 감지. 안전 세션 철거 시퀀스 개시."));
+
+    if (UGameInstance* GI = GetGameInstance())
+    {
+        if (USessionSubsystem* SessionSubsystem = GI->GetSubsystem<USessionSubsystem>())
+        {
+            SessionSubsystem->LeaveSession();
+            if (Btn_Leave) Btn_Leave->SetIsEnabled(false);
+            
+            UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] OSS 서브시스템에 세션 파괴 요청 송신 완료 -> 비동기 응답 대기 중..."));
+            return;
+        }
+
+        GI->ReturnToMainMenu();
+        return;
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] GameInstance is unavailable; cannot return to the configured front-end."));
+}
+
+void UParcelLobbyHUDWidget::HandleOnSessionDestroyComplete(bool bWasSuccessful)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] OSS 세션 철거 완료 보고 수신 (성공 여부: %s) -> 메인 화면으로 전원 송환 처리!"), 
+        bWasSuccessful ? TEXT("TRUE") : TEXT("FALSE"));
+    
+    // LeaveSession owns the single configured front-end travel path.
+}
+
+void UParcelLobbyHUDWidget::HandleSelectMapClicked()
+{
+    PlayButtonClickSound();
+    
+    APlayerController* PC = GetOwningPlayer();
+
+    if (PC && PC->HasAuthority() && MapDataTable)
+    {
+        K2_OnMapSelectMenuOpened(); 
+        
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD] 맵 선택 버튼 정상 가동 -> 블루프린트 서브 창고에 스폰 위임 완료."));
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleActionOrStartClicked()
+{
+    PlayButtonClickSound();
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(GetOwningPlayer()))
+    {
+        // The client sends only start intent; the server resolves the replicated index.
+        ParcelPC->Server_RequestStartLobbyGame();
+    }
+}
+
+void UParcelLobbyHUDWidget::RefreshLobbyPlayers()
+{
+    if (!ScrollBox_LobbyPlayers || !PlayerSlotClass) return;
+    
+    SetupLobbyLayout();
+
+    ScrollBox_LobbyPlayers->ClearChildren();
+
+    AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+    if (!GS) return;
+
+    int32 CurrentCount = GS->PlayerArray.Num();
+    if (Txt_PlayerCount)
+    {
+        Txt_PlayerCount->SetText(FText::FromString(FString::Printf(TEXT("현재 인원: %d / 4"), CurrentCount)));
+    }
+
+    // 로비에 접속한 모든 플레이어 순회
+    for (int32 i = 0; i < GS->PlayerArray.Num(); ++i)
+    {
+        APlayerState* PS = GS->PlayerArray[i].Get();
+        if (!PS) continue;
+
+        UParcelLobbyPlayerSlotWidget* NewSlot = CreateWidget<UParcelLobbyPlayerSlotWidget>(GetOwningPlayer(), PlayerSlotClass);
+        if (NewSlot)
+        {
+            // [핵심] 위험한 i == 0 예비 판별식을 완전히 삭제하고, 오직 bIsHostPlayer 복제 변수만 확인!
+            bool bIsSlotOwnerHost = false;
+            if (AParcelPlayerState* ParcelPS = Cast<AParcelPlayerState>(PS))
+            {
+                bIsSlotOwnerHost = ParcelPS->IsHostPlayer();
+            }
+
+            NewSlot->InitializeSlot(PS, bIsSlotOwnerHost);
+            ScrollBox_LobbyPlayers->AddChild(NewSlot);
+        }
+    }
+    
+    // 로컬 캐릭터 스탯/체력 델리게이트 재바인딩
+    APawn* LocalPawn = GetOwningPlayerPawn();
+    if (LocalPawn && CachedBoundPawn.Get() != LocalPawn)
+    {
+        if (UParcelStaminaComponent* StaminaComp = LocalPawn->FindComponentByClass<UParcelStaminaComponent>())
+        {
+            StaminaComp->OnStaminaChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
+            StaminaComp->OnStaminaChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeStaminaChanged);
+            HandleNativeStaminaChanged(StaminaComp->GetCurrentStamina(), StaminaComp->GetMaxStamina());
+        }
+        
+        if (UHealthComponent* HealthComp = LocalPawn->FindComponentByClass<UHealthComponent>())
+        {
+            HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
+            HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeHPChanged);
+            HandleNativeHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+        }
+        
+        if (UParcelInteractionComponent* InteractComp = LocalPawn->FindComponentByClass<UParcelInteractionComponent>())
+        {
+            InteractComp->OnFocusChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
+            InteractComp->OnFocusChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged);
+            HandleNativeInteractionFocusChanged(InteractComp->GetCurrentFocusedActor());
+        }
+
+        if (UParcelHeroComponent* HeroComp = LocalPawn->FindComponentByClass<UParcelHeroComponent>())
+        {
+            HeroComp->OnThrowChargeChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
+            HeroComp->OnThrowChargeChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged);
+        }
+        
+        if (UCharacterCarryComponent* CarryComp = LocalPawn->FindComponentByClass<UCharacterCarryComponent>())
+        {
+            CarryComp->OnCarriedBoxChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
+            CarryComp->OnCarriedBoxChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged);
+            HandleNativeCarriedBoxChanged(CarryComp->GetCarriedBox());
+        }
+
+        if (APlayerState* PS = LocalPawn->GetPlayerState())
+        {
+            if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+            {
+                InvComp->OnInventoryChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
+                InvComp->OnInventoryChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeInventoryChanged);
+                HandleNativeInventoryChanged();
+            }
+        }
+
+        CachedBoundPawn = LocalPawn;
+        UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Core] 새 Pawn(%s) 스탯/체력 델리게이트 재바인딩 완공!"), *LocalPawn->GetName());
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeCarriedBoxChanged(ADeliveryBox* NewCarriedBox)
+{
+    if (CachedCarriedBox.IsValid())
+    {
+        if (UHealthComponent* OldHealth = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+        {
+            OldHealth->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged);
+        }
+    }
+
+    CachedCarriedBox = NewCarriedBox;
+
+    if (!NewCarriedBox)
+    {
+        K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
+        return;
+    }
+
+    if (UHealthComponent* HealthComp = NewCarriedBox->FindComponentByClass<UHealthComponent>())
+    {
+        HealthComp->OnHPChanged.RemoveDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged);
+        HealthComp->OnHPChanged.AddDynamic(this, &UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged);
+        HandleNativeCarriedBoxHPChanged(HealthComp->GetHP(), HealthComp->GetMaxHP());
+    }
+    else
+    {
+        HandleNativeCarriedBoxHPChanged(0.f, 0.f);
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeCarriedBoxHPChanged(float CurrentHP, float MaxHP)
+{
+    if (!CachedCarriedBox.IsValid())
+    {
+        K2_OnCarriedBoxInfoChanged(false, FText::GetEmpty(), FText::GetEmpty(), FGameplayTag(), FText::GetEmpty());
+        return;
+    }
+
+    FBoxData CarriedBoxData = CachedCarriedBox->GetBoxData();
+    
+    FText BoxNameText = FText::FromString(CarriedBoxData.DisplayName);
+    FText FormattedName = FText::Format(
+        FText::FromString(TEXT("{0} ({1}kg)")), 
+        BoxNameText, 
+        FText::AsNumber(CarriedBoxData.Weight)
+    );
+    
+    FText DestinationText = FText::FromString(TEXT("목적지 : 미지정 구역"));
+    if (CarriedBoxData.TargetZoneTag.IsValid())
+    {
+        FString ZoneString = CarriedBoxData.TargetZoneTag.ToString();
+        ZoneString.ReplaceInline(TEXT("Delivery."), TEXT(""));
+        ZoneString.ReplaceInline(TEXT("Zone."), TEXT(""));
+        
+        DestinationText = FText::Format(
+            FText::FromString(TEXT("목적지 : {0} 구역")), 
+            FText::FromString(ZoneString)
+        );
+    }
+
+    FText BoxHPText = FText::FromString(TEXT("내구도 : -"));
+    if (UHealthComponent* HealthComp = CachedCarriedBox->FindComponentByClass<UHealthComponent>())
+    {
+        int32 CurHPVal = FMath::RoundToInt(HealthComp->GetHP());
+        int32 MaxHPVal = FMath::RoundToInt(HealthComp->GetMaxHP());
+        BoxHPText = FText::Format(
+            FText::FromString(TEXT("내구도 : {0} / {1}")),
+            FText::AsNumber(CurHPVal),
+            FText::AsNumber(MaxHPVal)
+        );
+    }
+    
+    K2_OnCarriedBoxInfoChanged(true, FormattedName, DestinationText, CarriedBoxData.BoxTypeTag, BoxHPText);
+}
+
+void UParcelLobbyHUDWidget::HandleNativeInteractionFocusChanged(AActor* NewFocusedActor)
+{
+    if (NewFocusedActor)
+    {
+        FText PromptText = FText::FromString(TEXT("E 키를 눌러 상호작용"));
+        K2_OnCrosshairStateChanged(true, PromptText);
+    }
+    else
+    {
+        K2_OnCrosshairStateChanged(false, FText::GetEmpty());
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeThrowChargeChanged(bool bIsCharging, float ChargeRatio)
+{
+    K2_OnThrowChargeChanged(bIsCharging, ChargeRatio);
+}
+
+void UParcelLobbyHUDWidget::HandleNativeHPChanged(float CurrentHP, float MaxHP)
+{
+    K2_OnHPChanged(CurrentHP, MaxHP);
+}
+
+void UParcelLobbyHUDWidget::HandleNativeStaminaChanged(float CurrentStamina, float MaxStamina)
+{
+    K2_OnStaminaChanged(CurrentStamina, MaxStamina);
+}
+
+void UParcelLobbyHUDWidget::HandleOnLobbyMapChanged(int32 NewMapIndex)
+{
+    if (!MapDataTable) return;
+    
+    TArray<FParcelMapStageData*> AllMapRows;
+    MapDataTable->GetAllRows<FParcelMapStageData>(TEXT("MapRenderingContext"), AllMapRows);
+
+    if (!AllMapRows.IsValidIndex(NewMapIndex))
+    {
+        UE_LOG(LogTemp, Error, TEXT("[Lobby HUD] 복제된 맵 인덱스(%d)가 데이터 테이블 범위를 벗어났습니다!"), NewMapIndex);
+        return;
+    }
+    
+    FParcelMapStageData* SelectedStageData = AllMapRows[NewMapIndex];
+    if (!SelectedStageData) return;
+
+    if (Txt_MapName)
+    {
+        Txt_MapName->SetText(FText::FromString(SelectedStageData->StageName));
+    }
+    
+    if (Img_MapThumbnail)
+    {
+        UTexture2D* LoadedThumbnail = SelectedStageData->StageThumbnail.LoadSynchronous();
+        if (LoadedThumbnail)
+        {
+            Img_MapThumbnail->SetBrushFromTexture(LoadedThumbnail);
+        }
+    }
+    
+    LocalCurrentMapIndex = NewMapIndex;
+    UE_LOG(LogTemp, Log, TEXT("[Lobby HUD Synced] 전 클라이언트 화면에 %s 맵 비주얼 동기화 렌더링 완료"), *SelectedStageData->StageName);
+}
+
+void UParcelLobbyHUDWidget::ToggleLobbyMenuExternal()
+{
+    SetMenuVisibleState(!bIsMenuOpen);
+}
+
+void UParcelLobbyHUDWidget::SelectMapByIndex(int32 NewMapIndex)
+{
+    APlayerController* PC = GetOwningPlayer();
+    if (!PC) return;
+
+    if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
+    {
+        ParcelPC->Server_RequestChangeLobbyMap(NewMapIndex);
+    }
+}
+
+void UParcelLobbyHUDWidget::HandleNativeInventoryChanged()
+{
+    if (APawn* LocalPawn = GetOwningPlayerPawn())
+    {
+        if (APlayerState* PS = LocalPawn->GetPlayerState())
+        {
+            if (UInventoryComponent* InvComp = PS->FindComponentByClass<UInventoryComponent>())
+            {
+                K2_OnInventoryChanged(InvComp->GetItems());
+            }
+        }
+    }
+}
+
+bool UParcelLobbyHUDWidget::GetItemDataByTag(FGameplayTag ItemTag, FItemData& OutItemData) const
+{
+    if (!ItemTable || !ItemTag.IsValid())
+    {
+        return false;
+    }
+
+    TArray<FItemData*> AllRows;
+    ItemTable->GetAllRows<FItemData>(TEXT("GetItemDataByTag"), AllRows);
+    for (const FItemData* Row : AllRows)
+    {
+        if (Row && Row->ItemTag == ItemTag)
+        {
+            OutItemData = *Row;
+            return true;
+        }
+    }
+    return false;
+}
+
+void UParcelLobbyHUDWidget::PlayButtonClickSound()
+{
+    if (ButtonClickSound)
+    {
+        // 뷰포트에 2D로 UI 효과음 출력
+        UGameplayStatics::PlaySound2D(this, ButtonClickSound);
+    }
+}

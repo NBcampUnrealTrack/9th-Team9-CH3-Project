@@ -1,0 +1,89 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Core/HealthInterface.h"
+#include "HealthComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChangedSignature, float, CurrentHP, float, MaxHP);
+
+/**
+ * 체력 관리 컴포넌트
+ * IHealthInterface를 구현하며, 플레이어·적·파손 가능 오브젝트 등에 부착된다.
+ *
+ * 담당자: 한수현
+ */
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+class PARCEL_KNIGHT_API UHealthComponent : public UActorComponent, public IHealthInterface
+{
+	GENERATED_BODY()
+
+public:
+	UHealthComponent();
+
+	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	// 사망 시 발동 — 플레이어/박스 등 소유자가 각자의 사망 처리를 바인딩
+	UPROPERTY(BlueprintAssignable)
+	FOnDeathSignature OnDeathDelegate;
+	
+	// [UI]
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnHPChangedSignature OnHPChanged;
+	
+	// IHealthInterface 구현
+	virtual float GetHP() const override;
+	virtual float GetMaxHP() const override;
+	virtual void AddHP(float Amount) override;
+	virtual void TakeDamage(float Amount) override;
+	virtual void OnDeath() override;
+	virtual bool IsDead() const override;
+
+	// 최대 체력 및 현재 체력을 초기화 — 리스폰 시 (기준MaxHP + 로드아웃 보너스)로 호출
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void InitializeHP(float InMaxHP);
+
+	// 에디터에서 설정한 기준 MaxHP 반환 — 아이템 보너스 계산 시 기준값으로 사용
+	UFUNCTION(BlueprintPure, Category = "Health")
+	float GetBaseMaxHP() const;
+
+	// MaxHP 증가 — 현재 HP도 같은 양만큼 증가 (패시브 아이템용)
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void IncreaseMaxHP(float Amount);
+
+	// [Server] 패시브 최종 MaxHP를 절대값으로 설정하며 생존자의 현재 HP 비율을 보존
+	void SetMaxHPPreservingRatio(float InMaxHP);
+
+	// [Multicast] 사망 연출 전파 — 이펙트·사운드 추가 시 여기에 구현
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_OnDeath();
+
+private:
+	// 복제 — 클라이언트 체력바 갱신용
+	UPROPERTY(ReplicatedUsing = OnRep_HP)
+	float HP;
+	
+	// [Client] Notify 함수
+	UFUNCTION()
+	void OnRep_HP();
+
+	// 초기/최대 체력 — 추후 DataAsset 등에서 설정 가능
+	UPROPERTY(Replicated, EditDefaultsOnly, Category = "Health")
+	float MaxHP;
+
+	// 에디터 설정값 고정 보관 — 아이템 보너스 재계산 기준
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	float BaseMaxHP;
+
+	/*
+	 *사망 여부 — 중복 사망 처리 방지용
+	 *NOTE: 사망코드는 대상 클래스에서 구현
+	 */
+	UPROPERTY(Replicated)
+	bool bIsDead;
+	
+};

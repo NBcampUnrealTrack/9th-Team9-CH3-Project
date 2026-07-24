@@ -1,10 +1,12 @@
 # 9th-Team9-CH3-Project
 
+<img width="2814" height="1536" alt="Parcel_Knight_Title" src="https://github.com/user-attachments/assets/8a0dbff0-f63e-4110-b49d-4b8a9d1a217f" />
+
 
 ## 최초 실행
 cmd에 입력
 ```bash
-git clone https://github.com/hunlung/CTN.git
+git clone https://github.com/NBcampUnrealTrack/9th-Team9-CH3-Project.git
 ```
 
 ## 브랜치 설명
