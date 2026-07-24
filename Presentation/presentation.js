@@ -22,6 +22,7 @@
   const slideDialog = document.getElementById("slideDialog");
   const slideList = document.getElementById("slideList");
   const slideAnnouncement = document.getElementById("slideAnnouncement");
+  const coverMedia = document.querySelector("[data-cover-media]");
 
   if (!slides.length) {
     return;
@@ -34,6 +35,22 @@
   let numberTimer = 0;
 
   const formatNumber = (value) => String(value).padStart(2, "0");
+
+  const initializeCoverMedia = () => {
+    if (!coverMedia) return;
+
+    const image = coverMedia.querySelector("img");
+    if (!image) return;
+
+    const updateCoverState = () => {
+      const hasImage = image.naturalWidth > 0 && image.naturalHeight > 0;
+      coverMedia.classList.toggle("has-image", hasImage);
+    };
+
+    image.addEventListener("load", updateCoverState);
+    image.addEventListener("error", updateCoverState);
+    if (image.complete) updateCoverState();
+  };
 
   const parseHashIndex = () => {
     const match = window.location.hash.match(/^#slide-(\d+)$/);
@@ -271,6 +288,7 @@
 
   buildSectionNavigation();
   buildSlideList();
+  initializeCoverMedia();
   currentIndex = parseHashIndex();
   resizeDeck();
   renderSlide(currentIndex, true);
