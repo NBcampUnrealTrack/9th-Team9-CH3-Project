@@ -22,6 +22,7 @@ class UParcelStaminaComponent;
 class UInputAction;
 class USpringArmComponent;
 class USceneCaptureComponent2D;
+class UCameraShakeBase;
 
 UCLASS()
 class PARCEL_KNIGHT_API AParcelCharacter : public ACharacter
@@ -125,6 +126,19 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_UseSlot(int32 SlotIndex);
 
+	// 총 발사 시 쏜 사람 본인의 화면에만 재생되는 반동 카메라 쉐이크 — 에디터에서 CS_GunRecoil 같은 애셋 할당
+	UPROPERTY(EditDefaultsOnly, Category = "Cunsumables")
+	TSubclassOf<UCameraShakeBase> GunRecoilCameraShakeClass;
+
+	// [Client] 총 반동으로 시점을 위로 밀어주는 양(도) — 원위치로 자동 복귀하지 않고 그대로 유지됨.
+	// 방향이 반대로 느껴지면 부호를 뒤집어서 조정할 것.
+	UPROPERTY(EditDefaultsOnly, Category = "Cosmetic")
+	float GunRecoilPitchKick = -2.0f;
+
+	// [Client] 총 발사 시 쏜 사람 본인 화면의 ControlRotation을 직접 밀어주는 RPC
+	UFUNCTION(Client, Reliable)
+	void Client_ApplyGunRecoil();
+
 	// 칭호 태그로 DataTable 조회 후 네임플레이트에 반영 — CustomizationComponent OnRep 및 PossessedBy에서 호출
 	UFUNCTION(BlueprintCallable, Category = "Title")
 	void ApplyTitle(FGameplayTag TitleTag);
@@ -165,6 +179,17 @@ public:
 private:
 	// 총 히트스캔 — Server_UseSlot에서 Gun 아이템일 때 호출
 	void DoGunLineTrace();
+
+	// [Server] 미보유 상태에서 앞에 있는 택배를 바로 집는다 — Magnet 아이템용
+	void DoBoxMagnet();
+
+	// [Server] 앞쪽에 ActorClass를 스폰 — 연막탄/함정 설치 등 "설치형" 아이템 공용 처리
+	void DoSpawnDeployItem(TSubclassOf<AActor> ActorClass);
+
+	// Item.Consumables.* 태그별 추가 로직을 미리 등록해두는 맵 — Server_UseSlot에서 조회해서 실행
+	using FItemActionFunc = TFunction<void(const struct FItemData&)>;
+	TMap<FGameplayTag, FItemActionFunc> ItemActionHandlers;
+	void RegisterItemActionHandlers();
 
 	// 서버의 HealthComponent 사망 이벤트는 이 Character 처리기로만 진입한다.
 	void BindAuthoritativeDeathHandler();

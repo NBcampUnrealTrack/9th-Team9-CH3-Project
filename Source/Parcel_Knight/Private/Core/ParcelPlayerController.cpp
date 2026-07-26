@@ -277,7 +277,7 @@ void AParcelPlayerController::Server_SubmitCustomization_Implementation(
 }
 
 // 🆕 복구된 사망 처리 Client RPC 구현체
-void AParcelPlayerController::Client_NotifyDeath_Implementation()
+void AParcelPlayerController::Client_NotifyDeath_Implementation(int32 RespawnSeconds)
 {
     if (!IsLocalController()) return;
     
@@ -292,8 +292,8 @@ void AParcelPlayerController::Client_NotifyDeath_Implementation()
     // Close ESCMenu
     if (ESCMenuRef && ESCMenuRef->IsInViewport())
     {
+       // ToggleInGameMenu()와 동일한 이유로, 페이드아웃이 끝나기 전에 참조를 비우지 않는다.
        ESCMenuRef->K2_OnMenuCloseStarted();
-       ESCMenuRef = nullptr;
     }
 
     // Dead HUD Widget
@@ -309,7 +309,7 @@ void AParcelPlayerController::Client_NotifyDeath_Implementation()
           DeadHUDWidgetInstance->AddToViewport(200);
        }
 
-       DeadHUDWidgetInstance->StartDeathCountdown(5);
+       DeadHUDWidgetInstance->StartDeathCountdown(RespawnSeconds);
 
        FInputModeUIOnly InputMode;
        InputMode.SetWidgetToFocus(DeadHUDWidgetInstance->TakeWidget());
@@ -334,8 +334,8 @@ void AParcelPlayerController::Client_NotifyRespawn_Implementation()
     
     if (ESCMenuRef && ESCMenuRef->IsInViewport())
     {
+       // ToggleInGameMenu()와 동일한 이유로, 페이드아웃이 끝나기 전에 참조를 비우지 않는다.
        ESCMenuRef->K2_OnMenuCloseStarted();
-       ESCMenuRef = nullptr;
     }
 
     // 만약 심리스 트래블 직후라 HUDWidgetInstance가 아직 스폰 안 되었다면 재생성
@@ -421,8 +421,12 @@ void AParcelPlayerController::ToggleInGameMenu()
 
     if (ESCMenuRef && ESCMenuRef->IsValidLowLevel() && ESCMenuRef->IsInViewport())
     {
+       // 페이드아웃 연출이 끝나기 전에 ESCMenuRef를 미리 비우면, 그 사이 다시 열었을 때
+       // 실제로는 아직 화면에 남아있는 옛 위젯 위에 새 위젯이 하나 더 생겨서 중복 발생.
+       // CompleteTeardown()이 RemoveFromParent()를 호출해 실제로 뷰포트에서 사라지고 나면
+       // 다음 호출의 IsInViewport() 체크에서 자연스럽게 false가 되어 새로 생성되므로,
+       // 여기서는 닫기 신호만 보내고 참조는 그대로 둔다.
        ESCMenuRef->K2_OnMenuCloseStarted();
-       ESCMenuRef = nullptr;
 
        if (DeadHUDWidgetInstance && DeadHUDWidgetInstance->IsInViewport())
        {
@@ -433,7 +437,9 @@ void AParcelPlayerController::ToggleInGameMenu()
        }
        return;
     }
-    
+
+    ESCMenuRef = nullptr;
+
     if (ESCMenuClass)
     {
        ESCMenuRef = CreateWidget<UParcelInGameESCMenuWidget>(this, ESCMenuClass);

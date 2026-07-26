@@ -25,6 +25,10 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Kismet/KismetRenderingLibrary.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/CameraShakeBase.h"
+#include "Delivery/DeliveryBox.h"
+#include "Delivery/InteractableInterface.h"
 
 DEFINE_LOG_CATEGORY(LogCharacter);
 
@@ -112,9 +116,10 @@ void AParcelCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	UpdateMinimapCaptureState();
+	RegisterItemActionHandlers();
 
 	GetMesh()->SetOwnerNoSee(true);
-    
+
 	if (PlayerStateComp)
 	{
 		PlayerStateComp->OnCharacterStateTagsChanged.AddUniqueDynamic(this, &AParcelCharacter::OnCharacterStateTagsChanged);
@@ -411,7 +416,6 @@ void AParcelCharacter::Server_UseSlot_Implementation(int32 SlotIndex)
 	PLAYER_LOG(Log, TEXT("[Server] 슬롯[%d] = %s"), SlotIndex, *ItemTag.ToString());
 
 	static const FGameplayTag TAG_Consumable = FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
-	static const FGameplayTag TAG_Gun        = FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Gun"));
 
 	if (ItemTag.MatchesTag(TAG_Consumable))
 	{
@@ -420,10 +424,12 @@ void AParcelCharacter::Server_UseSlot_Implementation(int32 SlotIndex)
 			PLAYER_LOG(Warning, TEXT("[Server] UseItem(%s) 실패 — 자세한 원인은 LogItem 확인"), *ItemTag.ToString());
 			return;
 		}
-		if (ItemTag == TAG_Gun)
+
+		if (const FItemActionFunc* Handler = ItemActionHandlers.Find(ItemTag))
 		{
-			PLAYER_LOG(Log, TEXT("[Server] Gun 라인트레이스 실행"));
-			DoGunLineTrace();
+			const FItemData* Data = InvComp->GetItemData(ItemTag);
+			PLAYER_LOG(Log, TEXT("[Server] %s 추가 로직 실행"), *ItemTag.ToString());
+			(*Handler)(Data ? *Data : FItemData());
 		}
 	}
 	else
@@ -455,6 +461,99 @@ void AParcelCharacter::DoGunLineTrace()
 				HC->TakeDamage(99999.f);
 		}
 	}
+
+	// 명중 여부와 무관하게, 쏜 사람 본인의 화면에만 반동 카메라 쉐이크 재생
+	if (GunRecoilCameraShakeClass)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(Ctrl))
+		{
+			PC->ClientStartCameraShake(GunRecoilCameraShakeClass);
+		}
+	}
+
+	Client_ApplyGunRecoil();
+}
+
+void AParcelCharacter::Client_ApplyGunRecoil_Implementation()
+{
+	// 원위치로 자동 복귀하지 않는 영구적인 시점 킥 — 마우스로 직접 내려야 원래대로 돌아옴
+	AddControllerPitchInput(GunRecoilPitchKick);
+}
+
+void AParcelCharacter::RegisterItemActionHandlers()
+{
+	if (!HasAuthority() || ItemActionHandlers.Num() > 0)
+	{
+		return;
+	}
+
+	ItemActionHandlers.Add(
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Gun")),
+		[this](const FItemData&) { DoGunLineTrace(); });
+
+	ItemActionHandlers.Add(
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Magnet")),
+		[this](const FItemData&) { DoBoxMagnet(); });
+
+	ItemActionHandlers.Add(
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.Smoke")),
+		[this](const FItemData& Data) { DoSpawnDeployItem(Data.DeployActorClass); });
+
+	ItemActionHandlers.Add(
+		FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables.PushTrap")),
+		[this](const FItemData& Data) { DoSpawnDeployItem(Data.DeployActorClass); });
+}
+
+void AParcelCharacter::DoBoxMagnet()
+{
+	if (!CarryComp || CarryComp->IsCarrying())
+	{
+		return;
+	}
+
+	AController* Ctrl = GetController();
+	if (!Ctrl) return;
+
+	FVector ViewLoc;
+	FRotator ViewRot;
+	Ctrl->GetPlayerViewPoint(ViewLoc, ViewRot);
+	FVector End = ViewLoc + ViewRot.Vector() * 2000.f;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLoc, End, ECC_Visibility, Params))
+	{
+		if (ADeliveryBox* Box = Cast<ADeliveryBox>(Hit.GetActor()))
+		{
+			// CarryComp->Pickup()만 직접 호출하면 ADeliveryBox::SetOwner()가 안 불려서
+			// Throw()의 "CarriedBox->GetOwner() != GetOwner()" 검사에 걸려 못 던지게 된다.
+			// E키 상호작용과 동일하게 Interact 전체를 태워서 Owner까지 정상적으로 맞춘다.
+			if (Box->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass())
+				&& IInteractableInterface::Execute_CanInteract(Box, this))
+			{
+				IInteractableInterface::Execute_Interact(Box, this);
+			}
+		}
+	}
+}
+
+void AParcelCharacter::DoSpawnDeployItem(TSubclassOf<AActor> ActorClass)
+{
+	if (!ActorClass || !GetWorld())
+	{
+		return;
+	}
+
+	const FVector SpawnLocation = GetActorLocation() + GetActorForwardVector() * 200.f;
+	const FTransform SpawnTransform(GetActorRotation(), SpawnLocation);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	GetWorld()->SpawnActor<AActor>(ActorClass, SpawnTransform, SpawnParams);
 }
 
 void AParcelCharacter::ApplyTitle(FGameplayTag TitleTag)

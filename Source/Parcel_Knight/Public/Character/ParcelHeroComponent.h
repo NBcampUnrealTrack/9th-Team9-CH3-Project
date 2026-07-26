@@ -9,7 +9,6 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
-class UParcelInGameESCMenuWidget;
 class ADeliveryBox;
 
 // [UI] 던지기 충전 상태 델리게이트
@@ -143,12 +142,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
 	TObjectPtr<UInputAction> UseSlotAction3;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
-	
+	// ESC 메뉴 위젯 관리는 AParcelPlayerController::ToggleInGameMenu()로 일원화되어 있음
+	// (리스폰 시 이 컴포넌트가 재생성되면서 위젯 정리가 안 되던 중복 구현 버그 수정 — project_escmenu_consolidation 메모리 참고)
 	void ToggleInGameMenu();
 	void UseSlot1(const FInputActionValue& Value);
 	void UseSlot2(const FInputActionValue& Value);

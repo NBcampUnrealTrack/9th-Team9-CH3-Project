@@ -13,7 +13,6 @@
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Delivery/DeliveryBox.h"
-#include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
 #include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerController.h"
@@ -790,36 +789,17 @@ void UParcelHeroComponent::UseSlot(int32 SlotIndex)
 
 void UParcelHeroComponent::ToggleInGameMenu()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[ESC Test] ToggleInGameMenu 함수가 정상적으로 호출되었습니다!"));
-
     if (!CanProcessLocalInput()) return;
 
     ACharacter* OwnerChar = Cast<ACharacter>(GetOwner());
     if (!OwnerChar) return;
 
-    APlayerController* PC = Cast<APlayerController>(OwnerChar->GetController());
-    if (!PC) return;
-    
-    if (ESCMenuRef && ESCMenuRef->IsValidLowLevel() && ESCMenuRef->IsInViewport())
+    // ESC 메뉴 위젯 생성/추적은 PlayerController 쪽 하나로 일원화 —
+    // 이 컴포넌트가 자체 ESCMenuRef를 들고 있으면 캐릭터가 리스폰될 때마다
+    // 새로 생성되어 이전 위젯이 정리되지 않고 쌓이는 버그가 있었음.
+    if (AParcelPlayerController* PC = Cast<AParcelPlayerController>(OwnerChar->GetController()))
     {
-        if (ESCMenuRef->CloseSubMenuIfOpen())
-        {
-            return;
-        }
-        
-        ESCMenuRef->K2_OnMenuCloseStarted();
-        ESCMenuRef = nullptr;
-        return;
-    }
-    
-    if (ESCMenuClass)
-    {
-        ESCMenuRef = CreateWidget<UParcelInGameESCMenuWidget>(PC, ESCMenuClass);
-        if (ESCMenuRef)
-        {
-            ESCMenuRef->AddToViewport();
-            ESCMenuRef->SetupMenu();
-        }
+        PC->ToggleInGameMenu();
     }
 }
 
