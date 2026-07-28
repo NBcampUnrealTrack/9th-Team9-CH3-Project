@@ -115,6 +115,7 @@ protected:
 	void Interact(const FInputActionValue& Value);
 	void StartThrow(const FInputActionValue& Value);
 	void ReleaseThrow(const FInputActionValue& Value);
+	void Input_Suicide(const FInputActionValue& Value);
 	
 	// Ragdoll 카메라 세팅 에디터 노출
 	UPROPERTY(EditAnywhere, Category = "Camera|Ragdoll")
@@ -132,6 +133,10 @@ protected:
 	// [UI] InGame ESC 버튼
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InGameMenuAction;
+
+	// [Debug] K키 등 — 어떤 상태에서든(래그돌/스턱 포함) 즉시 자살 후 리스폰
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> SuicideAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
 	TObjectPtr<UInputAction> UseSlotAction1;
@@ -175,6 +180,11 @@ private:
 
 	void BeginThrowChargeServerOnly();
 	void ReleaseThrowServerOnly();
+
+	UFUNCTION(Server, Reliable)
+	void Server_ForceSuicide();
+
+	void ForceSuicideServerOnly();
 
 	bool bServerThrowChargeActive = false;
 	double ServerThrowChargeStartTimeSeconds = 0.0;

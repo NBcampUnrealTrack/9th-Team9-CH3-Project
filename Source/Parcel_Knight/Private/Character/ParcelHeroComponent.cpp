@@ -176,6 +176,7 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
     }
     
     if (InGameMenuAction) EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+    if (SuicideAction) EnhancedInputComponent->BindAction(SuicideAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_Suicide);
     if (OpenChatAction) EnhancedInputComponent->BindAction(OpenChatAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_OpenChat);
     
     if (LobbyMenuAction)
@@ -561,6 +562,42 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
     if (!bNeedsTick)
     {
         PrimaryComponentTick.SetTickFunctionEnable(false);
+    }
+}
+
+void UParcelHeroComponent::Input_Suicide(const FInputActionValue& Value)
+{
+    // 래그돌/스턱 등 어떤 상태에서도 눌리도록 CanProcessLocalInput()만 확인하고,
+    // 래그돌 여부 등 다른 방어 코드는 의도적으로 걸지 않는다.
+    if (!CanProcessLocalInput()) return;
+
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    if (Character->HasAuthority())
+    {
+        ForceSuicideServerOnly();
+    }
+    else
+    {
+        Server_ForceSuicide();
+    }
+}
+
+void UParcelHeroComponent::Server_ForceSuicide_Implementation()
+{
+    ForceSuicideServerOnly();
+}
+
+void UParcelHeroComponent::ForceSuicideServerOnly()
+{
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character || !Character->HasAuthority()) return;
+
+    if (UHealthComponent* HealthComp = Character->FindComponentByClass<UHealthComponent>())
+    {
+        HEROCOMP_LOG(Log, TEXT("[자살 커맨드] %s 강제 사망 처리."), *Character->GetName());
+        HealthComp->Kill();
     }
 }
 

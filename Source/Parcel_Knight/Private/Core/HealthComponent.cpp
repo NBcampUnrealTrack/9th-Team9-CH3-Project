@@ -85,6 +85,17 @@ void UHealthComponent::Multicast_OnDeath_Implementation()
 	// 사망 연출 전파 — 이펙트·사운드는 추후 구현
 }
 
+void UHealthComponent::Kill()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+
+	HP = 0.f;
+	OnHPChanged.Broadcast(HP, MaxHP);
+
+	if (!bIsDead)
+		OnDeath();
+}
+
 bool UHealthComponent::IsDead() const
 {
 	return bIsDead;
