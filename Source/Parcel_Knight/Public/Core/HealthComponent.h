@@ -62,6 +62,10 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_OnDeath();
 
+	// [Server] 현재 HP와 무관하게 즉시 사망 처리 — 자살 커맨드 등 강제 사망용
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void Kill();
+
 private:
 	// 복제 — 클라이언트 체력바 갱신용
 	UPROPERTY(ReplicatedUsing = OnRep_HP)

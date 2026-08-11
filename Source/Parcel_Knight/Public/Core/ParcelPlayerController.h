@@ -30,9 +30,9 @@ public:
 	// [Client] 기존에 켜져있던 모든 HUD 및 오버레이 정리
 	void ResetAllHUDInstances();
 	
-	// [Client]
+	// [Client] RespawnSeconds — 패시브 아이템으로 감소된 값까지 반영된 실제 부활 대기시간(초)
 	UFUNCTION(Client, Reliable)
-	void Client_NotifyDeath();
+	void Client_NotifyDeath(int32 RespawnSeconds);
 	
 	// [Client]
 	UFUNCTION(Client, Reliable)

@@ -13,7 +13,6 @@
 #include "Character/CharacterCarryComponent.h"
 #include "Character/ParcelPlayerStateComponent.h"
 #include "Delivery/DeliveryBox.h"
-#include "UI/ParcelInGameESCMenuWidget.h"
 #include "Components/DFStatusEffectComponent.h"
 #include "Core/HealthComponent.h"
 #include "Core/ParcelPlayerController.h"
@@ -177,6 +176,7 @@ void UParcelHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCom
     }
     
     if (InGameMenuAction) EnhancedInputComponent->BindAction(InGameMenuAction, ETriggerEvent::Started, this, &UParcelHeroComponent::ToggleInGameMenu);
+    if (SuicideAction) EnhancedInputComponent->BindAction(SuicideAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_Suicide);
     if (OpenChatAction) EnhancedInputComponent->BindAction(OpenChatAction, ETriggerEvent::Started, this, &UParcelHeroComponent::Input_OpenChat);
     
     if (LobbyMenuAction)
@@ -565,6 +565,42 @@ void UParcelHeroComponent::ReleaseThrow(const FInputActionValue& Value)
     }
 }
 
+void UParcelHeroComponent::Input_Suicide(const FInputActionValue& Value)
+{
+    // 래그돌/스턱 등 어떤 상태에서도 눌리도록 CanProcessLocalInput()만 확인하고,
+    // 래그돌 여부 등 다른 방어 코드는 의도적으로 걸지 않는다.
+    if (!CanProcessLocalInput()) return;
+
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character) return;
+
+    if (Character->HasAuthority())
+    {
+        ForceSuicideServerOnly();
+    }
+    else
+    {
+        Server_ForceSuicide();
+    }
+}
+
+void UParcelHeroComponent::Server_ForceSuicide_Implementation()
+{
+    ForceSuicideServerOnly();
+}
+
+void UParcelHeroComponent::ForceSuicideServerOnly()
+{
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character || !Character->HasAuthority()) return;
+
+    if (UHealthComponent* HealthComp = Character->FindComponentByClass<UHealthComponent>())
+    {
+        HEROCOMP_LOG(Log, TEXT("[자살 커맨드] %s 강제 사망 처리."), *Character->GetName());
+        HealthComp->Kill();
+    }
+}
+
 void UParcelHeroComponent::Server_BeginThrowCharge_Implementation()
 {
 	BeginThrowChargeServerOnly();
@@ -790,36 +826,17 @@ void UParcelHeroComponent::UseSlot(int32 SlotIndex)
 
 void UParcelHeroComponent::ToggleInGameMenu()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[ESC Test] ToggleInGameMenu 함수가 정상적으로 호출되었습니다!"));
-
     if (!CanProcessLocalInput()) return;
 
     ACharacter* OwnerChar = Cast<ACharacter>(GetOwner());
     if (!OwnerChar) return;
 
-    APlayerController* PC = Cast<APlayerController>(OwnerChar->GetController());
-    if (!PC) return;
-    
-    if (ESCMenuRef && ESCMenuRef->IsValidLowLevel() && ESCMenuRef->IsInViewport())
+    // ESC 메뉴 위젯 생성/추적은 PlayerController 쪽 하나로 일원화 —
+    // 이 컴포넌트가 자체 ESCMenuRef를 들고 있으면 캐릭터가 리스폰될 때마다
+    // 새로 생성되어 이전 위젯이 정리되지 않고 쌓이는 버그가 있었음.
+    if (AParcelPlayerController* PC = Cast<AParcelPlayerController>(OwnerChar->GetController()))
     {
-        if (ESCMenuRef->CloseSubMenuIfOpen())
-        {
-            return;
-        }
-        
-        ESCMenuRef->K2_OnMenuCloseStarted();
-        ESCMenuRef = nullptr;
-        return;
-    }
-    
-    if (ESCMenuClass)
-    {
-        ESCMenuRef = CreateWidget<UParcelInGameESCMenuWidget>(PC, ESCMenuClass);
-        if (ESCMenuRef)
-        {
-            ESCMenuRef->AddToViewport();
-            ESCMenuRef->SetupMenu();
-        }
+        PC->ToggleInGameMenu();
     }
 }
 

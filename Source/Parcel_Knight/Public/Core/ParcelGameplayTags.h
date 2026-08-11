@@ -12,11 +12,16 @@ namespace ParcelGameplayTags
 
 	// ========================= Effect =========================
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Stat_HP)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Stat_RespawnTimeReduction)
 
 	// ========================= Item =========================
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_Gun)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_HPBoost)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_Magnet)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_Smoke)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_PushTrap)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_FastRespawn)
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Cosmetic_Title)

@@ -103,4 +103,8 @@ struct PARCEL_KNIGHT_API FItemData : public FTableRowBase
 	// Colored 타입일 때 칭호 텍스트에 적용할 색상
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Title")
 	FLinearColor TitleColor = FLinearColor::White;
+
+	// 설치형 아이템(연막탄, 함정 등) 전용 — 사용 시 캐릭터 앞에 스폰할 액터. 그 외 아이템은 비워둘 것
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deploy")
+	TSubclassOf<AActor> DeployActorClass;
 };

@@ -10,6 +10,7 @@
 #include "Core/ParcelPlayerController.h"
 #include "Core/RespawnComponent.h"
 #include "Core/ParcelPlayerController.h"
+#include "Core/ParcelGameplayTags.h"
 #include "Net/UnrealNetwork.h"
 
 // ========================= 초기화 =========================
@@ -97,12 +98,6 @@ void AParcelPlayerState::HandleDeath()
 	PlayerStatComp->OnDeath();
 	Client_StartSpectating();
 
-	// [UI] [Server] : 로컬 플레이어 컨트롤러를 찾아서 클라이언트 RPC 호출
-	if (AParcelPlayerController* PC = Cast<AParcelPlayerController>(GetPlayerController()))
-	{
-		PC->Client_NotifyDeath();
-	}
-	
 	if (AParcelGameMode* GM = GetWorld()->GetAuthGameMode<AParcelGameMode>())
 	{
 		URespawnComponent* RC = GM->GetRespawnComponent();
@@ -112,8 +107,22 @@ void AParcelPlayerState::HandleDeath()
 			GAMERULE_LOG(Warning, TEXT("[부활] GetPlayerController() null — 타이머 미설정"));
 			return;
 		}
-		RC->RespawnPlayerAfterDelay(PC, RC->ReviveDelay);
-		GAMERULE_LOG(Log, TEXT("[부활] 타이머 설정 (%.1f초 후)"), RC->ReviveDelay);
+		float ReduceSeconds = 0.f;
+		if (InventoryComp)
+		{
+			ReduceSeconds = InventoryComp->GetPassiveEffectSum(ParcelGameplayTags::Effect_Stat_RespawnTimeReduction);
+		}
+		const float FinalDelay = FMath::Max(0.f, RC->ReviveDelay - ReduceSeconds);
+
+		// [UI] [Server] : 로컬 플레이어 컨트롤러를 찾아서 클라이언트 RPC 호출 — 실제 부활 시간을 그대로 넘겨서
+		// 사망 화면 카운트다운이 하드코딩된 값이 아니라 감소분까지 반영된 값으로 표시되게 한다.
+		if (AParcelPlayerController* ParcelPC = Cast<AParcelPlayerController>(PC))
+		{
+			ParcelPC->Client_NotifyDeath(FMath::CeilToInt(FinalDelay));
+		}
+
+		RC->RespawnPlayerAfterDelay(PC, FinalDelay);
+		GAMERULE_LOG(Log, TEXT("[부활] 타이머 설정 (%.1f초 후, 기본 %.1f초 - 감소 %.1f초)"), FinalDelay, RC->ReviveDelay, ReduceSeconds);
 	}
 }
 

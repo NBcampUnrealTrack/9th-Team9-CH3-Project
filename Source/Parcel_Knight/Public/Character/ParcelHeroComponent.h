@@ -9,7 +9,6 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
-class UParcelInGameESCMenuWidget;
 class ADeliveryBox;
 
 // [UI] 던지기 충전 상태 델리게이트
@@ -116,6 +115,7 @@ protected:
 	void Interact(const FInputActionValue& Value);
 	void StartThrow(const FInputActionValue& Value);
 	void ReleaseThrow(const FInputActionValue& Value);
+	void Input_Suicide(const FInputActionValue& Value);
 	
 	// Ragdoll 카메라 세팅 에디터 노출
 	UPROPERTY(EditAnywhere, Category = "Camera|Ragdoll")
@@ -134,6 +134,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InGameMenuAction;
 
+	// [Debug] K키 등 — 어떤 상태에서든(래그돌/스턱 포함) 즉시 자살 후 리스폰
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> SuicideAction;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
 	TObjectPtr<UInputAction> UseSlotAction1;
 
@@ -143,12 +147,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|ItemSlot")
 	TObjectPtr<UInputAction> UseSlotAction3;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UParcelInGameESCMenuWidget> ESCMenuClass;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UParcelInGameESCMenuWidget> ESCMenuRef;
-	
+	// ESC 메뉴 위젯 관리는 AParcelPlayerController::ToggleInGameMenu()로 일원화되어 있음
+	// (리스폰 시 이 컴포넌트가 재생성되면서 위젯 정리가 안 되던 중복 구현 버그 수정 — project_escmenu_consolidation 메모리 참고)
 	void ToggleInGameMenu();
 	void UseSlot1(const FInputActionValue& Value);
 	void UseSlot2(const FInputActionValue& Value);
@@ -180,6 +180,11 @@ private:
 
 	void BeginThrowChargeServerOnly();
 	void ReleaseThrowServerOnly();
+
+	UFUNCTION(Server, Reliable)
+	void Server_ForceSuicide();
+
+	void ForceSuicideServerOnly();
 
 	bool bServerThrowChargeActive = false;
 	double ServerThrowChargeStartTimeSeconds = 0.0;

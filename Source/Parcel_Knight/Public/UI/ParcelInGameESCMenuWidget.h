@@ -93,8 +93,12 @@ public:
 
 private:
 	void PlayButtonClickSound();
-	
+
 	void UpdateMapName();
 	void UpdatePersonalScore();
 	void UpdatePlayerList();
+
+	// 원인 불명의 중복 생성을 대비한 방어 코드: 뷰포트에 남아있는 UParcelOptionsWidget 인스턴스를
+	// 전부 찾아서 OptionsWidgetInstance 하나만 남기고 나머지는 전부 RemoveFromParent 시킨다.
+	void CleanupDuplicateOptionsWidgets();
 };

@@ -24,6 +24,8 @@ class PARCEL_KNIGHT_API UInventoryComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+	UInventoryComponent();
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// ========================= 초기화 =========================
@@ -39,6 +41,12 @@ public:
 
 	// [All] 현재 보유 아이템 목록 반환 — UI 표시용
 	const TArray<FGameplayTag>& GetItems() const;
+
+	// [All] ItemTag에 해당하는 DataTable 행 반환 — Server_UseSlot 등에서 아이템별 추가 로직에 필요한 데이터 조회용
+	const struct FItemData* GetItemData(FGameplayTag ItemTag) const;
+
+	// [All] 보유한 패시브 아이템들의 EffectTag 값 합산 — 부활시간 감소 등 HP 외 스탯에도 재사용 가능
+	float GetPassiveEffectSum(FGameplayTag EffectTag) const;
 
 	/**
 	 * Server-only bridge from a client's persistent frontend selection to the replicated stage inventory.

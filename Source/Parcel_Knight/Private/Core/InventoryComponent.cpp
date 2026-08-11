@@ -14,6 +14,11 @@
 
 DEFINE_LOG_CATEGORY(LogItem);
 
+UInventoryComponent::UInventoryComponent()
+{
+	SetIsReplicatedByDefault(true);
+}
+
 void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -36,6 +41,32 @@ void UInventoryComponent::InitFromGameInstance(UParcelGameInstance* GI)
 bool UInventoryComponent::HasItem(FGameplayTag ItemTag) const
 {
 	return Items.Contains(ItemTag);
+}
+
+const FItemData* UInventoryComponent::GetItemData(FGameplayTag ItemTag) const
+{
+	return FindItemData(ItemTag);
+}
+
+float UInventoryComponent::GetPassiveEffectSum(FGameplayTag EffectTag) const
+{
+	static const FGameplayTag TAG_Consumable = FGameplayTag::RequestGameplayTag(TEXT("Item.Consumables"));
+
+	float Sum = 0.f;
+	for (const FGameplayTag& ItemTag : Items)
+	{
+		if (!ItemTag.MatchesTag(TAG_Consumable)) continue;
+
+		const FItemData* Data = FindItemData(ItemTag);
+		if (!Data || Data->ActivationType != EItemActivationType::Passive) continue;
+
+		for (const FItemEffect& Effect : Data->Effects)
+		{
+			if (Effect.EffectTag == EffectTag)
+				Sum += Effect.Value;
+		}
+	}
+	return Sum;
 }
 
 const TArray<FGameplayTag>& UInventoryComponent::GetItems() const
@@ -212,6 +243,7 @@ bool UInventoryComponent::UseItem(FGameplayTag ItemTag)
 	APlayerState* PS = Cast<APlayerState>(GetOwner());
 	ApplyEffects(Data, PS ? PS->GetPawn() : nullptr);
 	Multicast_PlayItemFX(ItemTag);
+	GetOwner()->ForceNetUpdate();
 
 	if (Data->bIsPermanent)
 	{
@@ -242,7 +274,10 @@ void UInventoryComponent::Multicast_PlayItemFX_Implementation(FGameplayTag ItemT
 
 	if (!Data->UseSound.IsNull())
 		if (USoundBase* Sound = Data->UseSound.LoadSynchronous())
-			UGameplayStatics::PlaySoundAtLocation(this, Sound, Location);
+		{
+			const UObject* SoundWorldContext = Pawn ? static_cast<const UObject*>(Pawn) : static_cast<const UObject*>(GetWorld());
+			UGameplayStatics::PlaySoundAtLocation(SoundWorldContext, Sound, Location);
+		}
 
 	if (!Data->UseEffect.IsNull())
 		if (UNiagaraSystem* FX = Data->UseEffect.LoadSynchronous())

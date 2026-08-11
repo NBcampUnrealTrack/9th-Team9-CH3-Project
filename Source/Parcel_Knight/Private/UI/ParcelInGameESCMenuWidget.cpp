@@ -9,6 +9,7 @@
 #include "Core/ParcelPlayerState.h"
 #include "UI/ParcelOptionsWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Sound/SoundBase.h"
 
 void UParcelInGameESCMenuWidget::NativeConstruct()
@@ -177,7 +178,7 @@ void UParcelInGameESCMenuWidget::HandleOptionsClicked()
 			OptionsWidgetInstance->OnOptionsClosed.AddDynamic(this, &UParcelInGameESCMenuWidget::CloseOptionsWidget);
 
 			OptionsWidgetInstance->AddToViewport(600);
-          
+
 			APlayerController* PC = GetOwningPlayer();
 			if (PC)
 			{
@@ -186,6 +187,8 @@ void UParcelInGameESCMenuWidget::HandleOptionsClicked()
 				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				PC->SetInputMode(InputMode);
 			}
+
+			CleanupDuplicateOptionsWidgets();
 		}
 	}
 }
@@ -209,6 +212,21 @@ void UParcelInGameESCMenuWidget::CloseOptionsWidget()
 			InputMode.SetWidgetToFocus(TakeWidget());
 			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 			PC->SetInputMode(InputMode);
+		}
+	}
+}
+
+void UParcelInGameESCMenuWidget::CleanupDuplicateOptionsWidgets()
+{
+	TArray<UUserWidget*> FoundWidgets;
+	UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, FoundWidgets, UParcelOptionsWidget::StaticClass(), false);
+
+	for (UUserWidget* Widget : FoundWidgets)
+	{
+		if (Widget && Widget != OptionsWidgetInstance && Widget->IsInViewport())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ESC/Options] 중복 Options 위젯 발견 - 강제로 제거합니다: %s"), *Widget->GetName());
+			Widget->RemoveFromParent();
 		}
 	}
 }
